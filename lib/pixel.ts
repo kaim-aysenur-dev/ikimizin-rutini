@@ -327,6 +327,7 @@ export type CharState = {
   headDir?: 1 | -1;
   hideBody?: boolean; // battaniye altında: bacaklar çizilmez
   capeTug?: number; // Düldül pelerinin ucunu yakalayınca ek savrulma
+  tint?: Partial<Look>; // kıyafet renklerini ezer (panelde seviyeyle yükselen zırh)
 };
 
 export type Anchors = { head: V; hand: V; handB: V; hip: V; mouth: V; shoulder: V };
@@ -334,7 +335,7 @@ export type Anchors = { head: V; hand: V; handB: V; hip: V; mouth: V; shoulder: 
 const isFree = (p: Pose | Free): p is Free => "hip" in p;
 
 export function drawCharacter(c: Ctx, s: CharState): Anchors {
-  const look = LOOKS[s.who][s.outfit];
+  const look = { ...LOOKS[s.who][s.outfit], ...s.tint };
   const [skin, skinDk] = SKIN[s.who];
   const d = s.dir;
   const surf = s.surface ?? (() => s.y ?? 0);

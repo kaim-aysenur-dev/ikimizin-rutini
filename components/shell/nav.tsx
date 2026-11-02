@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarCheck, Droplet, Dumbbell, Salad, Settings, Sprout, type LucideIcon } from "lucide-react";
+import { CalendarCheck, Droplet, Dumbbell, Salad, Settings, Sprout, Swords, type LucideIcon } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -14,7 +14,11 @@ export const SECTIONS: NavItem[] = [
   { href: "/gelisim", label: "Gelişim", icon: Sprout },
 ];
 
-const EXTRA: NavItem[] = [{ href: "/ayarlar", label: "Ayarlar", icon: Settings }];
+// Hazine telefonda alt menüde yok; seviye rozetinden açılır
+const EXTRA: NavItem[] = [
+  { href: "/hazine", label: "Hazine", icon: Swords },
+  { href: "/ayarlar", label: "Ayarlar", icon: Settings },
+];
 
 function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);

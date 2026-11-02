@@ -9,6 +9,11 @@ import { getPlan, planSince, waterSince } from "@/lib/nutrition";
 export type Streak = { current: number; best: number; todayComplete: boolean };
 
 export async function getOverallStreak(userId: string, today: string, days = 400): Promise<Streak> {
+  return (await streakAndDays(userId, today, days)).streak;
+}
+
+/** Seri + tamamlanan günlerin kümesi (birlikte bonusu için iki profilin günleri kesiştirilir). */
+export async function streakAndDays(userId: string, today: string, days = 400): Promise<{ streak: Streak; done: Set<string> }> {
   const from = addDays(today, -days);
   const db = sql();
   const [skinItems, skinChecks, plan, mealsSince, waterFrom, mealChecks, water, settings, training, workoutSinceRows, activity] =
@@ -71,15 +76,18 @@ export async function getOverallStreak(userId: string, today: string, days = 400
     return total > 0 && done === total;
   };
 
+  const done = new Set<string>();
   let best = 0;
   let run = 0;
   for (let d = from; d <= today; d = addDays(d, 1)) {
-    run = isComplete(d) ? run + 1 : 0;
+    const ok = isComplete(d);
+    if (ok) done.add(d);
+    run = ok ? run + 1 : 0;
     best = Math.max(best, run);
   }
   // Bugün henüz bitmediyse seri dünden sayılır, bozulmuş sayılmaz
   const todayComplete = isComplete(today);
   let current = 0;
-  for (let d = todayComplete ? today : addDays(today, -1); d >= from && isComplete(d); d = addDays(d, -1)) current++;
-  return { current, best, todayComplete };
+  for (let d = todayComplete ? today : addDays(today, -1); d >= from && done.has(d); d = addDays(d, -1)) current++;
+  return { streak: { current, best, todayComplete }, done };
 }
