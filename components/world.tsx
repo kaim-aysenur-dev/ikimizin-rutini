@@ -5,7 +5,7 @@ import { SAME_ROOM, SCENES, WIDTHS, renderScene, tagsOf, vignette, type Tag } fr
 import { tapPet } from "@/lib/companions";
 import { replay } from "@/lib/adventures";
 import { lastStrike, weather } from "@/lib/weather";
-import { disposeAmbient, setMix, setVolume, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
+import { ambientRunning, disposeAmbient, setMix, setVolume, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
 import type { SceneOut } from "@/lib/scenes/types";
 import { CalendarPanel, CarePanel, DayPanel, NutritionPanel, ProgressPanel, SportPanel } from "./panels";
 import s from "./world.module.css";
@@ -67,6 +67,9 @@ export function World() {
   const [sound, setSound] = useState(true);
   const [volume, setVol] = useState(0.6);
   const soundRef = useRef(true);
+  const volRef = useRef(0.6);
+  // tarayıcı sesi başlattı mı (kaydırma izin sayılmaz; dokunuş, tık ya da tuş gerekir)
+  const [audible, setAudible] = useState(false);
   const [auto, setAuto] = useState(false);
 
   useEffect(() => {
@@ -211,13 +214,17 @@ export function World() {
     return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize); disposeAmbient(); };
   }, []);
 
-  // ortam sesleri varsayılan açık: tarayıcı sesi ancak ilk dokunuş ya da tuşla başlatmaya izin verir
+  // ortam sesleri varsayılan açık: tarayıcı sesi ancak dokunuş, tık ya da tuşla başlatır.
+  // Telefonda parmağı basmak (pointerdown) izin sayılmaz, kaldırmak sayılır; bu yüzden ses başlayana kadar her etkileşimde yeniden denenir.
   useEffect(() => {
-    const first = () => { if (soundRef.current) startAmbient(volume); };
-    const opts = { once: true, capture: true } as const;
-    window.addEventListener("pointerdown", first, opts);
-    window.addEventListener("keydown", first, opts);
-    return () => { window.removeEventListener("pointerdown", first, opts); window.removeEventListener("keydown", first, opts); };
+    const events = ["pointerdown", "pointerup", "touchend", "click", "keydown"] as const;
+    const off = () => events.forEach((e) => window.removeEventListener(e, unlock, true));
+    const unlock = () => {
+      if (!soundRef.current || ambientRunning()) return;
+      startAmbient(volRef.current).then(() => { if (ambientRunning()) { setAudible(true); off(); } }, () => {});
+    };
+    events.forEach((e) => window.addEventListener(e, unlock, true));
+    return off;
   }, []);
 
   // otomatik oynat: hikâye kendiliğinden kayar; kullanıcı tekerlek/dokunma/tuşla kaydırırsa durur
@@ -239,9 +246,11 @@ export function World() {
   }, [auto]);
 
   const toggleSound = () => {
-    const on = !sound;
+    // açık görünüp tarayıcı engellediyse bu dokunuş sesi başlatır, kapatmaz
+    const on = sound && !audible ? true : !sound;
     setSound(on); soundRef.current = on;
-    if (on) startAmbient(volume); else stopAmbient();
+    if (on) startAmbient(volume).then(() => setAudible(ambientRunning()), () => {});
+    else { stopAmbient(); setAudible(false); }
   };
 
   // dokunulabilir küçük ayrıntılar: Düldül, papağan, yün yumağı, sandık
@@ -297,11 +306,11 @@ export function World() {
 
       <div className={s.sound}>
         <button onClick={() => setAuto((a) => !a)} aria-pressed={auto}>{auto ? "❚❚ Durdur" : "▶ Otomatik oynat"}</button>
-        <button onClick={toggleSound} aria-pressed={sound}>Ortam sesleri: {sound ? "Açık" : "Kapalı"}</button>
+        <button onClick={toggleSound} aria-pressed={sound}>Ortam sesleri: {sound ? (audible ? "Açık" : "Açmak için dokun") : "Kapalı"}</button>
         {sound && (
           <label>
             <span className={s.srOnly}>Ses seviyesi</span>
-            <input type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => { const v = Number(e.target.value); setVol(v); setVolume(v); }} />
+            <input type="range" min={0} max={1} step={0.05} value={volume} onChange={(e) => { const v = Number(e.target.value); setVol(v); volRef.current = v; setVolume(v); }} />
           </label>
         )}
       </div>

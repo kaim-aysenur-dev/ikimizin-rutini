@@ -18,7 +18,8 @@ function noiseSource(c: AudioContext) {
   return src;
 }
 
-export function startAmbient(volume: number) {
+// Dönen söz, tarayıcı sesi gerçekten başlatınca çözülür (kullanıcı etkileşimi şart).
+export function startAmbient(volume: number): Promise<void> {
   if (!ctx) {
     ctx = new AudioContext();
     noise = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
@@ -69,9 +70,12 @@ export function startAmbient(volume: number) {
     osc.connect(pl).connect(am).connect(gains.purr);
     osc.start(); lfo.start();
   }
-  void ctx.resume();
+  const started = ctx.resume();
   setVolume(volume);
+  return started;
 }
+
+export const ambientRunning = () => ctx?.state === "running";
 
 export function stopAmbient() {
   void ctx?.suspend();
