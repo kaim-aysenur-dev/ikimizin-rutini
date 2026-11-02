@@ -1,0 +1,3 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; background: #141a33; color: #efe3c8; }
+button:focus-visible { outline: 3px solid #f3d48a; outline-offset: 2px; }

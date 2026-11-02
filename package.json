@@ -1,0 +1,34 @@
+{
+  "name": "ikimizin-rutini",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
+    "images": "node scripts/images.mjs",
+    "users:setup": "node --env-file=.env.local scripts/setup-users.mjs",
+    "dev:account": "node --env-file=.env.local scripts/dev-account.mjs",
+    "icons": "node scripts/icons.mjs"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.2.0",
+    "bcryptjs": "^3.0.3",
+    "cloudinary": "^2.11.0",
+    "lucide-react": "^1.66.0",
+    "next": "16.4.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "sharp": "^0.35.5",
+    "typescript": "^5"
+  },
+  "type": "module"
+}

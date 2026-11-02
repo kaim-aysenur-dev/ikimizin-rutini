@@ -1,0 +1,541 @@
+/* ==========================================================================
+   Beslenme, Spor, rutin düzenleyici ve ortak yardımcılar
+   Tokenlar globals.css'te.
+   ========================================================================== */
+
+.grow {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.section-stack {
+  gap: 24px;
+}
+
+.two-col {
+  display: grid;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .two-col {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.form-grid.three,
+.form-grid.four {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 640px) {
+  .form-grid.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .form-grid.four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.select-inline {
+  width: auto;
+  min-width: 220px;
+  max-width: 100%;
+}
+
+.health-note {
+  margin-top: 28px;
+  font-size: 13px;
+}
+
+.link-btn {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  min-height: 32px;
+}
+
+.plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 52px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.card.plain-list {
+  padding: 4px 16px;
+}
+
+.list-row:last-child {
+  border-bottom: 0;
+}
+
+/* ---------- gün sekmeleri ---------- */
+
+.weekday-tabs {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.weekday-tab {
+  position: relative;
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0;
+  transition: background-color 0.15s var(--ease), border-color 0.15s var(--ease);
+}
+
+.weekday-tab:hover:not([aria-selected="true"]) {
+  border-color: var(--line-strong);
+}
+
+.weekday-tab.is-today {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.weekday-tab[aria-selected="true"] {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+.weekday-dot {
+  position: absolute;
+  left: 50%;
+  bottom: 5px;
+  width: 4px;
+  height: 4px;
+  margin-left: -2px;
+  border-radius: 50%;
+}
+
+.weekday-dot.on {
+  background: currentColor;
+}
+
+.day-heading {
+  font-size: 18px;
+}
+
+/* ---------- öğün planı ---------- */
+
+.meal-grid,
+.notes-grid {
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 720px) {
+  .meal-grid,
+  .notes-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.meal-card,
+.note-card {
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 60%, var(--surface));
+}
+
+.meal-card.editing,
+.note-card.editing {
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--accent) 12%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.meal-card header,
+.note-card header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.meal-card h4,
+.note-card h3 {
+  margin: 0;
+  font: 600 16px/1.3 var(--display);
+  font-variation-settings: "SOFT" 100;
+}
+
+.meal-card ul,
+.note-card ul {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 2px;
+  font-size: 15px;
+}
+
+.meal-note {
+  margin-top: 10px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  background: var(--wait-soft);
+  font-size: 13px;
+}
+
+.note-card {
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+/* ---------- su ---------- */
+
+.water {
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.water.is-done {
+  border-color: color-mix(in oklab, var(--shower) 45%, var(--line));
+}
+
+.water-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.water-head > svg {
+  color: var(--shower);
+  flex: none;
+}
+
+.water-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.water-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.water-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--shower-soft);
+  color: var(--shower);
+  font-weight: 700;
+}
+
+.water-glasses {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 10px;
+}
+
+.water-glasses span {
+  width: 14px;
+  height: 18px;
+  border-radius: 3px 3px 6px 6px;
+  transition: background-color 0.2s var(--ease), border-color 0.2s var(--ease);
+  border: 1.5px solid color-mix(in oklab, var(--shower) 55%, var(--line));
+}
+
+.water-glasses span.on {
+  background: var(--shower);
+  border-color: var(--shower);
+}
+
+.today-water {
+  margin-top: 8px;
+}
+
+/* ---------- Bugün: beslenme/spor etiketleri ---------- */
+
+.tag-food {
+  --c: var(--ok);
+  --cs: var(--ok-soft);
+  font-size: 13px;
+}
+
+.tag-sport {
+  --c: var(--accent);
+  --cs: var(--accent-soft);
+  font-size: 13px;
+}
+
+.slot-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.step-sub.em {
+  font-style: italic;
+}
+
+.step:not(.is-done) .step-check svg {
+  color: var(--muted);
+}
+
+/* ---------- alışveriş ---------- */
+
+.check-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.check-list li + li {
+  border-top: 1px solid var(--line);
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 52px;
+  padding: 6px 0;
+  cursor: pointer;
+}
+
+.check-item input {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  accent-color: var(--accent);
+}
+
+.check-item .grow {
+  display: flex;
+  flex-direction: column;
+}
+
+.check-name {
+  font-weight: 600;
+}
+
+.check-name::first-letter {
+  text-transform: uppercase;
+}
+
+.check-item.is-done .check-name {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
+/* ---------- grafik açıklaması ---------- */
+
+.chart-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.chart-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.key-line {
+  width: 18px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+
+.key-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--idle);
+}
+
+.mini-plot .dot-muted {
+  fill: var(--idle);
+  opacity: 0.8;
+}
+
+/* ---------- spor ---------- */
+
+.group-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.ex-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-card);
+}
+
+.ex-card h4 {
+  margin: 0 0 2px;
+  font: 600 16px/1.3 var(--display);
+  font-variation-settings: "SOFT" 100;
+}
+
+.plan-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.plan-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 8px 8px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--bg) 60%, var(--surface));
+  flex-wrap: wrap;
+}
+
+.plan-item .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-basis: 160px;
+}
+
+.plan-no {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+.plan-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.plan-form {
+  border-color: var(--accent);
+}
+
+.ex-log-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.ex-log-head h3 {
+  font-size: 17px;
+}
+
+.ex-log-head .muted {
+  display: block;
+  margin-top: 2px;
+}
+
+.timer-btn.running {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.prev-session {
+  padding: 9px 12px;
+  border-radius: 12px;
+
+  background: var(--surface-2);
+  color: var(--ink-2);
+}
+
+.set-table {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) minmax(0, 1fr) 44px;
+  gap: 6px 8px;
+  align-items: center;
+}
+
+.set-row {
+  display: contents;
+}
+
+.set-head {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.set-no {
+  text-align: center;
+  color: var(--muted);
+}
+
+.compare-line {
+  color: var(--ink-2);
+}
+
+.workout-done .step-main {
+  min-height: 60px;
+}

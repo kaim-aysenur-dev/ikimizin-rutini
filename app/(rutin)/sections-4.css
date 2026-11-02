@@ -1,0 +1,206 @@
+/* ==========================================================================
+   Yüz yogası: rutin kartları, egzersiz listesi ve rehberli seans.
+   Tokenlar globals.css'te, renkler sections-3.css'teki data-color'dan.
+   ========================================================================== */
+
+.fy-routines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .fy-routines {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.card.fy-routine {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 4px solid var(--t);
+}
+
+.fy-routine strong {
+  font: 500 18px/1.25 var(--display);
+  font-variation-settings: "SOFT" 100;
+  letter-spacing: -0.01em;
+}
+
+.fy-routine .btn {
+  margin-top: auto;
+  align-self: flex-start;
+}
+
+.fy-meta {
+  margin-bottom: 6px;
+  color: var(--t);
+  font-weight: 600;
+}
+
+.fy-areas {
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fy-exercise {
+  border-bottom: 1px solid var(--line);
+}
+
+.fy-exercise:last-child {
+  border-bottom: 0;
+}
+
+.fy-exercise details {
+  padding: 12px 16px;
+}
+
+.fy-exercise summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fy-exercise summary::-webkit-details-marker {
+  display: none;
+}
+
+.fy-exercise summary::after {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg);
+  transition: transform 0.2s var(--ease);
+}
+
+.fy-exercise details[open] summary::after {
+  transform: rotate(-135deg);
+}
+
+.fy-exercise summary .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fy-exercise details > p {
+  margin: 0 0 10px;
+}
+
+.fy-steps {
+  margin: 10px 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 6px;
+  color: var(--ink-2);
+  line-height: 1.45;
+}
+
+/* ---------- rehberli seans ---------- */
+
+.fy-player {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fy-player-head {
+  align-items: flex-start;
+}
+
+.fy-player-head .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.fy-player-head .eyebrow {
+  margin: 0;
+}
+
+.fy-progress {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 4px;
+}
+
+.fy-progress li {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--idle-soft);
+}
+
+.fy-progress li.past {
+  background: var(--accent);
+}
+
+.fy-progress li.current {
+  background: color-mix(in oklab, var(--accent) 45%, var(--idle-soft));
+}
+
+.fy-now {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.ring.fy-ring {
+  width: 104px;
+  height: 104px;
+}
+
+.fy-now-text {
+  gap: 4px;
+  min-width: 0;
+}
+
+.fy-now-text h2 {
+  margin: 0;
+  font: 500 23px/1.2 var(--display);
+  font-variation-settings: "SOFT" 100;
+  letter-spacing: -0.01em;
+}
+
+.fy-player .fy-steps {
+  margin: 0;
+}
+
+.fy-tip {
+  margin: 0;
+}
+
+.fy-controls {
+  gap: 10px;
+  align-items: center;
+}
+
+.fy-next {
+  margin: 0;
+  text-align: center;
+}
+
+.fy-done {
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.fy-done h2 {
+  margin: 4px 0 0;
+}
+
+.fy-done p {
+  margin: 0;
+}
