@@ -126,6 +126,24 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const myEq = equipment[me] ?? NO_EQUIPMENT;
   const [armory, setArmory] = useState<GearKind | null>(null);
   const [equipBusy, setEquipBusy] = useState(false);
+  // tam ekran: tarayıcının tam ekranı; desteklenmezse sayfayı kaplayan yerleşim
+  const root = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState<"off" | "native" | "page">("off");
+  const fullRef = useRef(full);
+  fullRef.current = full;
+  const enterFull = async () => {
+    const el = root.current;
+    if (!el) return;
+    try {
+      if (!el.requestFullscreen) throw new Error("desteklenmiyor");
+      await el.requestFullscreen({ navigationUI: "hide" });
+      setFull("native");
+    } catch { setFull("page"); }
+  };
+  const exitFull = () => {
+    if (document.fullscreenElement) void document.exitFullscreen();
+    setFull("off");
+  };
   // dövüş: can, mana, efektler, talim hedefleri; gösterge saniyede 10 kez yenilenir
   const fighter = useRef<Fighter>(newFighter(meP.level, initialEquipment[me] ?? NO_EQUIPMENT));
   const effects = useRef<Effect[]>([]);
@@ -501,6 +519,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const { where: wh, placed: all, mode: md } = live.current;
     const hv = toTile(camOrigin(), hover.current[0], hover.current[1]);
     const scope = wh.scope;
+    if (md.kind === "walk" && fullRef.current === "off") { void enterFull(); return; } // ilk tık: tam ekran
     if (md.kind === "walk") { doAttack(); return; } // yürürken tık: silah vuruşu
     if (scope === "sato") return; // şatoya eşya konmaz
     if (md.kind === "place") {
@@ -604,6 +623,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     setEquipBusy(false);
   };
 
+  // tarayıcı tam ekranından Esc ile çıkınca; sayfa içi tam ekranda Esc ile çıkış
+  useEffect(() => {
+    const onChange = () => { if (!document.fullscreenElement && fullRef.current === "native") setFull("off"); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape" && fullRef.current === "page") setFull("off"); };
+    document.addEventListener("fullscreenchange", onChange); window.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("fullscreenchange", onChange); window.removeEventListener("keydown", onKey); };
+  }, []);
+
   const countOf = (id: string) => placed.filter((p) => p.userId === me && p.itemId === id).length;
   const padBtn = (v: [number, number], label: string, cls: string, glyph: string) => (
     <button type="button" className={`gw-pad-btn ${cls}`} aria-label={label}
@@ -614,7 +641,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const houseNames = profiles.slice(0, HOUSES.length).map((p) => `${p.name.split(" ")[0]}'in evi`);
 
   return (
-    <div className="gw">
+    <div className={`gw${full !== "off" ? " is-full" : ""}`} ref={root}>
       <div className="gw-bar">
         <span className="gw-where">
           {where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
@@ -638,6 +665,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         {!studyTimer && roomName === "Çalışma odası" && where.scope === "oda" && (
           <button type="button" className="btn btn-ghost" onClick={() => setStudy("masa")}>📚 Çalışma</button>
         )}
+        <button type="button" className="btn btn-ghost" onClick={() => (full === "off" ? void enterFull() : exitFull())} aria-pressed={full !== "off"} title="Tam ekran (Esc ile çık)">
+          {full === "off" ? "⛶ Tam ekran" : "✕ Küçült"}
+        </button>
         <button type="button" className={`btn ${sound ? "btn-primary" : "btn-ghost"}`} onClick={toggleSound} aria-pressed={sound} title="Yağmur ve gök gürültüsü">
           {sound ? "🔊" : "🔇"} Fırtına
         </button>

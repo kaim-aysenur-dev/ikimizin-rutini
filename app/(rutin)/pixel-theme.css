@@ -1229,3 +1229,15 @@ button.xp-badge:hover {
   .gw-bar-row { grid-template-columns: 12px 84px auto; }
   .gw-slot { width: 34px; height: 34px; }
 }
+
+/* ---------- Gelişim · tam ekran ---------- */
+.gw.is-full {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  padding: 8px;
+  background: #0c0e1c;
+}
+.gw.is-full .gw-bar { color: var(--px-cream); }
+.gw.is-full .gw-stage { flex: 1; height: auto; min-height: 0; }
+.gw.is-full .gw-pad { padding-bottom: env(safe-area-inset-bottom, 0); }
