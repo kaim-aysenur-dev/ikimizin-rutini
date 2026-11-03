@@ -55,24 +55,11 @@ export const tierOf = (level: number): Tier =>
   level >= 30 ? "legend" : level >= 20 ? "gold" : level >= 12 ? "steel" : level >= 6 ? "leather" : "cloth";
 export const TIER_NAMES: Record<Tier, string> = { cloth: "Kumaş giysi", leather: "Deri zırh", steel: "Çelik zırh", gold: "Altın zırh", legend: "Parlayan efsane zırhı" };
 
-// Rozetler: hepsi mevcut kayıtlardan sayılır (lib/xp-server.ts)
-export type Stats = { checks: number; meals: number; yoga: number; sport: number; streak: number; best: number; together: number };
-export const BADGES: { id: string; icon: string; name: string; hint: string; ok: (s: Stats, level: number) => boolean }[] = [
-  { id: "ilk-adim", icon: "🌱", name: "İlk Adım", hint: "İlk bakım tikini at", ok: (s) => s.checks >= 1 },
-  { id: "bakim-100", icon: "🧴", name: "Bakım Ustası", hint: "100 bakım tiki", ok: (s) => s.checks >= 100 },
-  { id: "bakim-500", icon: "👑", name: "Parıltı", hint: "500 bakım tiki", ok: (s) => s.checks >= 500 },
-  { id: "seri-3", icon: "🔥", name: "Kıvılcım", hint: "3 gün üst üste günü tamamla", ok: (s) => s.best >= 3 },
-  { id: "seri-7", icon: "🕯️", name: "Bir Hafta", hint: "7 günlük seri", ok: (s) => s.best >= 7 },
-  { id: "seri-30", icon: "🌙", name: "Bir Ay", hint: "30 günlük seri", ok: (s) => s.best >= 30 },
-  { id: "birlikte-1", icon: "❤️", name: "Birlikte", hint: "Aynı gün ikiniz de günü tamamlayın", ok: (s) => s.together >= 1 },
-  { id: "birlikte-7", icon: "💞", name: "Kalp Kalbe", hint: "7 gün birlikte tamamlayın", ok: (s) => s.together >= 7 },
-  { id: "sofra-50", icon: "🍲", name: "Sofra", hint: "50 öğün işaretle", ok: (s) => s.meals >= 50 },
-  { id: "yoga-10", icon: "🧘", name: "Yüz Yogası", hint: "10 yüz yogası seansı", ok: (s) => s.yoga >= 10 },
-  { id: "spor-10", icon: "⚔️", name: "Savaşçı", hint: "10 spor seansı", ok: (s) => s.sport >= 10 },
-  { id: "spor-50", icon: "🏆", name: "Şampiyon", hint: "50 spor seansı", ok: (s) => s.sport >= 50 },
-  { id: "sovalye", icon: "🛡️", name: "Şövalye", hint: "Seviye 12'ye ulaş", ok: (_, l) => l >= 12 },
-  { id: "efsane", icon: "✨", name: "Efsane", hint: "Seviye 30'a ulaş", ok: (_, l) => l >= 30 },
-];
+// Rozet sayaçları: hepsi mevcut kayıtlardan sayılır (lib/xp-server.ts); rozet tanımları lib/badges.ts
+export type Stats = {
+  checks: number; meals: number; yoga: number; sport: number; streak: number; best: number; together: number;
+  sportMin: number; journal: number; waterDays: number; activeDays: number; decor: number; garden: number;
+};
 
 // kendi kendini denetler
 if (process.env.NODE_ENV !== "production") {

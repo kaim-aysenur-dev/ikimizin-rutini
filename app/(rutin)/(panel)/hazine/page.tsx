@@ -8,14 +8,14 @@ export const metadata: Metadata = { title: "Hazine" };
 
 export default async function Page() {
   const user = await requireUser();
-  const { xp } = await adventure(user.id, user.accountId, todayIstanbul());
+  const { xp, stats } = await adventure(user.id, user.accountId, todayIstanbul());
   return (
     <main className="main narrow">
       <header className="page-head">
         <p className="eyebrow">Seviye seviye kazanılanlar</p>
         <h1>Hazine</h1>
       </header>
-      <Treasury xp={xp} />
+      <Treasury xp={xp} stats={stats} />
     </main>
   );
 }

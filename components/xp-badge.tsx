@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { GEAR } from "@/lib/gear";
-import { BADGES, type Stats, TIER_NAMES, levelOf, nextReward, rewardAt, tierOf, titleOf, xpToLevel } from "@/lib/xp";
+import { BADGES, METRICS, progressOf } from "@/lib/badges";
+import { type Stats, TIER_NAMES, levelOf, nextReward, rewardAt, tierOf, titleOf, xpToLevel } from "@/lib/xp";
 
 // Görev işaretlenince fırlatılan olay: detail = kazanılan (ya da geri alınan) XP
 export const XP_EVENT = "ir-xp";
@@ -79,6 +80,11 @@ export function XpBadge({ initialXp, stats, meToday, partnerToday, partnerName }
 
   const next = nextReward(lv.level);
   const earned = BADGES.filter((b) => b.ok(stats, lv.level));
+  // en yakın rozetler: her ölçütün sıradaki eşiği, ilerleme oranına göre
+  const upcoming = METRICS.map((m) => ({ m, ...progressOf(m, stats, lv.level) }))
+    .filter((p) => p.next)
+    .sort((a, b) => b.value / b.next!.need - a.value / a.next!.need)
+    .slice(0, 6);
   const partner = partnerName ?? "Diğeriniz";
   // shortcut: bugünün durumu sayfa yüklenirken hesaplanır; tik atınca değil, sayfa yenilenince güncellenir
   const bonusText = meToday && partnerToday
@@ -134,20 +140,26 @@ export function XpBadge({ initialXp, stats, meToday, partnerToday, partnerName }
             </div>
             <p className="xpj-bonus">{bonusText}</p>
             <h3>Rozetler <small>{earned.length}/{BADGES.length}</small></h3>
-            <ul className="xpj-badges">
-              {BADGES.map((b) => {
-                const ok = earned.includes(b);
-                return (
-                  <li key={b.id} className={ok ? "is-on" : undefined}>
-                    <span aria-hidden="true">{b.icon}</span>
-                    <b>{b.name}</b>
-                    <small>{ok ? "Kazanıldı" : b.hint}</small>
-                  </li>
-                );
-              })}
+            {earned.length > 0 && (
+              <p className="xpj-earned" aria-label="Son kazanılan rozetler">
+                {earned.slice(-8).map((b) => <span key={b.id} title={b.name}>{b.icon} {b.name}</span>)}
+              </p>
+            )}
+            <p className="muted">Sıradaki rozetler</p>
+            <ul className="xpj-up">
+              {upcoming.map((p) => (
+                <li key={p.m}>
+                  <span aria-hidden="true">{p.icon}</span>
+                  <div>
+                    <b>{p.next!.name}</b>
+                    <span className="xp-bar" aria-hidden="true"><i style={{ width: `${Math.round((p.value / p.next!.need) * 100)}%` }} /></span>
+                    <small>{p.value}/{p.next!.need} {p.unit}</small>
+                  </div>
+                </li>
+              ))}
             </ul>
             <div className="row">
-              <Link href="/hazine" className="btn btn-primary" onClick={() => setOpen(false)}>Hazineyi aç</Link>
+              <Link href="/hazine#rozetler" className="btn btn-primary" onClick={() => setOpen(false)}>Hazine ve tüm rozetler</Link>
               <button type="button" className="btn btn-ghost" onClick={() => setOpen(false)}>Kapat</button>
             </div>
           </div>

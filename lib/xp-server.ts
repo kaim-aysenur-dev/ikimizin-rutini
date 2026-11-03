@@ -21,6 +21,18 @@ const counts = async (userId: string, since: string | null, days?: string[]): Pr
         and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[])))::int as sport`;
   return r as Counts;
 };
+// rozetler için ek sayaçlar: spor dakikası, cilt günlüğü, su günleri, aktif gün, evdeki ve bahçedeki eşyalar
+const extras = async (userId: string, since: string | null, sinceDay: string | null) => {
+  const [r] = await sql()`
+    select
+      (select coalesce(sum(minutes), 0) from sport_sessions where user_id = ${userId} and (${since}::timestamptz is null or created_at >= ${since}))::int as sport_min,
+      (select count(*) from skin_journal where user_id = ${userId} and (${sinceDay}::date is null or day >= ${sinceDay}::date))::int as journal,
+      (select count(*) from nutrition_days where user_id = ${userId} and water_glasses >= 8 and (${sinceDay}::date is null or day >= ${sinceDay}::date))::int as water_days,
+      (select count(distinct day) from checks where user_id = ${userId} and (${since}::timestamptz is null or checked_at >= ${since}))::int as active_days,
+      (select count(*) from placed_items where user_id = ${userId} and scope = 'oda')::int as decor,
+      (select count(*) from placed_items where user_id = ${userId} and scope = 'bahce')::int as garden`;
+  return { sportMin: r.sport_min as number, journal: r.journal as number, waterDays: r.water_days as number, activeDays: r.active_days as number, decor: r.decor as number, garden: r.garden as number };
+};
 const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport;
 
 export type Adventure = { xp: number; stats: Stats; meToday: boolean; partnerToday: boolean; partnerName: string | null };
@@ -34,12 +46,12 @@ export const adventure = cache(async (userId: string, accountId: string, today: 
   ]);
   const since: string | null = me?.xp_since ? new Date(me.xp_since).toISOString() : null;
   const sinceDay: string = me?.since_day ?? "";
-  const [all, theirs] = await Promise.all([counts(userId, since), partner ? streakAndDays(partner.id, today) : null]);
+  const [all, extra, theirs] = await Promise.all([counts(userId, since), extras(userId, since, me?.since_day ?? null), partner ? streakAndDays(partner.id, today) : null]);
   const together = theirs ? [...mine.done].filter((d) => d >= sinceDay && theirs.done.has(d)) : [];
   const bonus = together.length ? xpOf(await counts(userId, since, together)) : 0;
   return {
     xp: xpOf(all) + bonus,
-    stats: { ...all, streak: mine.streak.current, best: mine.streak.best, together: together.length },
+    stats: { ...all, ...extra, streak: mine.streak.current, best: mine.streak.best, together: together.length },
     meToday: mine.streak.todayComplete,
     partnerToday: theirs?.streak.todayComplete ?? false,
     partnerName: partner?.display_name ?? null,

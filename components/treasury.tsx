@@ -7,12 +7,13 @@ import { STAND_F } from "@/lib/anim";
 import { GEAR, type GearKind, animated } from "@/lib/gear";
 import { type Ctx, drawCharacter, rect } from "@/lib/pixel";
 import { CHEER, TIERS } from "@/lib/scenes/hall";
-import { REWARDS, TIER_NAMES, levelOf, tierOf, xpToLevel } from "@/lib/xp";
+import { BADGES, BADGE_GROUPS } from "@/lib/badges";
+import { REWARDS, type Stats, TIER_NAMES, levelOf, tierOf, xpToLevel } from "@/lib/xp";
 
 const FILTERS: ("Tümü" | GearKind)[] = ["Tümü", "Zırh", "Silah", "Büyü"];
 
 // Hazine: seviyeyle açılan zırhlar, silahlar, büyüler ve salon ödülleri
-export function Treasury({ xp }: { xp: number }) {
+export function Treasury({ xp, stats }: { xp: number; stats: Stats }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("Tümü");
   const [status, setStatus] = useState<"Tümü" | "Açık" | "Kilitli">("Tümü");
   const [q, setQ] = useState("");
@@ -77,6 +78,27 @@ export function Treasury({ xp }: { xp: number }) {
           );
         })}
       </ul>
+
+      <section className="card stack" id="rozetler" aria-labelledby="rozet-baslik">
+        <h2 id="rozet-baslik">Rozetler <small className="muted">{BADGES.filter((b) => b.ok(stats, lv.level)).length}/{BADGES.length}</small></h2>
+        {BADGE_GROUPS.map((g) => (
+          <div key={g} className="badge-group">
+            <h3>{g}</h3>
+            <ul className="badge-grid">
+              {BADGES.filter((b) => b.group === g).map((b) => {
+                const ok = b.ok(stats, lv.level);
+                return (
+                  <li key={b.id} className={ok ? "is-on" : undefined} title={b.hint}>
+                    <span aria-hidden="true">{b.icon}</span>
+                    <b>{b.name}</b>
+                    <small>{ok ? "Kazanıldı" : b.hint}</small>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+      </section>
 
       <section className="card stack" aria-labelledby="salon">
         <h2 id="salon">Salon ödülleri</h2>
