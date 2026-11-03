@@ -40,7 +40,7 @@ const HANDMADE: RoomItem[] = [
     tile(c, o, i + 0.5, j + 0.5, "#9a3a4a", 1, 1);
     tile(c, o, i + 0.85, j + 0.85, P.goldLt, 0.3, 0.3);
   } },
-  { id: "kitaplik", level: 3, name: "Kitaplık", scope: "oda", size: [1, 1], draw: (c, o, i, j) => {
+  { id: "kitaplik", level: 1, name: "Kitaplık", scope: "oda", size: [1, 1], draw: (c, o, i, j) => {
     box(c, o, i + 0.1, j + 0.1, 0.8, 0.8, 26, WOOD_DK);
     const cols = ["#8a3a4a", "#2f3b6b", "#4f7a4f", "#e2b45a", "#5b4a7a"];
     for (let s = 0; s < 3; s++) {
@@ -60,7 +60,7 @@ const HANDMADE: RoomItem[] = [
     box(c, o, i + 0.15, j + 0.2, 0.7, 0.6, 2, shade("#a87a50"), 7);
     const [x, y] = at(o, i + 0.5, j + 0.8); rect(c, x - 1, y - 7, 2, 3, P.gold); px(c, x, y - 6, P.ink);
   } },
-  { id: "masa", level: 6, name: "Çalışma masası", scope: "oda", size: [1, 1], draw: (c, o, i, j, t) => {
+  { id: "masa", level: 1, name: "Çalışma masası", scope: "oda", size: [1, 1], draw: (c, o, i, j, t) => {
     for (const [a, b] of [[0.15, 0.15], [0.8, 0.15], [0.15, 0.8], [0.8, 0.8]]) box(c, o, i + a, j + b, 0.08, 0.08, 9, WOOD_DK);
     box(c, o, i + 0.1, j + 0.1, 0.8, 0.8, 2, WOOD, 9);
     const [x, y] = at(o, i + 0.5, j + 0.5);
