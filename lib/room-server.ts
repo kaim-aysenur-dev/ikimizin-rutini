@@ -5,7 +5,9 @@ import { type Scope, itemById } from "./room-items";
 import { levelOf } from "./xp";
 
 export type Profile = { id: string; name: string };
-export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean };
+export type Action = { kind: "vurus" | "buyu"; id: string; at: number };
+export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean; action?: Action | null };
+export type PresenceOut = Presence & { equipment: { armor: string | null; weapon: string | null; spells: string[] } };
 // place: "bahce" ya da "ev:<ev sahibinin kimliği>"; yalnız aynı yerdekiler birbirini görür
 
 export async function profilesOf(accountId: string): Promise<Profile[]> {
@@ -57,19 +59,26 @@ export async function removeItem(userId: string, id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** Konumu yazar; aynı hesapta, aynı yerde olan diğerlerinin son birkaç saniyedeki konumunu döndürür */
-export async function syncPresence(user: { id: string; accountId: string }, place: string, p: Omit<Presence, "userId"> | null): Promise<Presence[]> {
+/** Konumu (ve varsa son saldırıyı) yazar; aynı hesapta, aynı yerde olan diğerlerinin son birkaç saniyedeki konumunu,
+ *  kuşandıklarını ve son saldırısını döndürür */
+export async function syncPresence(user: { id: string; accountId: string }, place: string, p: Omit<Presence, "userId"> | null): Promise<PresenceOut[]> {
   if (p) {
+    const action = p.action ? JSON.stringify(p.action) : null;
     await sql()`
-      insert into garden_presence (user_id, place, x, y, dir, moving, updated_at) values (${user.id}, ${place}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, now())
-      on conflict (user_id) do update set place = excluded.place, x = excluded.x, y = excluded.y, dir = excluded.dir, moving = excluded.moving, updated_at = now()`;
+      insert into garden_presence (user_id, place, x, y, dir, moving, action, updated_at) values (${user.id}, ${place}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, ${action}::jsonb, now())
+      on conflict (user_id) do update set place = excluded.place, x = excluded.x, y = excluded.y, dir = excluded.dir, moving = excluded.moving,
+        action = coalesce(excluded.action, garden_presence.action), updated_at = now()`;
   } else {
     await sql()`delete from garden_presence where user_id = ${user.id}`;
   }
   const rows = await sql()`
-    select g.user_id, g.x, g.y, g.dir, g.moving from garden_presence g join users u on u.id = g.user_id
+    select g.user_id, g.x, g.y, g.dir, g.moving, g.action, e.armor, e.weapon, e.spells
+    from garden_presence g join users u on u.id = g.user_id left join equipment e on e.user_id = g.user_id
     where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place} and g.updated_at > now() - interval '6 seconds'`;
-  return rows.map((r) => ({ userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving }));
+  return rows.map((r) => ({
+    userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving, action: r.action ?? null,
+    equipment: { armor: r.armor ?? null, weapon: r.weapon ?? null, spells: r.spells ?? [] },
+  }));
 }
 
 /* ------------------------------- posta kutusu ------------------------------- */

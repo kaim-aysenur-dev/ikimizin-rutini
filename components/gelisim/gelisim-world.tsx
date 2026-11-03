@@ -10,6 +10,7 @@ import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
 import { CASTLE, CASTLE_ENTRY, CASTLE_PLAN, FRONT_DOOR, HOUSES, type Placed, SIZE, atEntry, atGate, blockedSet, canPlace, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stepIn } from "@/lib/room";
 import { CASTLE_BLOCKED, CASTLE_DECOR, castleInteractive } from "@/lib/castle";
+import { type Equipment } from "@/lib/equipment";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
 import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
@@ -78,8 +79,8 @@ const KEYS: Record<string, [number, number]> = {
 
 // Gelişim: kendi evin (altı oda) ve ortak bahçe. Kamera seni izler; envanterden eşya koyarsın; aynı yerdekiler birbirini canlı görür.
 // startIn: "bahce" ise oyun kişinin kapısının önünde, bahçede başlar
-export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null }: {
-  me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope; initialStudyTimer?: { label: string; startedAt: string } | null;
+export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null, initialEquipment = {} }: {
+  me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope; initialStudyTimer?: { label: string; startedAt: string } | null; initialEquipment?: Record<string, Equipment>;
 }) {
   const meP = profiles.find((p) => p.id === me)!;
   const myDoor = HOUSES[Math.min(Math.max(0, profiles.findIndex((p) => p.id === me)), HOUSES.length - 1)].door;
@@ -104,6 +105,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [clock, setClock] = useState(() => Date.now());
   // fırtına sesi: tarayıcı ancak dokunuşla başlatır; tercih hatırlanır
   const [sound, setSound] = useState(false);
+  // kuşanılanlar (kişi kimliğine göre); diğer kişininki konum eşitlemesiyle güncellenir
+  const [equipment, setEquipment] = useState<Record<string, Equipment>>(initialEquipment);
 
   const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
   const keys = useRef(new Set<string>());
