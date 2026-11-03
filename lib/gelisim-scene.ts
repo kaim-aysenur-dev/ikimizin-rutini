@@ -10,7 +10,7 @@ import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean } };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] } };
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {

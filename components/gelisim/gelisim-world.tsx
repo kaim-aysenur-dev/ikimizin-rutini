@@ -43,6 +43,13 @@ const seatOf = (id: string): { lift: number; sleep?: boolean } | null =>
   : null;
 type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf"; label: string; i: number; j: number; itemId?: string };
 
+/** Kalkış: oturmadan önce durulan boş kareye dönülür */
+function standUp(h: Hero) {
+  const from = h.sit?.from;
+  if (from) { h.i = from[0]; h.j = from[1]; }
+  h.sit = undefined;
+}
+
 // piyano: kısa bir melodi (dokunuştan sonra çaldığı için tarayıcı izin verir)
 function tune() {
   try {
@@ -110,9 +117,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   // F / ✋: yakındaki şeyle etkileşim
   const interact = () => {
     const h = hero.current, nb = nearRef.current;
-    if (h.sit) { h.sit = undefined; return; }
+    if (h.sit) { standUp(h); return; }
     if (!nb) return;
-    if (nb.kind === "sit" && nb.itemId) { h.i = nb.i; h.j = nb.j; h.sit = seatOf(nb.itemId)!; }
+    // oturmadan önceki boş kare saklanır: eşyanın kareleri dolu sayıldığından kalkınca oraya dönülür
+    if (nb.kind === "sit" && nb.itemId) { h.sit = { ...seatOf(nb.itemId)!, from: [h.i, h.j] }; h.i = nb.i; h.j = nb.j; }
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
     else if (nb.kind === "desk") setStudy("masa");
@@ -209,7 +217,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (pad.current) { di += pad.current[0]; dj += pad.current[1]; }
       const len = Math.hypot(di, dj);
       h.moving = len > 0 && !fade.current;
-      if (h.moving && h.sit) h.sit = undefined;
+      if (h.moving && h.sit) standUp(h);
       if (h.moving) {
         const step = (SPEED * dt) / len;
         const free = (i: number, j: number) => {
@@ -224,6 +232,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             if (i < 0.3 || i > w - 0.3 || j > d - 0.3 || j < 0.3) return false;
             if (!atDoor && gardenSolid(ci, cj)) return false;
           }
+          // dolu bir karenin içinde kalındıysa (ör. üstüne eşya kondu) dışarı yürünebilsin
+          if (blocked.has(`${fi},${fj}`)) return ci !== fi || cj !== fj ? !blocked.has(`${ci},${cj}`) : true;
           return !blocked.has(`${ci},${cj}`);
         };
         const ni = h.i + di * step, nj = h.j + dj * step;
