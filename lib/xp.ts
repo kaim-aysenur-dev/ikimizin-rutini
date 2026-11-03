@@ -33,7 +33,8 @@ export function titleOf(level: number) {
 }
 
 // Seviye ödülleri: panelin arkasındaki şato salonuna eklenen şeyler (lib/scenes/hall.ts çizer)
-export const REWARDS = [
+export type Reward = { level: number; id: string; label: string; slot?: string; v?: number };
+const BASE_REWARDS: Reward[] = [
   { level: 3, id: "rug", label: "Ateş başına kırmızı halı" },
   { level: 5, id: "banners", label: "Duvarlara sancaklar" },
   { level: 8, id: "crown", label: "Düldül'e küçük taç" },
@@ -43,11 +44,44 @@ export const REWARDS = [
   { level: 20, id: "gandalf", label: "Gandalf ziyarete gelir" },
   { level: 25, id: "chest", label: "Hazine sandığı" },
   { level: 30, id: "stars", label: "Altın avize ışıltısı" },
-] as const;
-export type RewardId = (typeof REWARDS)[number]["id"];
-export const unlockedRewards = (level: number) => new Set<RewardId>(REWARDS.filter((r) => r.level <= level).map((r) => r.id));
+];
+
+// Salon dekor yuvaları: her çeşit bir ödül. Bir yuvanın açılan çeşitleri salonun bölmelerine sırayla dağılır
+// (lib/scenes/hall-decor.ts çizer). label: çeşit adı + yuva adı.
+export const SALON_SLOTS: Record<string, { noun: string; names: string[] }> = {
+  sancak: { noun: "sancak", names: ["Kızıl", "Lacivert", "Zümrüt", "Altın", "Mor", "Gece", "Pembe", "Gümüş"] },
+  tablo: { noun: "tablosu", names: ["Dağ manzarası", "Şato", "Ejderha", "Kalp", "Dolunay", "Gün batımı", "Deniz", "Orman", "Yıldızlı gece", "İkimizin portresi"] },
+  vitray: { noun: "vitray", names: ["Gül", "Gök mavisi", "Zümrüt", "Altın", "Mor", "Gökkuşağı"] },
+  arma: { noun: "arması", names: ["Aslan", "Kartal", "Ejder", "Kalp", "Ay", "Yıldız", "Gül", "Taç"] },
+  mesale: { noun: "meşale", names: ["Alevli", "Mavi alevli", "Yeşil alevli", "Altın alevli"] },
+  samdan: { noun: "şamdan", names: ["Pirinç", "Gümüş", "Altın", "Kristal", "Obsidyen", "Göksel"] },
+  bitki: { noun: "", names: ["Eğrelti otu", "Gül fidanı", "Lavanta", "Bonsai", "Palmiye", "Kristal çiçek"] },
+  zirh: { noun: "zırh standı", names: ["Demir", "Çelik", "Altın", "Mithril", "Obsidyen", "Ejder"] },
+  kitaplik: { noun: "kitaplık", names: ["Meşe", "Ceviz", "Abanoz", "Büyülü"] },
+  avize: { noun: "avize", names: ["Pirinç", "Gümüş", "Kristal", "Yakut", "Göksel"] },
+  ates: { noun: "ateş", names: ["Mavi", "Pembe", "Yeşil", "Mor"] },
+  hali: { noun: "halı", names: ["Lacivert", "Zümrüt", "Mor", "Altın"] },
+  evcil: { noun: "", names: ["Düldül'e pembe fiyonk", "Papağana minik taç", "Düldül'e çıngırak", "Papağana gözlük"] },
+  susleme: { noun: "tavan süsü", names: ["Kırmızı-altın", "Mavi-beyaz", "Pastel", "Gökkuşağı", "Kalpli", "Yıldızlı"] },
+  sarmasik: { noun: "sarmaşık", names: ["Yeşil", "Çiçekli", "Altın", "Işıklı"] },
+};
+
+const SALON_ORDER: { slot: string; v: number }[] = [];
+for (let v = 0; v < 10; v++) for (const slot of Object.keys(SALON_SLOTS)) if (v < SALON_SLOTS[slot].names.length) SALON_ORDER.push({ slot, v });
+
+export const REWARDS: Reward[] = [
+  ...BASE_REWARDS,
+  ...SALON_ORDER.map(({ slot, v }, k) => {
+    const { noun, names } = SALON_SLOTS[slot];
+    return { level: Math.min(100, 2 + Math.floor((k * 98) / (SALON_ORDER.length - 1))), id: `${slot}-${v}`, label: noun ? `${names[v]} ${noun}` : names[v], slot, v };
+  }),
+].sort((a, b) => a.level - b.level);
+export type RewardId = string;
+export const unlockedRewards = (level: number) => new Set<string>(REWARDS.filter((r) => r.level <= level).map((r) => r.id));
 export const nextReward = (level: number) => REWARDS.find((r) => r.level > level) ?? null;
-export const rewardAt = (level: number) => REWARDS.find((r) => r.level === level) ?? null;
+export const rewardsAt = (level: number) => REWARDS.filter((r) => r.level === level);
+/** Bir dekor yuvasının açılmış çeşitleri (sırayla) */
+export const slotVariants = (slot: string, level: number) => REWARDS.filter((r) => r.slot === slot && r.level <= level).map((r) => r.v!);
 
 // Zırh kademesi ünvanla birlikte yükselir (eşikler titleOf ile aynı)
 export type Tier = "cloth" | "leather" | "steel" | "gold" | "legend";
@@ -69,5 +103,5 @@ if (process.env.NODE_ENV !== "production") {
   console.assert(xpToLevel(1) === 0 && xpToLevel(3) === 215 && levelOf(xpToLevel(9)).level === 9, "seviye eşiği");
   console.assert(levelOf(1e9).level === MAX_LEVEL && titleOf(100) === "Ölümsüz", "tavan");
   console.assert(tierOf(5) === "cloth" && tierOf(6) === "leather" && tierOf(12) === "steel" && tierOf(30) === "legend", "zırh kademesi");
-  console.assert(unlockedRewards(8).has("crown") && !unlockedRewards(8).has("hat") && nextReward(8)?.id === "hat", "ödüller");
+  console.assert(unlockedRewards(8).has("crown") && !unlockedRewards(8).has("hat") && REWARDS.length >= 90 && new Set(REWARDS.map((r) => r.id)).size === REWARDS.length, "ödüller");
 }

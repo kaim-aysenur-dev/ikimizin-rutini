@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { GEAR } from "@/lib/gear";
 import { BADGES, METRICS, progressOf } from "@/lib/badges";
-import { type Stats, TIER_NAMES, levelOf, nextReward, rewardAt, tierOf, titleOf, xpToLevel } from "@/lib/xp";
+import { type Stats, TIER_NAMES, levelOf, nextReward, rewardsAt, tierOf, titleOf, xpToLevel } from "@/lib/xp";
 
 // Görev işaretlenince fırlatılan olay: detail = kazanılan (ya da geri alınan) XP
 export const XP_EVENT = "ir-xp";
@@ -94,7 +94,7 @@ export function XpBadge({ initialXp, stats, meToday, partnerToday, partnerName }
     : "Aynı gün ikiniz de günü tamamlarsanız o günün XP'si ×2.";
 
   const unlockedNow = levelUp === null ? [] : [
-    rewardAt(levelUp) && `Salon: ${rewardAt(levelUp)!.label}`,
+    ...rewardsAt(levelUp).map((r) => `Salon: ${r.label}`),
     tierOf(levelUp) !== tierOf(levelUp - 1) && `Zırh: ${TIER_NAMES[tierOf(levelUp)]}`,
     ...GEAR.filter((g) => g.level === levelUp).map((g) => `${g.kind}: ${g.name}`),
   ].filter(Boolean) as string[];

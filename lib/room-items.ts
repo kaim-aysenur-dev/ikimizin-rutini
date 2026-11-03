@@ -190,7 +190,7 @@ const FAB: Pal[] = [
   { name: "Mor", c: "#6b4a8a" }, { name: "Hardal", c: "#c89a3e" }, { name: "Krem", c: "#e6d3a8" }, { name: "Turkuaz", c: "#3a9aa0" },
 ];
 const WOODS: Pal[] = [{ name: "Meşe", c: "#a87a50" }, { name: "Ceviz", c: "#6b4a35" }, { name: "Çam", c: "#c8a070" }, { name: "Abanoz", c: "#3a2a28" }, { name: "Beyaz", c: "#e8e0d0" }];
-const TONES: Pal[] = [{ name: "Krem", c: "#e6d3a8" }, { name: "Mint", c: "#9fd0b8" }, { name: "Lacivert", c: "#3a4a7a" }];
+const TONES: Pal[] = [{ name: "Krem", c: "#e6d3a8" }, { name: "Mint", c: "#9fd0b8" }, { name: "Lacivert", c: "#3a4a7a" }, { name: "Pembe", c: "#e8b8c4" }, { name: "Gri", c: "#9aa0ae" }];
 
 type GenTmpl = { id: string; noun: string; cat: Cat; scope: Scope; size: [number, number]; pals: Pal[]; draw: (c: Ctx, o: Origin, i: number, j: number, t: number, p: string) => void };
 
@@ -203,7 +203,7 @@ const TEMPLATES: GenTmpl[] = [
     box(c, o, i + 0.05, j + 0.2, 0.18, 0.7, 9, shade(p, 0.1, 0.3)); box(c, o, i + 1.77, j + 0.2, 0.18, 0.7, 9, shade(p, 0.1, 0.3));
     box(c, o, i + 0.3, j + 0.4, 0.6, 0.45, 2, shade(p, 0.3), 6, false); box(c, o, i + 1.05, j + 0.4, 0.6, 0.45, 2, shade(p, 0.3), 6, false);
   } },
-  { id: "berjer", noun: "Berjer", cat: "Salon", scope: "oda", size: [1, 1], pals: FAB.slice(0, 6), draw: (c, o, i, j, _t, p) => {
+  { id: "berjer", noun: "Berjer", cat: "Salon", scope: "oda", size: [1, 1], pals: FAB, draw: (c, o, i, j, _t, p) => {
     box(c, o, i + 0.15, j + 0.2, 0.7, 0.65, 6, shade(p));
     box(c, o, i + 0.15, j + 0.15, 0.7, 0.18, 14, shade(p, 0.1, 0.3));
     box(c, o, i + 0.15, j + 0.2, 0.14, 0.65, 9, shade(p, 0.1, 0.3)); box(c, o, i + 0.71, j + 0.2, 0.14, 0.65, 9, shade(p, 0.1, 0.3));
@@ -213,17 +213,17 @@ const TEMPLATES: GenTmpl[] = [
     box(c, o, i + 0.28, j + 0.28, 0.44, 0.44, 2, shade(p), 6);
     box(c, o, i + 0.28, j + 0.28, 0.44, 0.08, 10, shade(p), 8);
   } },
-  { id: "yemek-masasi", noun: "Yemek Masası", cat: "Mutfak", scope: "oda", size: [2, 1], pals: WOODS.slice(0, 4), draw: (c, o, i, j, t, p) => {
+  { id: "yemek-masasi", noun: "Yemek Masası", cat: "Mutfak", scope: "oda", size: [2, 1], pals: WOODS, draw: (c, o, i, j, t, p) => {
     for (const [a, b] of [[0.15, 0.15], [1.78, 0.15], [0.15, 0.78], [1.78, 0.78]]) box(c, o, i + a, j + b, 0.08, 0.08, 9, shade(p, 0, 0.3), 0, false);
     box(c, o, i + 0.05, j + 0.08, 1.9, 0.84, 2, shade(p), 9);
     const [x, y] = at2(o, i + 1, j + 0.5); rect(c, x - 3, y - 13, 6, 2, "#e6d3a8"); rect(c, x - 1, y - 16, 2, 3, "#d8485a"); px(c, x, y - 17, "#5fae6e");
     void t;
   } },
-  { id: "sehpa", noun: "Sehpa", cat: "Salon", scope: "oda", size: [1, 1], pals: WOODS.slice(0, 4), draw: (c, o, i, j, _t, p) => {
+  { id: "sehpa", noun: "Sehpa", cat: "Salon", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
     box(c, o, i + 0.2, j + 0.2, 0.6, 0.6, 5, shade(p));
     const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 1, y - 10, 3, 4, "#6f86d6"); px(c, x, y - 12, "#e48aa0"); px(c, x + 1, y - 11, "#f3d48a");
   } },
-  { id: "kitaplik", noun: "Kitaplık", cat: "Çalışma", scope: "oda", size: [1, 1], pals: WOODS.slice(0, 4), draw: (c, o, i, j, _t, p) => {
+  { id: "kitaplik", noun: "Kitaplık", cat: "Çalışma", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
     box(c, o, i + 0.1, j + 0.1, 0.8, 0.8, 26, shade(p));
     const cols = ["#8a3a4a", "#2f3b6b", "#4f7a4f", "#e2b45a", "#5b4a7a"];
     for (let s = 0; s < 3; s++) { const [x, y] = at2(o, i + 0.1, j + 0.9); for (let k = 0; k < 5; k++) rect(c, x + 1 + k, y - 6 - s * 8, 1, 5 - (k % 2), cols[(k + s) % 5]); }
@@ -232,12 +232,12 @@ const TEMPLATES: GenTmpl[] = [
     box(c, o, i + 0.1, j + 0.15, 0.8, 0.7, 28, shade(p));
     const [x, y] = at2(o, i + 0.5, j + 0.85); line(c, [x - 2, y - 4], [x - 2, y - 26], 1, "rgba(26,20,38,0.5)"); px(c, x - 4, y - 15, P.gold); px(c, x, y - 15, P.gold);
   } },
-  { id: "sifonyer", noun: "Şifonyer", cat: "Yatak odası", scope: "oda", size: [2, 1], pals: WOODS.slice(0, 4), draw: (c, o, i, j, _t, p) => {
+  { id: "sifonyer", noun: "Şifonyer", cat: "Yatak odası", scope: "oda", size: [2, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
     box(c, o, i + 0.05, j + 0.2, 1.9, 0.6, 11, shade(p));
     for (let k = 0; k < 3; k++) { const [x, y] = at2(o, i + 0.4 + k * 0.6, j + 0.8); px(c, x, y - 4, P.gold); px(c, x, y - 8, P.gold); }
     const [x, y] = at2(o, i + 1, j + 0.5); rect(c, x - 4, y - 19, 8, 7, P.ink); rect(c, x - 3, y - 18, 6, 5, "#a9cce6");
   } },
-  { id: "lambader", noun: "Lambader", cat: "Dekor", scope: "oda", size: [1, 1], pals: FAB.slice(0, 6), draw: (c, o, i, j, _t, p) => {
+  { id: "lambader", noun: "Lambader", cat: "Dekor", scope: "oda", size: [1, 1], pals: FAB, draw: (c, o, i, j, _t, p) => {
     const [x, y] = at2(o, i + 0.5, j + 0.5);
     rect(c, x - 3, y - 2, 6, 2, P.ink); rect(c, x, y - 22, 1, 20, "#3a3346");
     poly(c, [[x - 5, y - 22], [x + 6, y - 22], [x + 4, y - 30], [x - 3, y - 30]], P.ink, 1); poly(c, [[x - 5, y - 22], [x + 6, y - 22], [x + 4, y - 30], [x - 3, y - 30]], p);
@@ -258,7 +258,7 @@ const TEMPLATES: GenTmpl[] = [
     tile(c, o, i, j, "#e6d3a8", 3, 2); tile(c, o, i + 0.15, j + 0.15, p, 2.7, 1.7);
     for (let k = 0; k < 3; k++) tile(c, o, i + 0.4 + k * 0.8, j + 0.7, shade(p, 0.3).top, 0.5, 0.6);
   } },
-  { id: "cift-yatak", noun: "Çift Kişilik Yatak", cat: "Yatak odası", scope: "oda", size: [2, 2], pals: FAB.slice(0, 6), draw: (c, o, i, j, _t, p) => {
+  { id: "cift-yatak", noun: "Çift Kişilik Yatak", cat: "Yatak odası", scope: "oda", size: [2, 2], pals: FAB, draw: (c, o, i, j, _t, p) => {
     box(c, o, i, j, 2, 2, 5, shade("#8c6448"));
     box(c, o, i + 0.05, j + 0.05, 1.9, 1.9, 3, shade("#f2e4c2"), 5, false);
     box(c, o, i + 0.6, j + 0.05, 1.35, 1.9, 1, shade(p), 8, false);
@@ -330,7 +330,7 @@ const TEMPLATES: GenTmpl[] = [
     const [x, y] = at2(o, i + 0.5, j + 0.7); disc(c, x, y - 26, 3, "#f2e4c2"); px(c, x, y - 27, P.ink); px(c, x + 1, y - 26, P.ink);
     const sw = Math.round(Math.sin(t * 3) * 2); line(c, [x, y - 20], [x + sw, y - 10], 1, P.gold); disc(c, x + sw, y - 10, 1, P.gold);
   } },
-  { id: "akvaryum", noun: "Akvaryum", cat: "Dekor", scope: "oda", size: [2, 1], pals: [{ name: "Tropikal", c: "#3a9aa0" }], draw: (c, o, i, j, t) => {
+  { id: "akvaryum", noun: "Akvaryum", cat: "Dekor", scope: "oda", size: [2, 1], pals: [{ name: "Tropikal", c: "#3a9aa0" }, { name: "Mercan", c: "#e48aa0" }, { name: "Gece", c: "#2f3b6b" }], draw: (c, o, i, j, t) => {
     box(c, o, i + 0.05, j + 0.2, 1.9, 0.6, 7, shade("#6b4a35"));
     box(c, o, i + 0.1, j + 0.25, 1.8, 0.5, 12, { top: "rgba(160,220,240,0.6)", left: "rgba(90,170,210,0.75)", right: "rgba(70,140,190,0.75)" }, 7);
     for (let k = 0; k < 3; k++) { const [x, y] = at2(o, i + 0.4 + ((t * 0.2 + k * 0.33) % 1) * 1.2, j + 0.75); rect(c, x, y - 13 - k * 3, 3, 2, ["#f0a24a", "#e48aa0", "#f3d48a"][k]); }
@@ -353,6 +353,84 @@ const TEMPLATES: GenTmpl[] = [
   { id: "gitar", noun: "Gitar", cat: "Dekor", scope: "oda", size: [1, 1], pals: WOODS.slice(0, 2), draw: (c, o, i, j, _t, p) => {
     const [x, y] = at2(o, i + 0.5, j + 0.5); disc(c, x, y - 6, 5, P.ink); disc(c, x, y - 6, 4, p); disc(c, x, y - 6, 1, P.ink);
     rect(c, x - 1, y - 22, 2, 13, P.ink); rect(c, x - 2, y - 25, 4, 3, P.woodDk);
+  } },
+
+  { id: "puf", noun: "Puf", cat: "Salon", scope: "oda", size: [1, 1], pals: FAB, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.25, j + 0.25, 0.5, 0.5, 6, shade(p)); box(c, o, i + 0.25, j + 0.25, 0.5, 0.5, 1, shade(p, 0.35), 6, false);
+    const [x, y] = at2(o, i + 0.5, j + 0.5); px(c, x, y - 7, shade(p, -0.1).right);
+  } },
+  { id: "kose-koltuk", noun: "Köşe Koltuk", cat: "Salon", scope: "oda", size: [3, 1], pals: FAB.slice(0, 4), draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.05, j + 0.2, 2.9, 0.7, 6, shade(p)); box(c, o, i + 0.05, j + 0.15, 2.9, 0.18, 13, shade(p, 0.1, 0.3));
+    for (let k = 0; k < 3; k++) box(c, o, i + 0.2 + k * 0.92, j + 0.4, 0.8, 0.45, 2, shade(p, 0.3), 6, false);
+    box(c, o, i + 0.05, j + 0.2, 0.18, 0.7, 9, shade(p, 0.1, 0.3));
+  } },
+  { id: "dresuar", noun: "Dresuar", cat: "Salon", scope: "oda", size: [2, 1], pals: WOODS.slice(0, 4), draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.05, j + 0.3, 1.9, 0.4, 10, shade(p));
+    const [x, y] = at2(o, i + 1, j + 0.5); rect(c, x - 6, y - 15, 3, 4, "#6f86d6"); px(c, x - 5, y - 17, "#f3d48a"); rect(c, x + 2, y - 14, 5, 2, "#d8485a");
+  } },
+  { id: "tek-yatak", noun: "Tek Kişilik Yatak", cat: "Yatak odası", scope: "oda", size: [2, 1], pals: FAB.slice(0, 6), draw: (c, o, i, j, _t, p) => {
+    box(c, o, i, j + 0.1, 2, 0.8, 4, shade("#a87a50")); box(c, o, i + 0.05, j + 0.15, 1.9, 0.7, 3, shade("#f2e4c2"), 4, false);
+    box(c, o, i + 0.6, j + 0.15, 1.35, 0.7, 1, shade(p), 7, false); box(c, o, i + 0.1, j + 0.25, 0.35, 0.5, 2, shade("#ffffff"), 7, false);
+    box(c, o, i, j + 0.1, 0.12, 0.8, 13, shade("#8c6448"));
+  } },
+  { id: "calisma-sandalyesi", noun: "Çalışma Sandalyesi", cat: "Çalışma", scope: "oda", size: [1, 1], pals: FAB.slice(0, 3), draw: (c, o, i, j, _t, p) => {
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 4, y - 1, 9, 1, "#3a3346"); rect(c, x, y - 6, 1, 5, "#3a3346");
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 2, shade(p), 6); box(c, o, i + 0.3, j + 0.3, 0.4, 0.08, 9, shade(p), 8);
+  } },
+  { id: "mutfak-adasi", noun: "Mutfak Adası", cat: "Mutfak", scope: "oda", size: [2, 1], pals: TONES, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.05, j + 0.05, 1.9, 0.9, 12, shade(p)); box(c, o, i, j, 2, 1, 2, shade("#c8c0b0"), 12);
+    const [x, y] = at2(o, i + 1, j + 0.5); disc(c, x - 5, y - 16, 2, "#f0a24a"); disc(c, x - 2, y - 16, 2, "#5fae6e"); disc(c, x + 1, y - 16, 2, "#d8485a"); rect(c, x + 5, y - 17, 4, 2, "#b88a5c");
+  } },
+  { id: "camasir-makinesi", noun: "Çamaşır Makinesi", cat: "Banyo", scope: "oda", size: [1, 1], pals: TONES, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.1, j + 0.1, 0.8, 0.8, 14, shade(p));
+    const [x, y] = at2(o, i + 0.5, j + 0.9); disc(c, x - 2, y - 8, 4, P.ink); disc(c, x - 2, y - 8, 3, "#8eb8d0");
+    const k = Math.floor(t * 4) % 4; px(c, x - 2 + [1, 0, -1, 0][k], y - 8 + [0, 1, 0, -1][k], "#ffffff");
+  } },
+  { id: "dus", noun: "Duş Kabini", cat: "Banyo", scope: "oda", size: [1, 1], pals: TONES, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.05, j + 0.05, 0.9, 0.9, 2, shade("#f8f8f8"));
+    box(c, o, i + 0.05, j + 0.05, 0.9, 0.9, 26, { top: "rgba(255,255,255,0.15)", left: "rgba(190,230,245,0.35)", right: "rgba(160,210,230,0.35)" }, 2, false);
+    const [x, y] = at2(o, i + 0.3, j + 0.3); rect(c, x, y - 28, 1, 6, "#c8ccd8"); rect(c, x - 2, y - 28, 5, 1, "#c8ccd8");
+    for (let k = 0; k < 4; k++) { const q = (t * 1.5 + k / 4) % 1; px(c, x - 1 + k, y - 26 + Math.round(q * 18), "#bfe6f5"); }
+    void p;
+  } },
+  { id: "saksi-agaci", noun: "Saksı Ağacı", cat: "Bitki", scope: "oda", size: [1, 1], pals: [{ name: "Fikus", c: "#3f6a44" }, { name: "Zeytin", c: "#7a8a5a" }, { name: "Limon", c: "#4f8a5c" }], draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.28, j + 0.28, 0.44, 0.44, 7, shade("#a86a4a"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x, y - 20, 1, 13, "#6b4a35"); const sw = Math.round(Math.sin(t * 1.2 + i) * 0.6);
+    disc(c, x + sw, y - 24, 7, P.ink); disc(c, x + sw, y - 24, 6, p); disc(c, x - 2 + sw, y - 26, 3, shade(p, 0.25).top);
+    if (p === "#4f8a5c") for (const [dx, dy] of [[-3, -22], [3, -26], [1, -20]]) px(c, x + dx + sw, y + dy, "#f3d48a");
+    if (p === "#7a8a5a") for (const [dx, dy] of [[-2, -23], [3, -25]]) px(c, x + dx + sw, y + dy, "#3a2a40");
+  } },
+  { id: "satranc", noun: "Satranç Masası", cat: "Çalışma", scope: "oda", size: [1, 1], pals: WOODS.slice(0, 2), draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.4, j + 0.4, 0.2, 0.2, 8, shade(p)); box(c, o, i + 0.15, j + 0.15, 0.7, 0.7, 2, shade(p), 8);
+    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) if ((a + b) % 2) { const [x, y] = at2(o, i + 0.2 + a * 0.15, j + 0.2 + b * 0.15); px(c, x, y - 10, "#2a2533"); }
+    const [x, y] = at2(o, i + 0.4, j + 0.4); rect(c, x, y - 13, 1, 2, "#ffffff"); rect(c, x + 3, y - 13, 1, 2, P.ink);
+  } },
+  { id: "arp", noun: "Arp", cat: "Salon", scope: "oda", size: [1, 1], pals: [{ name: "Altın", c: "#d8a840" }, { name: "Gümüş", c: "#c8ccd8" }], draw: (c, o, i, j, _t, p) => {
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 3, y - 2, 7, 2, p);
+    line(c, [x - 3, y - 2], [x - 3, y - 24], 2, p); line(c, [x - 3, y - 24], [x + 5, y - 18], 2, p); line(c, [x + 5, y - 18], [x + 3, y - 2], 2, p);
+    for (let k = 0; k < 4; k++) line(c, [x - 2 + k * 2, y - 3], [x - 2 + k * 2, y - 22 + k * 1.5], 1, "#f2e4c2");
+  } },
+  { id: "kristal-kure", noun: "Kristal Küre", cat: "Dekor", scope: "oda", size: [1, 1], pals: [{ name: "Mor", c: "#9a86c4" }, { name: "Mavi", c: "#7fc8e8" }, { name: "Pembe", c: "#e48aa0" }], draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 7, shade("#6b4a35"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); disc(c, x, y - 12, 5, P.ink); disc(c, x, y - 12, 4, p);
+    const a = t * 2; px(c, x + Math.round(Math.cos(a) * 2), y - 12 + Math.round(Math.sin(a) * 2), "#ffffff"); px(c, x - 2, y - 14, "#ffffff");
+    lights.push({ x, y: y - 12, r: 14, color: "200,180,255" });
+  } },
+  { id: "iksir-rafi", noun: "İksir Rafı", cat: "Dekor", scope: "oda", size: [1, 1], pals: WOODS.slice(0, 3), draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.1, j + 0.35, 0.8, 0.3, 22, shade(p));
+    const cols = ["#d8485a", "#5fae6e", "#6f86d6", "#f3d48a", "#c9a6f0"];
+    for (let s2 = 0; s2 < 2; s2++) { const [x, y] = at2(o, i + 0.15, j + 0.65); for (let k = 0; k < 4; k++) { rect(c, x + 1 + k * 3, y - 9 - s2 * 9, 2, 3, cols[(k + s2) % 5]); px(c, x + 1 + k * 3, y - 10 - s2 * 9, "#e8e0d0"); } }
+    if (Math.floor(t * 2) % 3 === 0) { const [x, y] = at2(o, i + 0.4, j + 0.5); px(c, x, y - 25, "#c9a6f0"); }
+  } },
+  { id: "at-heykeli", noun: "At Heykeli", cat: "Dekor", scope: "oda", size: [1, 1], pals: [{ name: "Bronz", c: "#a87a50" }, { name: "Mermer", c: "#e8e0d0" }], draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.25, j + 0.25, 0.5, 0.5, 6, shade("#7d7884"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 5, y - 13, 9, 4, P.ink); rect(c, x - 4, y - 12, 7, 2, p);
+    rect(c, x + 2, y - 18, 3, 6, P.ink); rect(c, x + 3, y - 17, 1, 5, p); rect(c, x + 3, y - 19, 4, 2, p);
+    for (const dx of [-4, -1, 1, 3]) rect(c, x + dx, y - 9, 1, 3, p);
+  } },
+  { id: "kedi-yatagi", noun: "Kedi Yatağı", cat: "Dekor", scope: "oda", size: [1, 1], pals: FAB.slice(3, 7), draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.2, j + 0.2, 0.6, 0.6, 4, shade(p)); box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 1, shade("#f2e4c2"), 3, false);
+    const [x, y] = at2(o, i + 0.5, j + 0.5); px(c, x - 1, y - 6, "#e48aa0"); px(c, x + 1, y - 6, "#e48aa0"); px(c, x, y - 5, "#e48aa0");
   } },
 
   /* --------------------------------- bahçe --------------------------------- */
@@ -484,5 +562,5 @@ export const itemById = new Map(ROOM_ITEMS.map((it) => [it.id, it]));
 if (process.env.NODE_ENV !== "production") {
   console.assert(itemById.size === ROOM_ITEMS.length, "eşya kimlikleri benzersiz olmalı");
   console.assert(ROOM_ITEMS.every((it) => it.size[0] >= 1 && it.size[1] >= 1 && it.size[0] <= 3 && it.size[1] <= 3), "eşya boyutu");
-  console.assert(ROOM_ITEMS.length >= 150 && ROOM_ITEMS.every((it) => it.level >= 1 && it.level <= 100 && it.cat), "yüzlerce eşya, seviye ve kategori");
+  console.assert(ROOM_ITEMS.filter((it) => it.scope === "oda").length >= 200 && ROOM_ITEMS.every((it) => it.level >= 1 && it.level <= 100 && it.cat), "yüzlerce eşya, seviye ve kategori");
 }
