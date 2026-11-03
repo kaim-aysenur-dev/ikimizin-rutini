@@ -61,3 +61,36 @@ export async function syncPresence(user: { id: string; accountId: string }, plac
     where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place} and g.updated_at > now() - interval '6 seconds'`;
   return rows.map((r) => ({ userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving }));
 }
+
+/* ------------------------------- posta kutusu ------------------------------- */
+
+export type Note = { id: string; body: string; createdAt: string; mine: boolean; read: boolean };
+
+/** Aynı hesaptaki diğer profil (notun gideceği kişi) */
+async function partnerOf(user: { id: string; accountId: string }): Promise<string | null> {
+  const [r] = await sql()`select id from users where account_id = ${user.accountId} and id <> ${user.id} order by created_at limit 1`;
+  return r?.id ?? null;
+}
+
+/** Son notlar (gelen ve giden); gelenleri okundu sayar */
+export async function notesOf(user: { id: string; accountId: string }): Promise<Note[]> {
+  const rows = await sql()`
+    select n.id, n.body, n.created_at, n.from_user = ${user.id} as mine, n.read_at is not null as read
+    from love_notes n join users u on u.id = n.from_user
+    where u.account_id = ${user.accountId} and (n.to_user = ${user.id} or n.from_user = ${user.id})
+    order by n.created_at desc limit 40`;
+  await sql()`update love_notes set read_at = now() where to_user = ${user.id} and read_at is null`;
+  return rows.map((r) => ({ id: r.id, body: r.body, createdAt: new Date(r.created_at).toISOString(), mine: r.mine, read: r.read }));
+}
+
+export async function sendNote(user: { id: string; accountId: string }, body: string): Promise<boolean> {
+  const to = await partnerOf(user);
+  if (!to) return false;
+  await sql()`insert into love_notes (from_user, to_user, body) values (${user.id}, ${to}, ${body})`;
+  return true;
+}
+
+export async function unreadNotes(userId: string): Promise<number> {
+  const [r] = await sql()`select count(*)::int as n from love_notes where to_user = ${userId} and read_at is null`;
+  return r.n as number;
+}

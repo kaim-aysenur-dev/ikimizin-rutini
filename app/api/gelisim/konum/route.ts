@@ -1,7 +1,7 @@
 import { jsonError, jsonOk, readJson } from "@/lib/http";
 import { withUser } from "@/lib/auth/session";
 import { SIZE } from "@/lib/room";
-import { syncPresence } from "@/lib/room-server";
+import { syncPresence, unreadNotes } from "@/lib/room-server";
 import { UUID_RE } from "@/lib/skin";
 
 // Canlı konum: bahçede ya da bir evde. Kendi konumunu yaz, aynı yerdeki diğerini al. here: false ise ayrıldın.
@@ -15,5 +15,6 @@ export const POST = withUser(async (req, user) => {
   if (typeof x !== "number" || typeof y !== "number" || !(x >= -1 && x <= w + 1 && y >= -1 && y <= d + 1) || (dir !== 1 && dir !== -1)) {
     return jsonError(400, "Geçersiz konum.");
   }
-  return jsonOk({ others: await syncPresence(user, place as string, { x, y, dir, moving: moving === true }) });
+  const [others, unread] = await Promise.all([syncPresence(user, place as string, { x, y, dir, moving: moving === true }), unreadNotes(user.id)]);
+  return jsonOk({ others, unread });
 });

@@ -20,15 +20,50 @@ const look = (level: number) => { const t = TIERS[tierOf(level)]; return { outfi
 const placeOf = (w: Where) => (w.scope === "bahce" ? "bahce" : `ev:${w.owner}`);
 const leave = (place: string) => { void fetch("/api/gelisim/konum", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ here: false, place }), keepalive: true }); };
 const SPEED = 3.2; // kare / saniye
+
+// İstanbul saatine göre gece: 21-05 tam gece, akşam ve sabah geçişli
+function nightNow(): number {
+  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Istanbul", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date());
+  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 12) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
+  if (h >= 21 || h < 5) return 1;
+  if (h >= 18) return (h - 18) / 3;
+  if (h < 8) return 1 - (h - 5) / 3;
+  return 0;
+}
+
+// oturulabilen eşyalar: oturuş yüksekliği (piksel); yataklarda uyunur
+const seatOf = (id: string): { lift: number; sleep?: boolean } | null =>
+  id === "yatak" || id.startsWith("cift-yatak-") ? { lift: 8, sleep: true }
+  : id.startsWith("koltuk-") || id.startsWith("berjer-") ? { lift: 6 }
+  : id.startsWith("sandalye-") || id === "taht" ? { lift: 7 }
+  : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6 }
+  : null;
+type Near = { kind: "sit" | "piano" | "mail"; label: string; i: number; j: number; itemId?: string };
+
+// piyano: kısa bir melodi (dokunuştan sonra çaldığı için tarayıcı izin verir)
+function tune() {
+  try {
+    const a = new AudioContext();
+    [523, 587, 659, 784, 659, 880].forEach((f, k) => {
+      const at = a.currentTime + k * 0.18, o = a.createOscillator(), g = a.createGain();
+      o.type = "triangle"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.08, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
+      o.connect(g).connect(a.destination); o.start(at); o.stop(at + 0.55);
+    });
+    window.setTimeout(() => void a.close(), 2000);
+  } catch { /* ses yoksa sessiz çalar */ }
+}
 // W A S D ve oklar ekran yönleridir: yukarı = i ve j birlikte azalır
 const KEYS: Record<string, [number, number]> = {
   w: [-1, -1], arrowup: [-1, -1], s: [1, 1], arrowdown: [1, 1], a: [-1, 1], arrowleft: [-1, 1], d: [1, -1], arrowright: [1, -1],
 };
 
 // Gelişim: kendi evin (altı oda) ve ortak bahçe. Kamera seni izler; envanterden eşya koyarsın; aynı yerdekiler birbirini canlı görür.
-export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; profiles: Profile[]; initialPlaced: Placed[] }) {
+// startIn: "bahce" ise oyun kişinin kapısının önünde, bahçede başlar
+export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: { me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope }) {
   const meP = profiles.find((p) => p.id === me)!;
-  const [where, setWhere] = useState<Where>({ scope: "oda", owner: me });
+  const myDoor = HOUSES[Math.min(Math.max(0, profiles.findIndex((p) => p.id === me)), HOUSES.length - 1)].door;
+  const [where, setWhere] = useState<Where>(startIn === "bahce" ? { scope: "bahce" } : { scope: "oda", owner: me });
   const [placed, setPlaced] = useState(initialPlaced);
   const [mode, setMode] = useState<Mode>({ kind: "walk" });
   const [tab, setTab] = useState<Scope>("oda");
@@ -39,8 +74,11 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
   const [roomName, setRoomName] = useState("Giriş holü");
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [near, setNear] = useState<Near | null>(null);
+  const [unread, setUnread] = useState(0);
+  const [mailOpen, setMailOpen] = useState(false);
 
-  const hero = useRef<Hero>({ who: whoOf(meP.name), i: 3, j: 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
+  const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
   const keys = useRef(new Set<string>());
   const pad = useRef<[number, number] | null>(null);
   const hover = useRef<[number, number] | null>(null); // tuval pikseli
@@ -51,8 +89,23 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
   const stage = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const tagRefs = useRef<Record<string, HTMLSpanElement | null>>({});
+  const nearRef = useRef<Near | null>(null);
+  const music = useRef<{ i: number; j: number; t0: number } | null>(null);
+  const night = useRef(nightNow());
   const live = useRef({ where, placed, mode });
   live.current = { where, placed, mode };
+  const liveUnread = useRef(0);
+  liveUnread.current = unread;
+
+  // F / ✋: yakındaki şeyle etkileşim
+  const interact = () => {
+    const h = hero.current, nb = nearRef.current;
+    if (h.sit) { h.sit = undefined; return; }
+    if (!nb) return;
+    if (nb.kind === "sit" && nb.itemId) { h.i = nb.i; h.j = nb.j; h.sit = seatOf(nb.itemId)!; }
+    else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
+    else if (nb.kind === "mail") setMailOpen(true);
+  };
 
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
   const scenePlaced = (w: Where, all: Placed[]) => all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner));
@@ -72,6 +125,7 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
       if (e.target instanceof Element && e.target.closest("input, textarea, select")) return;
       if (k === "escape") setMode({ kind: "walk" });
       if (k === "e") setInvOpen((v) => !v);
+      if (k === "f" || k === " ") { e.preventDefault(); interact(); }
       if (KEYS[k]) { keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase());
@@ -87,8 +141,9 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
     const tick = async () => {
       const h = hero.current;
       try {
-        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean }[] }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
+        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
         if (stop) return;
+        setUnread(res.unread ?? 0);
         others.current = res.others.map((o) => {
           const prev = others.current.find((p) => p.userId === o.userId);
           const prof = profiles.find((p) => p.id === o.userId);
@@ -103,6 +158,8 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
     return () => { stop = true; window.clearInterval(id); window.removeEventListener("pagehide", onHide); others.current = []; };
   }, [where, profiles]);
   useEffect(() => () => leave(placeOf(live.current.where)), []);
+
+  useEffect(() => { const id = window.setInterval(() => (night.current = nightNow()), 60_000); return () => window.clearInterval(id); }, []);
 
   // tuval sahne alanını doldurur: geniş ekranda 4, masaüstünde 3, telefonda 2 kat büyütülmüş piksel
   useEffect(() => {
@@ -138,6 +195,7 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
       if (pad.current) { di += pad.current[0]; dj += pad.current[1]; }
       const len = Math.hypot(di, dj);
       h.moving = len > 0 && !fade.current;
+      if (h.moving && h.sit) h.sit = undefined;
       if (h.moving) {
         const step = (SPEED * dt) / len;
         const free = (i: number, j: number) => {
@@ -194,8 +252,28 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
       if (cc.snap) { cc.ox = tx; cc.oy = ty; cc.snap = false; } else { const k = 1 - Math.pow(0.0015, dt); cc.ox += (tx - cc.ox) * k; cc.oy += (ty - cc.oy) * k; }
       const o = camOrigin();
 
-      // Düldül bahçede dolaşır: yakındaki boş bir kareye yürür, biraz oturur
+      // yakındaki etkileşim: oturulacak eşya, piyano ya da posta kutusu
+      let nb: Near | null = null, best = 1.3;
+      if (!h.sit) {
+        for (const p of scenePlaced(cur, all)) {
+          const it = itemById.get(p.itemId); if (!it) continue;
+          const ci = p.tx + it.size[0] / 2, cj = p.ty + it.size[1] / 2, dd = Math.hypot(ci - h.i, cj - h.j);
+          if (dd >= best + it.size[0] / 2) continue;
+          if (seatOf(p.itemId)) { nb = { kind: "sit", label: seatOf(p.itemId)!.sleep ? "Uzan" : "Otur", i: ci, j: cj, itemId: p.itemId }; best = dd; }
+          else if (p.itemId.startsWith("piyano-")) { nb = { kind: "piano", label: "Piyano çal", i: ci, j: cj }; best = dd; }
+        }
+        if (cur.scope === "bahce") HOUSES.forEach((hs) => {
+          const mi = hs.door.i + 1.6, mj = hs.door.j + 0.6, dd = Math.hypot(mi - h.i, mj - h.j);
+          if (dd < 1.4 && dd < best + 0.2) { nb = { kind: "mail", label: "Posta kutusu", i: mi, j: mj }; best = dd; }
+        });
+      }
+      if ((nb?.label ?? null) !== (nearRef.current?.label ?? null)) setNear(nb);
+      nearRef.current = nb;
+
+      // Düldül: evde minderi varsa orada uyur; bahçede dolaşır, yakındaki boş bir kareye yürür, biraz oturur
       let catState: Cat | null = null;
+      const cushion = cur.scope === "oda" ? scenePlaced(cur, all).find((p) => p.itemId === "kedi-minderi") : undefined;
+      if (cushion) catState = { i: cushion.tx + 0.5, j: cushion.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
       if (cur.scope === "bahce") {
         const k = cat.current;
         const gi = k.goal[0] + 0.5 - k.i, gj = k.goal[1] + 0.5 - k.j, gl = Math.hypot(gi, gj);
@@ -237,6 +315,8 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
         scope: cur.scope, cam: o, theme: cur.scope === "oda" ? themeOf(cur.owner) : "cengiz",
         houseThemes: profiles.slice(0, HOUSES.length).map((p) => whoOf(p.name)),
         placed: scenePlaced(cur, all), heroes: [h, ...others.current], ghost, pick, cat: catState,
+        night: night.current, music: music.current,
+        mailHeart: liveUnread.current > 0 ? Math.max(0, profiles.findIndex((p) => p.id === me)) : null,
       });
       if (darken > 0) { c.fillStyle = `rgba(20,16,30,${darken.toFixed(2)})`; c.fillRect(0, 0, cv.width, cv.height); }
       placeTags(anchors, cv.width);
@@ -314,7 +394,7 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
         <span className="gw-where">
           {where.scope === "bahce" ? "🌳 Ortak bahçe" : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
         </span>
-        <span className="gw-hint">W A S D ile yürü · kapılardan geç · E: envanter</span>
+        <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}</span>
         {canEditHere && (
           <button type="button" className={`btn ${mode.kind === "edit" ? "btn-primary" : "btn-ghost"}`} onClick={() => setMode(mode.kind === "edit" ? { kind: "walk" } : { kind: "edit" })}>
             {mode.kind === "edit" ? "Bitir" : "Eşya kaldır"}
@@ -391,6 +471,50 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
         {padBtn([-1, 1], "Sola", "left", "◀")}
         {padBtn([1, -1], "Sağa", "right", "▶")}
         {padBtn([1, 1], "Aşağı", "down", "▼")}
+        <button type="button" className="gw-pad-btn act" aria-label={near ? near.label : "Etkileşim"} onPointerDown={(e) => { e.preventDefault(); interact(); }}>✋</button>
+      </div>
+      {mailOpen && <Mailbox onClose={() => { setMailOpen(false); setUnread(0); }} partner={profiles.find((p) => p.id !== me)?.name.split(" ")[0] ?? "Sevgilin"} />}
+    </div>
+  );
+}
+
+type Note = { id: string; body: string; createdAt: string; mine: boolean; read: boolean };
+
+// Posta kutusu: gelen ve giden notlar, yeni not yazma
+function Mailbox({ onClose, partner }: { onClose: () => void; partner: string }) {
+  const [notes, setNotes] = useState<Note[] | null>(null);
+  const [text, setText] = useState("");
+  const [err, setErr] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const load = () => api<{ notes: Note[] }>("/api/gelisim/notlar").then((r) => setNotes(r.notes), (e) => setErr(e instanceof Error ? e.message : "Yüklenemedi."));
+  useEffect(() => { load(); }, []);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
+  const send = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) return;
+    setSending(true); setErr(null);
+    try { await api("/api/gelisim/notlar", { body: { body: text.trim() } }); setText(""); await load(); }
+    catch (er) { setErr(er instanceof Error ? er.message : "Gönderilemedi."); }
+    setSending(false);
+  };
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal gw-mail" role="dialog" aria-modal="true" aria-labelledby="mail-title" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <h2 id="mail-title">💌 Posta kutusu</h2>
+        <form className="stack" onSubmit={send}>
+          <label className="field-label" htmlFor="mail-text">{partner} için bir not bırak</label>
+          <textarea id="mail-text" className="input" rows={3} maxLength={500} value={text} onChange={(e) => setText(e.target.value)} placeholder="Bugün seni çok düşündüm..." />
+          <div className="row"><button type="submit" className="btn btn-primary" disabled={sending || !text.trim()}>Kutuya bırak</button><button type="button" className="btn btn-ghost" onClick={onClose}>Kapat</button></div>
+        </form>
+        {err && <p className="form-error">{err}</p>}
+        <ul className="gw-notes">
+          {notes === null ? <li className="muted">Yükleniyor...</li> : notes.length === 0 ? <li className="muted">Kutu henüz boş.</li> : notes.map((n) => (
+            <li key={n.id} className={n.mine ? "is-mine" : n.read ? undefined : "is-new"}>
+              <small>{n.mine ? `Sen → ${partner}` : `${partner} → sen`} · {new Date(n.createdAt).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{!n.mine && !n.read ? " · yeni" : ""}</small>
+              <p>{n.body}</p>
+            </li>
+          ))}
+        </ul>
       </div>
     </div>
   );

@@ -3,16 +3,16 @@
 import { duldul, parrot } from "./companions";
 import { lights } from "./env";
 import { type Origin, at, box, shade, tile } from "./iso";
-import { type CharState, type Ctx, type V, P, STAND, drawCharacter, line, poly, px, rect } from "./pixel";
+import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, line, poly, px, rect, rnd, sprite } from "./pixel";
 import { FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, footprint, innerWalls, isPath } from "./room";
 import { type Scope, isFlat, itemById } from "./room-items";
-import { walkFrame } from "./anim";
+import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"] };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean } };
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean } | null;
-export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean };
+export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
   scope: Scope;
   cam: Origin;
@@ -23,7 +23,15 @@ export type SceneState = {
   ghost: Ghost;
   pick: string | null;
   cat: Cat | null;
+  night: number; // 0 gündüz, 1 gece (İstanbul saatine göre)
+  mailHeart: number | null; // okunmamış not: bu evin posta kutusunda kalp
+  music: { i: number; j: number; t0: number } | null; // piyanodan yükselen notalar
 };
+
+// oturuş: kalça alçakta, dizler önde (yatak, koltuk, bank)
+const SEAT: Free = { ...STAND_F, hip: [-1, -6], neck: [0, -13], eB: [1, -9], hB: [3, -7], eF: [2, -9], hF: [4, -7], kB: [3, -6], fB: [4, 0], kF: [3, -6], fF: [4, 0] };
+const SMALL_HEART = [".o.o.", "oxoxo", "oxxxo", ".oxo.", "..o.."];
+let nightNow = 0; // pencerelerin gökyüzü rengi için (drawScene başında ayarlanır)
 export type Anchor = { key: string; x: number; y: number };
 
 /* ------------------------------ duvar yüzleri ------------------------------ */
@@ -38,15 +46,17 @@ function faceI(c: Ctx, o: Origin, i: number, j0: number, j1: number, y0: number,
   const a = at(o, i, j0), b = at(o, i, j1);
   poly(c, [[a[0], a[1] - y0], [b[0], b[1] - y0], [b[0], b[1] - y1], [a[0], a[1] - y1]], color);
 }
+const skyCol = () => (nightNow > 0.55 ? "#1b2244" : nightNow > 0.2 ? "#8a77a8" : "#7fb0dc");
 function windowJ(c: Ctx, o: Origin, j: number, i: number, t: number, w = 1.4) {
-  faceJ(c, o, j, i, i + w, 14, 34, P.ink); faceJ(c, o, j, i + 0.1, i + w - 0.1, 16, 32, "#7fb0dc");
+  faceJ(c, o, j, i, i + w, 14, 34, P.ink); faceJ(c, o, j, i + 0.1, i + w - 0.1, 16, 32, skyCol());
+  if (nightNow > 0.55) { const [x, y] = at(o, i + 0.4, j); px(c, x, y - 28, "#fff6c8"); px(c, x + 6, y - 22, "#fff6c8"); }
   const cl = (t * 0.12 + i) % 1; faceJ(c, o, j, i + 0.15 + cl * (w - 0.6), i + 0.45 + cl * (w - 0.6), 26, 28, "#ffffff");
   faceJ(c, o, j, i + w / 2 - 0.04, i + w / 2 + 0.04, 16, 32, P.ink); faceJ(c, o, j, i + 0.1, i + w - 0.1, 23, 24, P.ink);
   faceJ(c, o, j, i - 0.15, i + w + 0.15, 12, 14, P.woodLt);
   faceJ(c, o, j, i - 0.1, i + 0.12, 15, 35, "#b56b7a"); faceJ(c, o, j, i + w - 0.12, i + w + 0.1, 15, 35, "#b56b7a"); // perde
 }
 function windowI(c: Ctx, o: Origin, i: number, j: number, t: number, w = 1.4) {
-  faceI(c, o, i, j, j + w, 14, 34, P.ink); faceI(c, o, i, j + 0.1, j + w - 0.1, 16, 32, "#7fb0dc");
+  faceI(c, o, i, j, j + w, 14, 34, P.ink); faceI(c, o, i, j + 0.1, j + w - 0.1, 16, 32, skyCol());
   const cl = (t * 0.1 + j) % 1; faceI(c, o, i, j + 0.15 + cl * (w - 0.6), j + 0.45 + cl * (w - 0.6), 25, 27, "#ffffff");
   faceI(c, o, i, j + w / 2 - 0.04, j + w / 2 + 0.04, 16, 32, P.ink); faceI(c, o, i, j + 0.1, j + w - 0.1, 23, 24, P.ink);
   faceI(c, o, i, j - 0.15, j + w + 0.15, 12, 14, P.woodLt);
@@ -188,6 +198,10 @@ function houseOutside(c: Ctx, o: Origin, h: (typeof HOUSES)[number], theme: Them
     const q = (t * 0.3 + k / 4) % 1; const [x, y] = at(o, h.i0 + 2.4, h.j0 + 1.6);
     px(c, x + Math.round(Math.sin(q * 6 + k) * 2), y - H - R - 8 - Math.round(q * 18), `rgba(230,230,240,${(0.7 * (1 - q)).toFixed(2)})`);
   }
+  if (nightNow > 0.35) {
+    for (const i of [h.i0 + 1, h.i0 + 6.5]) { const [x, y] = at(o, i + 0.7, h.j1); lights.push({ x, y: y - 21, r: 16, color: "255,210,130" }); }
+    for (const j of [h.j0 + 1.2, h.j0 + 3.6]) { const [x, y] = at(o, h.i1, j + 0.6); lights.push({ x, y: y - 21, r: 14, color: "255,210,130" }); }
+  }
   const [dx, dy] = at(o, h.door.i + 0.5, h.j1);
   return [dx, dy - 38];
 }
@@ -215,6 +229,7 @@ const flat = isFlat;
 /** Bütün sahne. Dönen değer: isim etiketlerinin ekran noktaları (dünya pikseli). */
 export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   lights.length = 0;
+  nightNow = s.night;
   const o = s.cam;
   if (s.scope === "oda") { c.fillStyle = "#141a33"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); house(c, o, t, s.theme); }
   else gardenGround(c, o, t);
@@ -251,7 +266,13 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     list.push({ key: h.i + h.j, draw: () => {
       const [x, y] = at(o, h.i, h.j);
       rect(c, x - 5, y - 1, 10, 2, "rgba(26,20,38,0.28)");
-      const a = drawCharacter(c, { who: h.who, x, y, dir: h.dir, pose: h.moving ? walkFrame(h.dist) : STAND, outfit: h.outfit, tint: h.tint, blink: (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      const lift = h.sit?.lift ?? 0;
+      const pose = h.sit ? SEAT : h.moving ? walkFrame(h.dist) : STAND;
+      const a = drawCharacter(c, { who: h.who, x, y: y - lift, dir: h.dir, pose, outfit: h.outfit, tint: h.tint, blink: h.sit?.sleep || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      if (h.sit?.sleep) for (let k = 0; k < 3; k++) {
+        const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
+        rect(c, zx, zy, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); px(c, zx + 1, zy + 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); rect(c, zx, zy + 2, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`);
+      }
       anchors.push({ key: h.who, x: a.head[0], y: a.head[1] - 2 });
     } });
   }
@@ -259,11 +280,60 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     const k = s.cat;
     list.push({ key: k.i + k.j, draw: () => {
       const [x, y] = at(o, k.i, k.j);
-      const a = duldul(c, x, y, k.dir, k.moving ? "walk" : "sit", k.dist, t, false);
+      const a = duldul(c, x, y, k.dir, k.sleep ? "rest" : k.moving ? "walk" : "sit", k.dist, t, false);
       anchors.push({ key: "duldul", x: a.head[0], y: a.head[1] + 2 });
     } });
   }
   list.sort((a, b) => a.key - b.key).forEach((d) => d.draw());
+
+  // yan yana gelince aranızdan kalpler yükselir
+  if (s.heroes.length >= 2) {
+    const [h1, h2] = s.heroes;
+    if (Math.hypot(h1.i - h2.i, h1.j - h2.j) < 1.6) {
+      const [x, y] = at(o, (h1.i + h2.i) / 2, (h1.j + h2.j) / 2);
+      for (let k = 0; k < 3; k++) {
+        const q = (t * 0.6 + k / 3) % 1;
+        c.save(); c.globalAlpha = 1 - q;
+        sprite(c, SMALL_HEART, Math.round(x - 2 + Math.sin(q * 6 + k) * 4), Math.round(y - 30 - q * 18), { o: P.ink, x: k % 2 ? "#e48aa0" : "#d8485a" });
+        c.restore();
+      }
+    }
+  }
+  // okunmamış not: posta kutusunun üstünde zıplayan kalp
+  if (s.scope === "bahce" && s.mailHeart !== null && HOUSES[s.mailHeart]) {
+    const h = HOUSES[s.mailHeart]; const [x, y] = at(o, h.door.i + 1.6, h.door.j + 0.6);
+    sprite(c, SMALL_HEART, x - 2, y - 30 - Math.round(Math.abs(Math.sin(t * 3)) * 3), { o: P.ink, x: "#d8485a" });
+  }
+  // piyano: notalar yükselir
+  if (s.music && t - s.music.t0 < 3.5) {
+    const [x, y] = at(o, s.music.i, s.music.j);
+    for (let k = 0; k < 4; k++) {
+      const q = ((t - s.music.t0) * 0.6 + k / 4) % 1;
+      const nx = Math.round(x - 6 + k * 4 + Math.sin(q * 6 + k) * 3), ny = Math.round(y - 22 - q * 22);
+      const col = `rgba(${k % 2 ? "228,138,160" : "243,212,138"},${(1 - q).toFixed(2)})`;
+      rect(c, nx, ny, 2, 2, col); rect(c, nx + 1, ny - 4, 1, 4, col); px(c, nx + 2, ny - 4, col);
+    }
+  }
+
+  // gece: lacivert örtü; bahçede ateş böcekleri, gündüz kelebekler
+  if (s.night > 0) { c.fillStyle = `rgba(16,20,52,${(0.55 * s.night).toFixed(3)})`; c.fillRect(0, 0, c.canvas.width, c.canvas.height); }
+  if (s.scope === "bahce") {
+    const { w, d } = SIZE.bahce;
+    if (s.night > 0.3) for (let k = 0; k < 22; k++) {
+      const fi = 1 + rnd(k * 3.1) * (w - 2) + Math.sin(t * 0.4 + k) * 0.8, fj = 9 + rnd(k * 7.7) * (d - 10) + Math.cos(t * 0.5 + k * 1.3) * 0.8;
+      const glow = (Math.sin(t * 2 + k * 2.3) + 1) / 2;
+      if (glow < 0.25) continue;
+      const [x, y] = at(o, fi, fj); const fy = y - 10 - Math.round(Math.sin(t + k) * 4);
+      px(c, x, fy, `rgba(220,255,140,${glow.toFixed(2)})`);
+      lights.push({ x, y: fy, r: 6, color: "200,255,120" });
+    }
+    if (s.night < 0.5) for (let k = 0; k < 6; k++) {
+      const bi = 2 + rnd(k * 5.3) * (w - 4) + Math.sin(t * 0.3 + k) * 2, bj = 10 + rnd(k * 2.9) * (d - 12) + Math.cos(t * 0.25 + k) * 2;
+      const [x, y] = at(o, bi, bj); const by = y - 14 - Math.round(Math.sin(t * 3 + k) * 3);
+      const flap = Math.floor(t * 8 + k) % 2; const col = ["#e48aa0", "#f3d48a", "#c9a6f0", "#ffffff"][k % 4];
+      px(c, x, by, P.ink); if (flap) { px(c, x - 1, by - 1, col); px(c, x + 1, by - 1, col); } else { px(c, x - 1, by, col); px(c, x + 1, by, col); }
+    }
+  }
 
   if (s.pick) {
     const p = s.placed.find((q) => q.id === s.pick);
@@ -279,7 +349,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   c.globalCompositeOperation = "lighter";
   for (const l of lights) {
     const gr = c.createRadialGradient(l.x, l.y, 0, l.x, l.y, l.r);
-    gr.addColorStop(0, `rgba(${l.color},0.22)`); gr.addColorStop(1, `rgba(${l.color},0)`);
+    gr.addColorStop(0, `rgba(${l.color},${(0.18 + 0.22 * s.night).toFixed(3)})`); gr.addColorStop(1, `rgba(${l.color},0)`);
     c.fillStyle = gr; c.fillRect(l.x - l.r, l.y - l.r, l.r * 2, l.r * 2);
   }
   c.restore();
