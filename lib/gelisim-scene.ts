@@ -2,10 +2,10 @@
 // durum (konumlar, eşyalar) dışarıdan gelir. Duvarlar "kesit" tarzı: dış arka duvarlar tam, iç duvarlar alçak.
 import { duldul, parrot } from "./companions";
 import { lights } from "./env";
-import { type Origin, at, box, shade, tile } from "./iso";
-import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, line, poly, px, rect, rnd, sprite } from "./pixel";
+import { type Origin, type Part, at, box, setFlip, shade, tile } from "./iso";
+import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, lerpFree, line, poly, px, rect, rnd, sprite } from "./pixel";
 import { type Area, CASTLE, type Floor, FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, gardenSolid, innerWalls, isPath, sizeOf } from "./room";
-import { isFlat, itemById } from "./room-items";
+import { type RoomItem, isFlat, itemById } from "./room-items";
 import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
 import { drawEffect, drawHeld } from "./combat-draw";
@@ -14,7 +14,7 @@ import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] }; study?: { reading: boolean; focus: boolean };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number }; study?: { reading: boolean; focus: boolean };
   gear?: { weapon: string | null; swing?: number }; shield?: boolean }; // elde silah, savuruş ilerlemesi (0..1), kalkan büyüsü
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
@@ -39,6 +39,9 @@ export type SceneState = {
 
 // oturuş: kalça alçakta, dizler önde (yatak, koltuk, bank)
 const SEAT: Free = { ...STAND_F, hip: [-1, -6], neck: [0, -13], eB: [1, -9], hB: [3, -7], eF: [2, -9], hF: [4, -7], kB: [3, -6], fB: [4, 0], kF: [3, -6], fF: [4, 0] };
+// uzanış: sırt üstü, baş yastıkta (yön başın tarafı: dir 1 iken baş solda), bacaklar düz, kollar yanda
+const LIE: Free = { hip: [1, -3], neck: [-6, -3], eB: [-3, -2], hB: [0, -2], eF: [-3, -4], hF: [1, -4], kB: [5, -3], fB: [9, -3], kF: [5, -4], fF: [9, -4], rot: -1 };
+const ease = (k: number) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
 const SMALL_HEART = [".o.o.", "oxoxo", "oxxxo", ".oxo.", "..o.."];
 let nightNow = 0; // pencerelerin gökyüzü rengi için (drawScene başında ayarlanır)
 let flashNow = 0; // şimşek parlaklığı (drawScene başında ayarlanır)
@@ -350,14 +353,54 @@ const KIT = { faceI, faceJ, archI, archJ, stoneI, stoneJ, gothicWindow, torch, b
 
 // Döndürülmüş eşya: (ty, tx) konumunda düz çizilip ekranda ox ekseni etrafında aynalanır.
 // İzometride yatay aynalama i ile j'yi yer değiştirir; eşya tam döndürülmüş yerine oturur.
+// rot: 0 düz, 1 aynalı, 2 ters (180°), 3 ters ve aynalı. Ters çizimde eşyanın parçaları yeni önüne göre sıralanır.
 function drawItem(c: Ctx, o: Origin, p: { itemId: string; tx: number; ty: number; rot?: number }, t: number) {
   const it = itemById.get(p.itemId); if (!it) return;
-  if (!p.rot) { it.draw(c, o, p.tx, p.ty, t); return; }
-  const n = lights.length;
-  c.save(); c.translate(2 * o.ox, 0); c.scale(-1, 1);
-  it.draw(c, o, p.ty, p.tx, t);
+  const r = (p.rot ?? 0) & 3;
+  if (!r) { it.draw(c, o, p.tx, p.ty, t); return; }
+  const mirror = (r & 1) === 1, n = lights.length;
+  const i0 = mirror ? p.ty : p.tx, j0 = mirror ? p.tx : p.ty;
+  c.save();
+  if (mirror) { c.translate(2 * o.ox, 0); c.scale(-1, 1); }
+  if (r & 2) drawTurned(c, o, it, i0, j0, t); else it.draw(c, o, i0, j0, t);
   c.restore();
-  for (let k = n; k < lights.length; k++) lights[k] = { ...lights[k], x: 2 * o.ox - lights[k].x };
+  if (mirror) for (let k = n; k < lights.length; k++) lights[k] = { ...lights[k], x: 2 * o.ox - lights[k].x };
+}
+
+type Seg = { p: Part; ops: (() => void)[] };
+const overlaps = (a: Part, b: Part) => a.i0 < b.i1 && b.i0 < a.i1 && a.j0 < b.j1 && b.j0 < a.j1;
+const E = 1e-6;
+// a, b'den önce çizilir mi: üst üste binenlerde alttaki, ayrık olanlarda arkadaki önce
+function behind(a: Part, b: Part): boolean {
+  if (overlaps(a, b)) return a.z1 <= b.z0 + E && b.z1 > a.z0 + E;
+  const aBack = a.i1 <= b.i0 + E || a.j1 <= b.j0 + E, bBack = b.i1 <= a.i0 + E || b.j1 <= a.j0 + E;
+  if (aBack !== bBack) return aBack;
+  return a.i0 + a.i1 + a.j0 + a.j1 < b.i0 + b.i1 + b.j0 + b.j1 - E;
+}
+// eşyayı ters çizer: çizim komutları parça parça kaydedilir, parçalar önden arkaya yeniden dizilip oynatılır
+function drawTurned(c: Ctx, o: Origin, it: RoomItem, i0: number, j0: number, t: number) {
+  const [W, D] = it.size;
+  let cur: Seg = { p: { i0, i1: i0 + W, j0, j1: j0 + D, z0: 0, z1: 0 }, ops: [] };
+  const segs: Seg[] = [cur];
+  const rec = new Proxy(c, {
+    get(tg, k) {
+      if (k === "fillRect") return (x: number, y: number, w: number, h: number) => { cur.ops.push(() => tg.fillRect(x, y, w, h)); };
+      const v = Reflect.get(tg, k);
+      return typeof v === "function" ? v.bind(tg) : v;
+    },
+    set(tg, k, v) {
+      if (k === "fillStyle") { cur.ops.push(() => { tg.fillStyle = v; }); return true; }
+      return Reflect.set(tg, k, v);
+    },
+  });
+  setFlip({ si: 2 * i0 + W, sj: 2 * j0 + D, part: (pt) => { if (cur.ops.length) { cur = { p: pt, ops: [] }; segs.push(cur); } else cur.p = pt; } });
+  try { it.draw(rec, o, i0, j0, t); } finally { setFlip(null); }
+  const left = segs.filter((g) => g.ops.length);
+  while (left.length) {
+    let k = left.findIndex((a) => !left.some((b) => b !== a && behind(b.p, a.p)));
+    if (k < 0) k = 0;
+    for (const op of left.splice(k, 1)[0].ops) op();
+  }
 }
 // derinlik: eşyanın en öndeki karesinin merkezi (iç duvarlar kenar + 0.5, karakter i + j ile aynı ölçek)
 const depthOf = (p: { itemId: string; tx: number; ty: number; rot?: number }) => { const [w, d] = sizeOf(p.itemId, p.rot); return p.tx + w - 0.5 + p.ty + d - 0.5; };
@@ -449,15 +492,31 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     list.push({ key: depthOf(p), draw: () => drawItem(c, o, p, t) });
   }
   for (const h of s.heroes) {
-    list.push({ key: h.i + h.j, draw: () => {
+    // oturan, oturduğu eşyanın hemen önünde çizilir (yoksa koltuk ya da yatak üstünü örter)
+    list.push({ key: Math.max(h.i + h.j, h.sit?.depth ?? 0), draw: () => {
       const [x, y] = at(o, h.i, h.j);
-      rect(c, x - 5, y - 1, 10, 2, "rgba(0,0,0,0.3)");
-      const lift = h.sit?.lift ?? 0;
-      const pose = h.sit ? SEAT : h.moving ? walkFrame(h.dist) : STAND;
-      const a = drawCharacter(c, { who: h.who, x, y: y - lift, dir: h.dir, pose, outfit: h.outfit, tint: h.tint, blink: h.sit?.sleep || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      if (!h.sit) rect(c, x - 5, y - 1, 10, 2, "rgba(0,0,0,0.3)");
+      // oturur ve uzanırken ayaktan pozuna yumuşakça geçer
+      const k = h.sit ? (h.sit.at === undefined ? 1 : ease((t - h.sit.at) / (h.sit.sleep ? 0.45 : 0.28))) : 0;
+      const lift = Math.round((h.sit?.lift ?? 0) * k);
+      let pose: CharState["pose"] = h.moving ? walkFrame(h.dist) : STAND;
+      if (h.sit) {
+        let target = h.sit.sleep ? LIE : SEAT;
+        if (h.sit.sleep && k >= 1 && Math.sin(t * 1.6) > 0.55) target = { ...LIE, neck: [LIE.neck[0], LIE.neck[1] - 1], eF: [LIE.eF[0], LIE.eF[1] - 1], hF: [LIE.hF[0], LIE.hF[1] - 1] }; // nefes
+        pose = k >= 1 ? target : lerpFree(STAND_F, target, k);
+      }
+      const a = drawCharacter(c, { who: h.who, x, y: y - lift, dir: h.dir, pose, outfit: h.outfit, tint: h.tint, blink: (h.sit?.sleep && k >= 1) || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      if (h.sit?.sleep && k >= 1) {
+        // battaniye: kalçadan ayaklara
+        const d = h.dir, bx = d > 0 ? a.hip[0] - 2 : a.hip[0] - 11;
+        rect(c, bx - 1, a.hip[1] - 5, 15, 7, P.ink);
+        rect(c, bx, a.hip[1] - 4, 13, 5, h.sit.blanket ?? "#b56b7a");
+        rect(c, d > 0 ? bx : bx + 11, a.hip[1] - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
+        for (let q = 0; q < 3; q++) px(c, bx + 3 + q * 4, a.hip[1] - 3 + (q % 2), "rgba(255,255,255,0.35)");
+      }
       if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
       if (h.shield) for (let k = 0; k < 20; k++) { const ang = t * 2 + (k / 20) * Math.PI * 2; px(c, Math.round(x + Math.cos(ang) * 10), Math.round(y - 10 + Math.sin(ang) * 6), k % 2 ? "#f3d48a" : "rgba(255,255,255,0.5)"); }
-      if (h.sit?.sleep) for (let k = 0; k < 3; k++) {
+      if (h.sit?.sleep && k >= 1) for (let k = 0; k < 3; k++) {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
         rect(c, zx, zy, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); px(c, zx + 1, zy + 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); rect(c, zx, zy + 2, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`);
       }

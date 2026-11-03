@@ -5,10 +5,13 @@ import { syncPresence, unreadNotes } from "@/lib/room-server";
 import { partnerTimers } from "@/lib/study-server";
 import { UUID_RE } from "@/lib/skin";
 
+// duruş: oturuyor / uzanıyor / masada / kitaplıkta ve yüksekliği (ör. "lie:8")
+const POSE_RE = /^(sit|lie|desk|read):\d{1,2}$/;
+
 // Canlı konum: bahçede, şatoda ya da bir evde. Kendi konumunu yaz, aynı yerdeki diğerini al. here: false ise ayrıldın.
 export const POST = withUser(async (req, user) => {
   const body = await readJson(req);
-  const { here, place, x, y, dir, moving, action } = body ?? {};
+  const { here, place, x, y, dir, moving, action, pose } = body ?? {};
   // son saldırı ya da büyü: yalnız biçimi doğruysa saklanır (diğer kişi efekti oynatır)
   const a = action as { kind?: unknown; id?: unknown; at?: unknown } | undefined;
   const act = a && (a.kind === "vurus" || a.kind === "buyu") && typeof a.id === "string" && a.id.length <= 60 && typeof a.at === "number" && Number.isFinite(a.at)
@@ -22,12 +25,8 @@ export const POST = withUser(async (req, user) => {
     return jsonError(400, "Geçersiz konum.");
   }
   const [others, unread, timers] = await Promise.all([
-    syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act }), unreadNotes(user.id), partnerTimers(user),
+    syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act, pose: typeof pose === "string" && POSE_RE.test(pose) ? pose : null }), unreadNotes(user.id), partnerTimers(user),
   ]);
-  // evde sayacı açık ve yerinde duran kişi masada çalışıyor görünür; şerit için sayaçlar ayrıca döner
-  const studyOf = (id: string, moving: boolean) => {
-    const t = isHouse && !moving ? timers.find((x) => x.userId === id) : undefined;
-    return t ? { reading: t.reading } : null;
-  };
-  return jsonOk({ others: others.map((o) => ({ ...o, study: studyOf(o.userId, o.moving) })), unread, timers });
+  // masada oturan ve sayacı açık olan odakta görünür; şerit için sayaçlar ayrıca döner
+  return jsonOk({ others: others.map((o) => ({ ...o, focus: timers.some((x) => x.userId === o.userId) })), unread, timers });
 });
