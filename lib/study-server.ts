@@ -205,3 +205,15 @@ export async function deleteSession(user: U, id: string): Promise<number | null>
   const [r] = await sql()`delete from study_sessions where id = ${id} and user_id = ${user.id} returning minutes, pages, together`;
   return r ? studyXp(r.minutes, r.pages, r.together) : null;
 }
+
+export type PartnerTimer = { userId: string; label: string; startedAt: string; reading: boolean };
+
+/** Canlı konum için: aynı hesaptaki diğerlerinin çalışan sayaçları */
+export async function partnerTimers(user: U): Promise<PartnerTimer[]> {
+  const rows = await sql()`
+    select t.user_id, t.book_id, t.started_at, coalesce(a.name, b.title) as label
+    from study_timers t join users u on u.id = t.user_id
+    left join study_areas a on a.id = t.area_id left join books b on b.id = t.book_id
+    where u.account_id = ${user.accountId} and t.user_id <> ${user.id}`;
+  return rows.map((r) => ({ userId: r.user_id, label: r.label ?? "Çalışma", startedAt: new Date(r.started_at).toISOString(), reading: r.book_id !== null }));
+}

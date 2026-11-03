@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { gainXp } from "@/components/xp-badge";
 import { api } from "@/lib/api-client";
-import { WEEKDAY_SHORT, diffDays, formatDayShort, todayIstanbul, weekdayIndex } from "@/lib/dates";
+import { WEEKDAY_SHORT, addDays, diffDays, formatDayShort, todayIstanbul, weekdayIndex } from "@/lib/dates";
 import { formatClock } from "@/lib/slots";
 import {
   BOOK_KINDS, BOOK_STATUS, type Book, type BookKind, type BookStatus, STUDY_COLORS, STUDY_XP, type StudyArea, type StudyColor,
@@ -17,7 +17,9 @@ type View =
   | { kind: "list" }
   | { kind: "area"; area: StudyArea | null }
   | { kind: "book"; book: Book | null }
-  | { kind: "log"; target: Target; label: string; fromTimer: boolean; book: Book | null };
+  | { kind: "log"; target: Target; label: string; fromTimer: boolean; book: Book | null }
+  | { kind: "start"; target: Target; label: string };
+type Plan = { goal: number; intent: string };
 
 const COLOR_NAMES: Record<StudyColor, string> = { pm: "Mor", am: "Amber", shower: "Mavi", ok: "Yeşil", week: "Gül", bad: "Kiremit" };
 
@@ -27,13 +29,60 @@ function dayLabel(day: string, today: string) {
   return d === 0 ? "Bugün" : d === 1 ? "Dün" : d < 7 ? `${WEEKDAY_SHORT[weekdayIndex(day)]} · ${formatDayShort(day)}` : formatDayShort(day);
 }
 const num = (v: string) => (v.trim() === "" ? "" : Number(v));
+const keyOf = (t: { areaId?: string | null; bookId?: string | null }) => `st-plan:${t.areaId ?? t.bookId}`;
+
+// Oturum planı (hedef süre, niyet) yalnız bu tarayıcıda tutulur
+function readPlan(t: { areaId?: string | null; bookId?: string | null }): Plan | null {
+  try { const v = localStorage.getItem(keyOf(t)); return v ? (JSON.parse(v) as Plan) : null; } catch { return null; }
+}
+function writePlan(t: Target, p: Plan | null) {
+  try { if (p) localStorage.setItem(keyOf(t), JSON.stringify(p)); else localStorage.removeItem(keyOf(t)); } catch { /* özel pencere */ }
+}
+
+const PRESETS = [
+  { min: 0, label: "Serbest", hint: "sayaç ileri sayar" },
+  { min: 25, label: "25 dk", hint: "Pomodoro" },
+  { min: 50, label: "50 dk", hint: "uzun odak" },
+  { min: 90, label: "90 dk", hint: "derin çalışma" },
+] as const;
+
+// Yağmur sesi: kahverengi gürültü. Panel kapansa da çalmaya devam etsin diye modül düzeyinde
+let ambient: { stop: () => void } | null = null;
+function setAmbient(on: boolean) {
+  if (!on) { ambient?.stop(); ambient = null; return; }
+  if (ambient) return;
+  try {
+    const ctx = new AudioContext();
+    const len = ctx.sampleRate * 3, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+    let last = 0;
+    for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+    const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 1100;
+    const g = ctx.createGain(); g.gain.value = 0.22;
+    src.connect(f).connect(g).connect(ctx.destination); src.start();
+    ambient = { stop: () => { try { src.stop(); } catch { /* zaten durdu */ } void ctx.close(); } };
+  } catch { /* ses yoksa sessiz */ }
+}
+// hedef süre dolunca üç notalık zil
+function chime() {
+  try {
+    const a = new AudioContext();
+    [784, 1047, 1319].forEach((f, k) => {
+      const at = a.currentTime + k * 0.22, o = a.createOscillator(), g = a.createGain();
+      o.type = "triangle"; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.12, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.9);
+      o.connect(g).connect(a.destination); o.start(at); o.stop(at + 1);
+    });
+    window.setTimeout(() => void a.close(), 2000);
+  } catch { /* ses yoksa sessiz */ }
+}
 
 /**
  * Çalışma odasındaki masa ve kitaplık: alanlar (Python, Network...) ve okuma listesi, süre tutma, sayfa,
  * günlük ve XP. Ortak alan/kitaplara ikiniz de kayıt girersiniz; aynı anda çalışınca oturum +%50 XP.
  */
-export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
-  me: string; profiles: Profile[]; tab: StudyTab; onClose: () => void;
+export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose, onTimer }: {
+  me: string; profiles: Profile[]; tab: StudyTab; atDesk?: boolean; onClose: () => void;
   onTimer: (t: { label: string; startedAt: string } | null) => void;
 }) {
   const [tab, setTab] = useState<StudyTab>(firstTab);
@@ -47,6 +96,8 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
+  const [rain, setRain] = useState(() => ambient !== null);
+  const chimed = useRef<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
   const today = todayIstanbul();
 
@@ -79,6 +130,27 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
   const myTimer = data?.timers.find((t) => t.userId === me) ?? null;
   const theirTimer = data?.timers.find((t) => t.userId !== me) ?? null;
   const myLabel = myTimer ? timerLabel(myTimer) : null;
+  const plan = myTimer ? readPlan(myTimer) : null;
+  const mySec = myTimer ? elapsed(myTimer) : 0;
+  const goalSec = plan?.goal ? plan.goal * 60 : 0;
+
+  // hedef süre dolunca bir kez zil
+  useEffect(() => {
+    if (!myTimer || !goalSec || mySec < goalSec || chimed.current === myTimer.startedAt) return;
+    chimed.current = myTimer.startedAt; chime();
+    setMsg(`🎉 ${goalSec / 60} dakikalık hedef tamam! İstersen bitir, istersen devam et.`);
+  }, [myTimer, goalSec, mySec]);
+
+  // bugün ve son 7 gün (yalnız kendi kayıtların)
+  const mine = (data?.sessions ?? []).filter((s) => s.userId === me);
+  const todays = mine.filter((s) => s.day === today);
+  const todayMin = todays.reduce((n, s) => n + s.minutes, 0), todayPages = todays.reduce((n, s) => n + s.pages, 0);
+  const todayXp = todays.reduce((n, s) => n + studyXp(s.minutes, s.pages, s.together), 0);
+  const week = Array.from({ length: 7 }, (_, k) => addDays(today, k - 6)).map((day) => ({ day, min: mine.filter((s) => s.day === day).reduce((n, s) => n + s.minutes, 0) }));
+  const weekMax = Math.max(30, ...week.map((w) => w.min));
+  const days = new Set(mine.map((s) => s.day));
+  let streak = 0;
+  for (let d = days.has(today) ? today : addDays(today, -1); days.has(d); d = addDays(d, -1)) streak++;
 
   // dünyadaki çubukta çalışan sayacı göstermek için
   useEffect(() => { onTimer(myTimer && myLabel ? { label: myLabel, startedAt: myTimer.startedAt } : null); }, [myTimer?.startedAt, myLabel]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -89,8 +161,17 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
     setBusy(false);
   };
 
-  const start = (target: Target) => run(async () => { await api("/api/gelisim/calisma/sayac", { body: target }); });
-  const cancel = () => run(async () => { await api("/api/gelisim/calisma/sayac", { method: "DELETE" }); });
+  const start = (target: Target, p: Plan) => run(async () => {
+    writePlan(target, p);
+    await api("/api/gelisim/calisma/sayac", { body: target });
+    setView({ kind: "list" });
+    setMsg(atDesk ? "Odak başladı: sayaç bitene kadar masadasın." : "Sayaç başladı. Masaya oturursan (F) avatarın masada çalışır.");
+  });
+  const cancel = () => run(async () => {
+    if (myTimer) writePlan(myTimer.areaId ? { areaId: myTimer.areaId } : { bookId: myTimer.bookId! }, null);
+    await api("/api/gelisim/calisma/sayac", { method: "DELETE" });
+    setAmbient(false); setRain(false);
+  });
   const finishTimer = () => {
     if (!myTimer) return;
     const target: Target = myTimer.areaId ? { areaId: myTimer.areaId } : { bookId: myTimer.bookId! };
@@ -107,9 +188,9 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
     if (e.key === "Escape") { if (view.kind !== "list") setView({ kind: "list" }); else onClose(); }
   };
 
-  const startBtn = (target: Target, isRunning: boolean, label: string) => (
+  const startBtn = (target: Target, isRunning: boolean, label: string, name: string) => (
     <button type="button" className="btn btn-primary btn-sm" disabled={busy || !!myTimer}
-      title={myTimer && !isRunning ? "Önce çalışan sayacı bitir" : undefined} onClick={() => start(target)}>
+      title={myTimer && !isRunning ? "Önce çalışan sayacı bitir" : undefined} onClick={() => setView({ kind: "start", target, label: name })}>
       {isRunning ? "⏱ Çalışıyor" : `▶ ${label}`}
     </button>
   );
@@ -174,14 +255,33 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
 
         {(myTimer || theirTimer) && (
           <div className="st-live" aria-live="polite">
-            {myTimer && (
-              <div className="st-live-row is-mine">
-                <span className="grow">⏱ <b>{myLabel}</b></span>
-                <b className="num st-clock">{formatClock(elapsed(myTimer))}</b>
-                <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={finishTimer}>Bitir ve kaydet</button>
-                <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={cancel}>Vazgeç</button>
-              </div>
-            )}
+            {myTimer && (() => {
+              const over = goalSec > 0 && mySec >= goalSec;
+              const quarter = 15 * 60, pct = goalSec ? Math.min(1, mySec / goalSec) : (mySec % quarter) / quarter;
+              const color = myTimer.areaId ? areaById.get(myTimer.areaId)?.color ?? "pm" : "week";
+              return (
+                <div className={`st-focus${over ? " is-done" : ""}`} data-color={color}>
+                  <div className="st-ring" style={{ "--p": `${Math.round(pct * 360)}deg` } as React.CSSProperties} role="timer" aria-label="Oturum süresi">
+                    <span>
+                      <b className="num st-focus-clock">{goalSec && !over ? formatClock(goalSec - mySec) : over ? `+${formatClock(mySec - goalSec)}` : formatClock(mySec)}</b>
+                      <small>{goalSec ? (over ? "hedef tamam" : `${goalSec / 60} dk hedef · kalan`) : `+${STUDY_XP.quarter} XP'ye ${formatClock(quarter - (mySec % quarter))}`}</small>
+                    </span>
+                  </div>
+                  <div className="st-focus-info">
+                    <span className="st-focus-kind">{myTimer.bookId ? "📖 Okuyorsun" : "✍️ Çalışıyorsun"}{atDesk ? " · 🔒 masadasın" : ""}</span>
+                    <b className="st-focus-label">{myLabel}</b>
+                    {plan?.intent && <span className="st-intent">🎯 {plan.intent}</span>}
+                    <small className="muted">Toplam {formatClock(mySec)} · şimdiden +{studyXp(Math.floor(mySec / 60), 0, !!theirTimer)} XP{theirTimer ? " · ❤️ birlikte" : ""}</small>
+                    {!atDesk && <small className="st-tip">İpucu: çalışma odasında masaya yaklaşıp F'ye bas; avatarın masaya oturur, odak kilitlenir.</small>}
+                    <div className="row st-actions">
+                      <button type="button" className="btn btn-primary" disabled={busy} onClick={finishTimer}>✓ Bitir ve kaydet</button>
+                      <button type="button" className={`btn btn-sm ${rain ? "btn-primary" : "btn-ghost"}`} aria-pressed={rain} onClick={() => { setAmbient(!rain); setRain(!rain); }}>🌧 Yağmur</button>
+                      <button type="button" className="btn btn-quiet btn-sm" disabled={busy} onClick={cancel}>Vazgeç</button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
             {theirTimer && (
               <div className="st-live-row">
                 <span className="grow">🟢 <b>{nameOf(theirTimer.userId)}</b> şu an <b>{timerLabel(theirTimer)}</b> {theirTimer.bookId ? "okuyor" : "çalışıyor"}</span>
@@ -208,15 +308,19 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
               setView({ kind: "list" }); setMsg(view.book ? "Kitap güncellendi." : "Okuma listesine eklendi.");
             })}
             onArchive={view.book && view.book.userId === me ? () => run(async () => { await api(`/api/gelisim/calisma/kitap/${view.book!.id}`, { method: "DELETE" }); setView({ kind: "list" }); setMsg("Kitap listeden kaldırıldı."); }) : undefined} />
-          : view.kind === "log" ? <LogForm view={view} elapsedMin={myTimer ? Math.round(elapsed(myTimer) / 60) : 0} busy={busy} onCancel={() => setView({ kind: "list" })}
+          : view.kind === "start" ? <StartForm label={view.label} reading={"bookId" in view.target} atDesk={atDesk} together={!!theirTimer} busy={busy}
+            onStart={(p) => start(view.target, p)} onCancel={() => setView({ kind: "list" })} />
+          : view.kind === "log" ? <LogForm view={view} intent={view.fromTimer ? plan?.intent ?? "" : ""} elapsedMin={myTimer ? Math.round(elapsed(myTimer) / 60) : 0} busy={busy} onCancel={() => setView({ kind: "list" })}
             onSave={(body) => run(async () => {
               const res = await api<{ xp: number; together: boolean; minutes: number; pages: number }>("/api/gelisim/calisma/oturum", { body: { ...view.target, fromTimer: view.fromTimer, ...body } });
               if (res.xp) gainXp(res.xp);
+              if (view.fromTimer) { writePlan(view.target, null); setAmbient(false); setRain(false); }
               setView({ kind: "list" });
               setMsg(`Kaydedildi: ${[res.minutes ? fmtMin(res.minutes) : null, res.pages ? `${res.pages} sayfa` : null].filter(Boolean).join(", ")} · +${res.xp} XP${res.together ? " · birlikte ❤️" : ""}`);
             })} />
           : tab === "masa" ? (
             <>
+              <TodayStrip min={todayMin} pages={todayPages} xp={todayXp} streak={streak} week={week} weekMax={weekMax} today={today} />
               <p className="muted st-intro">Masandaki çalışma alanları. Sayaçla süre tut, sayfa gir; her 15 dakika {STUDY_XP.quarter} XP, her 2 sayfa 1 XP. Ortak alanlara {partner ? partner.name.split(" ")[0] : "diğeriniz"} da kayıt girer.</p>
               {data.areas.length === 0 && <p className="st-empty">Henüz alan yok. Örneğin <b>Python</b>, <b>Network</b> ya da <b>İngilizce</b> ekle.</p>}
               <ul className="st-cards">
@@ -232,9 +336,15 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
                       {a.dailyMinutes ? (
                         <div className="st-bar" title={`Bugün ${a.todayMin} / ${a.dailyMinutes} dk`}><i style={{ width: `${Math.min(100, (a.todayMin / a.dailyMinutes) * 100)}%` }} /></div>
                       ) : null}
+                      <div className="st-dots" aria-label="Son 7 gün">
+                        {week.map((w) => {
+                          const m = data.sessions.filter((s) => s.areaId === a.id && s.day === w.day).reduce((n, s) => n + s.minutes, 0);
+                          return <i key={w.day} className={m ? (a.dailyMinutes && m >= a.dailyMinutes ? "is-full" : "is-some") : undefined} title={`${dayLabel(w.day, today)}: ${fmtMin(m)}`} />;
+                        })}
+                      </div>
                       <small className="muted">Bugün {fmtMin(a.todayMin)}{a.dailyMinutes ? ` / ${fmtMin(a.dailyMinutes)}` : ""} · toplam {fmtMin(a.totalMin)}{a.totalPages ? ` · ${a.totalPages} sayfa` : ""}</small>
                       <div className="row st-actions">
-                        {startBtn({ areaId: a.id }, running, "Başlat")}
+                        {startBtn({ areaId: a.id }, running, "Başlat", a.name)}
                         <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setView({ kind: "log", target: { areaId: a.id }, label: a.name, fromTimer: false, book: null })}>+ Elle</button>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView({ kind: "area", area: a })}>Düzenle</button>
                         <button type="button" className="btn btn-quiet btn-sm" aria-pressed={areaFilter === a.id} onClick={() => setAreaFilter(areaFilter === a.id ? null : a.id)}>Günlük</button>
@@ -249,6 +359,7 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
             </>
           ) : (
             <>
+              <TodayStrip min={todayMin} pages={todayPages} xp={todayXp} streak={streak} week={week} weekMax={weekMax} today={today} />
               <p className="muted st-intro">Okuma listen: kitaplar ve yayınlar. Okurken süre tut, bitirince kaldığın sayfayı yaz; okuduğun her 2 sayfa 1 XP.</p>
               <div className="chips" role="group" aria-label="Duruma göre">
                 {(["okunuyor", "okunacak", "bitti", "tum"] as const).map((s) => (
@@ -277,7 +388,7 @@ export function StudyDesk({ me, profiles, tab: firstTab, onClose, onTimer }: {
                       </small>
                       {b.note && <span className="st-note">📍 {b.note}</span>}
                       <div className="row st-actions">
-                        {b.status !== "bitti" && startBtn({ bookId: b.id }, running, "Oku")}
+                        {b.status !== "bitti" && startBtn({ bookId: b.id }, running, "Oku", b.title)}
                         <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setView({ kind: "log", target: { bookId: b.id }, label: b.title, fromTimer: false, book: b })}>Sayfa gir</button>
                         <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView({ kind: "book", book: b })}>Düzenle</button>
                       </div>
@@ -380,14 +491,14 @@ function BookForm({ book, mine, busy, onSave, onCancel, onArchive }: {
   );
 }
 
-function LogForm({ view, elapsedMin, busy, onSave, onCancel }: {
-  view: Extract<View, { kind: "log" }>; elapsedMin: number; busy: boolean; onSave: (b: object) => void; onCancel: () => void;
+function LogForm({ view, intent, elapsedMin, busy, onSave, onCancel }: {
+  view: Extract<View, { kind: "log" }>; intent: string; elapsedMin: number; busy: boolean; onSave: (b: object) => void; onCancel: () => void;
 }) {
   const book = view.book;
   const [minutes, setMinutes] = useState("");
   const [pages, setPages] = useState("");
   const [toPage, setToPage] = useState(book ? String(book.currentPage) : "");
-  const [note, setNote] = useState("");
+  const [note, setNote] = useState(intent);
   const read = book && toPage.trim() !== "" ? Math.max(0, Number(toPage) - book.currentPage) : null;
   return (
     <form className="stack st-form" onSubmit={(e) => {
@@ -420,5 +531,59 @@ function LogForm({ view, elapsedMin, busy, onSave, onCancel }: {
         <button type="button" className="btn btn-ghost" onClick={onCancel}>{view.fromTimer ? "Sayaca dön" : "Vazgeç"}</button>
       </div>
     </form>
+  );
+}
+
+/* ------------------------------ başlatma ve özet ------------------------------ */
+
+function StartForm({ label, reading, atDesk, together, busy, onStart, onCancel }: {
+  label: string; reading: boolean; atDesk: boolean; together: boolean; busy: boolean; onStart: (p: Plan) => void; onCancel: () => void;
+}) {
+  const [goal, setGoal] = useState<number>(25);
+  const [intent, setIntent] = useState("");
+  return (
+    <form className="stack st-form st-start" onSubmit={(e) => { e.preventDefault(); onStart({ goal, intent: intent.trim().slice(0, 120) }); }}>
+      <h3 className="st-sub">{reading ? "📖 Okumaya başla" : "✍️ Odaklan"} · {label}</h3>
+      <span className="field-label">Ne kadar?</span>
+      <div className="st-presets" role="radiogroup" aria-label="Hedef süre">
+        {PRESETS.map((p) => (
+          <button key={p.min} type="button" role="radio" aria-checked={goal === p.min} className="st-preset" onClick={() => setGoal(p.min)}>
+            <b>{p.label}</b><small>{p.hint}</small>
+          </button>
+        ))}
+      </div>
+      <label className="field-label" htmlFor="st-intent">{reading ? "Bugün nereye kadar?" : "Bu oturumda ne yapacaksın?"}</label>
+      <input id="st-intent" className="input" maxLength={120} value={intent} onChange={(e) => setIntent(e.target.value)} autoFocus
+        placeholder={reading ? "Ör. 3. bölümün sonuna kadar" : "Ör. sözlükler ve döngüler alıştırmaları"} />
+      <p className="muted st-start-note">
+        {atDesk ? "🔒 Sayaç bitene kadar masadan kalkamazsın; panel kapansa da sayaç sürer." : "Masaya oturmadan da başlatabilirsin; masada başlatırsan avatarın masada çalışır."}
+        {together ? " ❤️ Şu an diğeriniz de çalışıyor: bu oturum +%50 XP." : ""}
+      </p>
+      <div className="row">
+        <button type="submit" className="btn btn-primary" disabled={busy}>▶ Başlat</button>
+        <button type="button" className="btn btn-ghost" onClick={onCancel}>Vazgeç</button>
+      </div>
+    </form>
+  );
+}
+
+function TodayStrip({ min, pages, xp, streak, week, weekMax, today }: {
+  min: number; pages: number; xp: number; streak: number; week: { day: string; min: number }[]; weekMax: number; today: string;
+}) {
+  return (
+    <div className="st-today">
+      <div className="st-stat"><b className="num">{fmtMin(min)}</b><small>bugün</small></div>
+      <div className="st-stat"><b className="num">{pages}</b><small>sayfa</small></div>
+      <div className="st-stat"><b className="num">+{xp}</b><small>XP</small></div>
+      <div className="st-stat"><b className="num">🔥 {streak}</b><small>gün seri</small></div>
+      <div className="st-week" aria-label="Son 7 gün çalışma süresi">
+        {week.map((w) => (
+          <span key={w.day} title={`${dayLabel(w.day, today)}: ${fmtMin(w.min)}`} className={w.day === today ? "is-today" : undefined}>
+            <i style={{ height: `${Math.max(w.min ? 12 : 4, Math.round((w.min / weekMax) * 100))}%` }} />
+            <small>{WEEKDAY_SHORT[weekdayIndex(w.day)].slice(0, 2)}</small>
+          </span>
+        ))}
+      </div>
+    </div>
   );
 }
