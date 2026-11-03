@@ -15,11 +15,8 @@ export default async function Page() {
   // iki profilin seviyesi: zırh rengi ve envanter kilidi
   const withLevel = await Promise.all(profiles.map(async (p) => ({ ...p, level: levelOf((await adventure(p.id, user.accountId, today)).xp).level })));
   return (
-    <main className="main">
-      <header className="page-head">
-        <p className="eyebrow">Kendi odan ve ortak bahçe</p>
-        <h1>Gelişim</h1>
-      </header>
+    <main className="main gw-main">
+      <h1 className="sr-only">Gelişim</h1>
       <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} />
     </main>
   );

@@ -6,6 +6,7 @@ import { levelOf } from "./xp";
 
 export type Profile = { id: string; name: string };
 export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean };
+// place: "bahce" ya da "ev:<ev sahibinin kimliği>"; yalnız aynı yerdekiler birbirini görür
 
 export async function profilesOf(accountId: string): Promise<Profile[]> {
   const rows = await sql()`select id, display_name from users where account_id = ${accountId} order by created_at`;
@@ -46,17 +47,17 @@ export async function removeItem(userId: string, id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
-/** Bahçedeki konumu yazar, aynı hesaptaki diğerlerinin son birkaç saniyedeki konumunu döndürür */
-export async function syncPresence(user: { id: string; accountId: string }, p: Omit<Presence, "userId"> | null): Promise<Presence[]> {
+/** Konumu yazar; aynı hesapta, aynı yerde olan diğerlerinin son birkaç saniyedeki konumunu döndürür */
+export async function syncPresence(user: { id: string; accountId: string }, place: string, p: Omit<Presence, "userId"> | null): Promise<Presence[]> {
   if (p) {
     await sql()`
-      insert into garden_presence (user_id, x, y, dir, moving, updated_at) values (${user.id}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, now())
-      on conflict (user_id) do update set x = excluded.x, y = excluded.y, dir = excluded.dir, moving = excluded.moving, updated_at = now()`;
+      insert into garden_presence (user_id, place, x, y, dir, moving, updated_at) values (${user.id}, ${place}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, now())
+      on conflict (user_id) do update set place = excluded.place, x = excluded.x, y = excluded.y, dir = excluded.dir, moving = excluded.moving, updated_at = now()`;
   } else {
     await sql()`delete from garden_presence where user_id = ${user.id}`;
   }
   const rows = await sql()`
     select g.user_id, g.x, g.y, g.dir, g.moving from garden_presence g join users u on u.id = g.user_id
-    where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.updated_at > now() - interval '6 seconds'`;
+    where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place} and g.updated_at > now() - interval '6 seconds'`;
   return rows.map((r) => ({ userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving }));
 }
