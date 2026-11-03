@@ -1,13 +1,13 @@
 // Gelişim dövüş motoru (saf): can, mana, kılıç kombosu, mermiler ve büyüler. Çizim ve giriş yok.
 // Koordinatlar izometrik kare (i, j); "ileri" ekranda sağ (dir 1) ya da sol (dir -1) demek: i - j artar ya da azalır.
-import { FIST, type SpellShape, armorStats, damageAfterArmor, spellStats, weaponStats } from "./combat-stats";
+import { FIST, type SpellShape, armorStats, spellStats, weaponStats } from "./combat-stats";
 import { type Equipment, NO_EQUIPMENT } from "./equipment";
 
 export type Fighter = { hp: number; maxHp: number; mana: number; maxMana: number; shield: number; shieldUntil: number; comboStep: number; comboAt: number; readyAt: number; spellReady: Record<string, number> };
-export type Target = { id: string; i: number; j: number; hp: number; maxHp: number; hitAt: number; downAt?: number; respawn?: boolean; defense?: number; magicResist?: number; guardDir?: 1 | -1 };
+export type Target = { id: string; i: number; j: number; hp: number; maxHp: number; hitAt: number; downAt?: number };
 export type Effect = {
   kind: "vurus" | SpellShape | "hasar" | "sifa-sayi"; i: number; j: number; dir: 1 | -1; at: number; until: number;
-  visualOnly?: boolean; magic?: boolean; pierce?: number; color?: string; value?: number; vi?: number; vj?: number; damage?: number; step?: number; style?: string;
+  visualOnly?: boolean; color?: string; value?: number; vi?: number; vj?: number; damage?: number; step?: number; style?: string;
 };
 export type Pos = { i: number; j: number; dir: 1 | -1 };
 
@@ -28,11 +28,9 @@ const ahead = (at: Pos, t: { i: number; j: number }) => ((t.i - t.j) - (at.i - a
 const sideways = (at: Pos, t: { i: number; j: number }) => Math.abs((t.i + t.j) - (at.i + at.j));
 const alive = (t: Target) => t.hp > 0;
 
-function hurt(t: Target, amount: number, now: number, out: Effect[], color?: string, magic = false, source?: Pos, pierce = 0) {
+function hurt(t: Target, amount: number, now: number, out: Effect[], color?: string) {
   if (!alive(t)) return;
-  const defense = magic ? t.magicResist ?? (t.defense ?? 0) * 0.35 : (t.defense ?? 0) * (1 - pierce);
-  const guarded = !magic && source && t.guardDir && ((source.i - source.j) - (t.i - t.j)) * t.guardDir > 0;
-  const v = damageAfterArmor(amount * (guarded ? 0.45 : 1), defense);
+  const v = Math.max(1, Math.round(amount));
   t.hp = Math.max(0, t.hp - v); t.hitAt = now;
   if (t.hp === 0) t.downAt = now;
   out.push({ kind: "hasar", i: t.i, j: t.j, dir: 1, at: now, until: now + 0.9, value: v, color });
@@ -50,10 +48,10 @@ function aim(at: Pos, targets: Target[], range: number): Target | null {
 }
 
 /** Hedefe ya da (hedef yoksa) düz ileri giden mermi */
-function shot(kind: Effect["kind"], at: Pos, target: Target | null, range: number, damage: number, now: number, color?: string, magic = false, pierce = 0): Effect {
+function shot(kind: Effect["kind"], at: Pos, target: Target | null, range: number, damage: number, now: number, color?: string): Effect {
   let vi = at.dir * SHOT_SPEED / Math.SQRT2, vj = -at.dir * SHOT_SPEED / Math.SQRT2;
   if (target) { const di = target.i - at.i, dj = target.j - at.j, l = Math.hypot(di, dj) || 1; vi = (di / l) * SHOT_SPEED; vj = (dj / l) * SHOT_SPEED; }
-  return { kind, i: at.i, j: at.j, dir: at.dir, at: now, until: now + (range + 1) / SHOT_SPEED, vi, vj, damage, color, magic, pierce };
+  return { kind, i: at.i, j: at.j, dir: at.dir, at: now, until: now + (range + 1) / SHOT_SPEED, vi, vj, damage, color };
 }
 
 /** Silah vuruşu: bekleme süresine uyar, kombo adımını sayar; yakın silah hemen vurur, yay ve asa mermi atar */
@@ -64,17 +62,16 @@ export function attack(f: Fighter, e: Equipment, at: Pos, targets: Target[], now
   f.comboAt = now; f.readyAt = now + w.cooldown;
   const finisher = w.combo > 1 && f.comboStep === w.combo;
   const damage = w.damage * (finisher ? COMBO_FINISH : 1);
-  const pierce = w.style === "agir" || w.style === "iki-elli" ? 0.5 : w.style === "mizrak" ? 0.15 : 0;
   const out: Effect[] = [{ kind: "vurus", i: at.i, j: at.j, dir: at.dir, at: now, until: now + w.cooldown, step: f.comboStep, style: w.style, color: w.trail }];
   if (w.style === "yay" || w.style === "asa") {
-    out.push(shot(w.style === "yay" ? "ok" : "kivilcim", at, aim(at, targets, w.range), w.range, damage, now, w.style === "asa" ? "#c9a6f0" : undefined, w.style === "asa", pierce));
+    out.push(shot(w.style === "yay" ? "ok" : "kivilcim", at, aim(at, targets, w.range), w.range, damage, now, w.style === "asa" ? "#c9a6f0" : undefined));
     return out;
   }
   const reach = w.range + (finisher ? 0.4 : 0);
   for (const t of targets) {
     if (!alive(t) || Math.hypot(t.i - at.i, t.j - at.j) > reach + 0.3) continue;
     if (ahead(at, t) < -0.3 || sideways(at, t) > reach + 0.6) continue;
-    hurt(t, damage, now, out, w.trail, false, at, pierce);
+    hurt(t, damage, now, out, w.trail);
   }
   return out;
 }
@@ -87,10 +84,10 @@ export function cast(f: Fighter, e: Equipment, slot: number, at: Pos, targets: T
   f.mana -= s.mana; f.spellReady[id] = now + s.cooldown;
   const out: Effect[] = [];
   const base = { i: at.i, j: at.j, dir: at.dir, at: now, color: s.color };
-  const area = (ci: number, cj: number, r: number) => { for (const t of targets) if (Math.hypot(t.i - ci, t.j - cj) <= r + 0.4) hurt(t, s.damage, now, out, s.color, true, at); };
+  const area = (ci: number, cj: number, r: number) => { for (const t of targets) if (Math.hypot(t.i - ci, t.j - cj) <= r + 0.4) hurt(t, s.damage, now, out, s.color); };
   switch (s.shape) {
     case "kivilcim": case "ok":
-      out.push(shot(s.shape, at, aim(at, targets, s.range), s.range, s.damage, now, s.color, true)); break;
+      out.push(shot(s.shape, at, aim(at, targets, s.range), s.range, s.damage, now, s.color)); break;
     case "kalkani":
       f.shield = 20 + Math.round(s.mana * 1.5); f.shieldUntil = now + 6;
       out.push({ ...base, kind: "kalkani", until: now + 6 }); break;
@@ -101,7 +98,7 @@ export function cast(f: Fighter, e: Equipment, slot: number, at: Pos, targets: T
       area(ci, cj, 2); out.push({ ...base, kind: "yagmuru", i: ci, j: cj, until: now + 1.2, value: 2 }); break;
     }
     case "ejder":
-      for (const t of targets) if (alive(t) && ahead(at, t) > 0 && ahead(at, t) <= s.range * 1.4 && sideways(at, t) < 2.5) hurt(t, s.damage * 1.5, now, out, s.color, true, at);
+      for (const t of targets) if (alive(t) && ahead(at, t) > 0 && ahead(at, t) <= s.range * 1.4 && sideways(at, t) < 2.5) hurt(t, s.damage * 1.5, now, out, s.color);
       out.push({ ...base, kind: "ejder", until: now + 1.6, value: s.range }); break;
     case "sifa": case "iki-kalp": {
       const heal = s.heal * (s.shape === "iki-kalp" && partnerNear ? 2 : 1), before = f.hp;
@@ -122,13 +119,13 @@ export function tick(f: Fighter, dt: number, now = 0): void {
 
 /** Mermileri ilerletir (çarpınca vurur), süresi dolan efektleri atar, yıkılan hedefleri kaldırır */
 export function stepEffects(effects: Effect[], targets: Target[], now: number): Effect[] {
-  for (const t of targets) if (t.respawn !== false && t.hp === 0 && t.downAt !== undefined && now - t.downAt >= RESPAWN) { t.hp = t.maxHp; t.downAt = undefined; }
+  for (const t of targets) if (t.hp === 0 && t.downAt !== undefined && now - t.downAt >= RESPAWN) { t.hp = t.maxHp; t.downAt = undefined; }
   const out: Effect[] = [];
   for (const e of effects) {
     if (e.vi !== undefined && e.vj !== undefined) {
       const k = now - e.at, pi = e.i + e.vi * k, pj = e.j + e.vj * k;
       const hit = targets.find((t) => alive(t) && Math.hypot(t.i - pi, t.j - pj) <= HIT_RADIUS);
-      if (hit) { if (!e.visualOnly) hurt(hit, e.damage ?? 0, now, out, e.color, e.magic, e, e.pierce); continue; }
+      if (hit) { if (!e.visualOnly) hurt(hit, e.damage ?? 0, now, out, e.color); continue; }
     }
     if (now <= e.until) out.push(e);
   }
@@ -151,10 +148,10 @@ if (process.env.NODE_ENV !== "production") {
   }
   {
     const eq = { ...NO_EQUIPMENT, weapon: "tahta-kilic" }, f = newFighter(5, eq), t = dummy(1, 0);
-    const d1 = dmg(attack(f, eq, me, [t], 0)), d2 = dmg(attack(f, eq, me, [t], 0.5)), d3 = dmg(attack(f, eq, me, [t], 1.0));
+    const d1 = dmg(attack(f, eq, me, [t], 0)), d2 = dmg(attack(f, eq, me, [t], 0.4)), d3 = dmg(attack(f, eq, me, [t], 0.8));
     console.assert(d1 === weaponStats("tahta-kilic")!.damage && d2 === d1 && d3 === Math.round(d1 * 1.8), "üçlü kombo, üçüncüsü 1.8 kat");
     console.assert(t.hp === 1000 - d1 - d2 - d3, "hedefin canı azalır");
-    console.assert(attack(f, eq, me, [t], 1.05).length === 0, "bekleme dolmadan vuruş yok");
+    console.assert(attack(f, eq, me, [t], 0.85).length === 0, "bekleme dolmadan vuruş yok");
     attack(f, eq, me, [t], 2.5);
     console.assert(f.comboStep === 1, "uzun aradan sonra kombo başa döner");
     const back = dummy(-1, 0);

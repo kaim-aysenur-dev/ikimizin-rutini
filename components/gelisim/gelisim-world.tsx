@@ -338,7 +338,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof Element && e.target.closest("input,textarea,select,[contenteditable=true]")) return;
       if (k === "escape") { if (!e.repeat) shortcutRef.current(k); return; }
       if (modalRef.current) return;
-      if (["r", "x", "t", "v", "m", "e", "g", "h", "b", "+", "=", "-", "0"].includes(k)) {
+      if (["r", "x", "t", "v", "m", "e", "h", "b", "+", "=", "-", "0"].includes(k)) {
         e.preventDefault(); if (!e.repeat) shortcutRef.current(k); return;
       }
       if (k === "f" || k === " ") { e.preventDefault(); if (!e.repeat) interact(); }
@@ -800,7 +800,6 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     else if (key === "e") setInvOpen((v) => !v);
     else if (key === "h") setHelpOpen((v) => !v);
     else if (key === "b" && atDesk && !locked) leaveDesk();
-    else if (key === "g" && !locked) window.location.assign("/maceralar");
     else if (key === "+" || key === "=") changeZoom(zoomRef.current + 0.05);
     else if (key === "-") changeZoom(zoomRef.current - 0.05);
     else if (key === "0") changeZoom(1);
@@ -823,7 +822,6 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           <button type="button" className="btn gw-tools-toggle" aria-expanded={toolsOpen} aria-controls="gw-tool-list" aria-label="Oyun araçlarını aç veya kapat" onClick={() => setToolsOpen((v) => !v)}>☰ <span className="gw-tools-label">Araçlar</span></button>
           <div className="gw-tool-list" id="gw-tool-list">
             <p className="gw-tool-location">{where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName}` : `🏠 Evin · ${roomName}`}</p>
-            <a className="btn btn-ghost gw-tool" href="/maceralar" aria-keyshortcuts="G" aria-disabled={locked} onClick={(e) => { if (locked) e.preventDefault(); }}><span>⚔ Maceralar</span><kbd>G</kbd></a>
             {canEditHere && <button type="button" className={`btn gw-tool ${mode.kind === "rotate" ? "btn-primary" : "btn-ghost"}`} aria-pressed={mode.kind === "rotate"} aria-keyshortcuts="R" onClick={toggleRotate} title="Eşyayı döndür (R)"><span>↻ {mode.kind === "rotate" ? "Döndürmeyi bitir" : "Döndür"}</span><kbd>R</kbd></button>}
             {canEditHere && <button type="button" className={`btn gw-tool ${mode.kind === "edit" ? "btn-primary" : "btn-ghost"}`} aria-pressed={mode.kind === "edit"} aria-keyshortcuts="X" onClick={toggleRemove} title="Eşyayı envantere geri al (X)"><span>{mode.kind === "edit" ? "Kaldırmayı bitir" : "Eşya kaldır"}</span><kbd>X</kbd></button>}
             <button type="button" className={`btn gw-tool ${studyTimer ? "btn-primary gw-study-chip" : "btn-ghost"}${locked ? " is-locked" : ""}`} aria-keyshortcuts="T" onClick={toggleStudy} title="Çalışma paneli (T)"><span>⏱ {studyTimer ? <>{studyTimer.label} <span className="num">{formatClock(Math.max(0, (clock - new Date(studyTimer.startedAt).getTime()) / 1000))}</span></> : "Çalışma"}</span><kbd>T</kbd></button>
