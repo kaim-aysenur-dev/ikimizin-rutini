@@ -9,8 +9,11 @@ import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
 import { CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
-import { CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
-import { type Equipment } from "@/lib/equipment";
+import { ARMORY_STATIONS, CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
+import { type Equipment, NO_EQUIPMENT, sanitizeEquipment, toggleEquip } from "@/lib/equipment";
+import { armorStats } from "@/lib/combat-stats";
+import { type GearKind } from "@/lib/gear";
+import { ArmoryPanel } from "@/components/gelisim/armory-panel";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
 import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
@@ -24,6 +27,12 @@ type Remote = Hero & { userId: string; ti: number; tj: number };
 
 const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
 const look = (level: number) => { const t = TIERS[tierOf(level)]; return { outfit: t.outfit, tint: t.tint }; };
+/** Görünüm: kuşanılmış zırh varsa onun kademesi, yoksa seviyenin kademesi; elde kuşanılmış silah */
+const lookFor = (level: number, eq: Equipment | undefined) => {
+  const a = eq?.armor ? armorStats(eq.armor) : null;
+  const base = a ? { outfit: TIERS[a.tier].outfit, tint: TIERS[a.tier].tint } : look(level);
+  return { ...base, gear: { weapon: eq?.weapon ?? null } };
+};
 const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope === "sato" && w.floor > 1 ? `sato:${w.floor}` : w.scope);
 const floorOf = (w: Where): Floor => (w.scope === "sato" ? w.floor : 1);
 const SATO_SEATS: Record<Floor, Placed[]> = { 1: castleInteractive(1), 2: castleInteractive(2), 3: castleInteractive(3) };
@@ -51,7 +60,8 @@ const seatOf = (id: string): { lift: number; sleep?: boolean } | null =>
   : id.startsWith("sandalye-") || id === "taht" ? { lift: 7 }
   : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6 }
   : null;
-type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs"; label: string; i: number; j: number; itemId?: string; to?: Floor };
+type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station"; label: string; i: number; j: number; itemId?: string; to?: Floor; gearKind?: GearKind };
+const STATION_LABEL: Record<GearKind, string> = { Zırh: "Zırh askısı", Silah: "Silah rafı", Büyü: "Büyü kürsüsü" };
 
 /** Kalkış: oturmadan önce durulan boş kareye dönülür */
 function standUp(h: Hero) {
@@ -108,8 +118,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [sound, setSound] = useState(false);
   // kuşanılanlar (kişi kimliğine göre); diğer kişininki konum eşitlemesiyle güncellenir
   const [equipment, setEquipment] = useState<Record<string, Equipment>>(initialEquipment);
+  const myEq = equipment[me] ?? NO_EQUIPMENT;
+  const [armory, setArmory] = useState<GearKind | null>(null);
+  const [equipBusy, setEquipBusy] = useState(false);
 
-  const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
+  const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...lookFor(meP.level, initialEquipment[me]) });
   const keys = useRef(new Set<string>());
   const pad = useRef<[number, number] | null>(null);
   const hover = useRef<[number, number] | null>(null); // tuval pikseli
@@ -137,6 +150,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     if (nb.kind === "sit" && nb.itemId) { h.sit = { ...seatOf(nb.itemId)!, from: [h.i, h.j] }; h.i = nb.i; h.j = nb.j; }
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
+    else if (nb.kind === "station" && nb.gearKind) setArmory(nb.gearKind);
     else if (nb.kind === "stairs" && nb.to && !fade.current) {
       const from = floorOf(live.current.where);
       fade.current = { t: 0, to: { scope: "sato", floor: nb.to }, spawn: arrivalAt(nb.to, nb.to > from) };
@@ -181,13 +195,13 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const tick = async () => {
       const h = hero.current;
       try {
-        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
+        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
         if (stop) return;
         setUnread(res.unread ?? 0);
         others.current = res.others.map((o) => {
           const prev = others.current.find((p) => p.userId === o.userId);
           const prof = profiles.find((p) => p.id === o.userId);
-          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...look(prof?.level ?? 1), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving };
+          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving };
         });
       } catch { /* bağlantı koparsa bir sonraki turda yeniden dener */ }
     };
@@ -316,6 +330,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           else if (p.itemId.startsWith("piyano-")) { nb = { kind: "piano", label: "Piyano çal", i: ci, j: cj }; best = dd; }
           else if (isDesk(p.itemId)) { nb = { kind: "desk", label: "Masayı aç", i: ci, j: cj }; best = dd; }
           else if (isShelf(p.itemId)) { nb = { kind: "shelf", label: "Kitaplığı aç", i: ci, j: cj }; best = dd; }
+        }
+        // zırh odası istasyonları: yanında F ile o türün listesi açılır
+        if (cur.scope === "sato" && cur.floor === 3) for (const st of ARMORY_STATIONS) {
+          const dd = Math.hypot(st.i - h.i, st.j - h.j);
+          if (dd < 1.7 && dd < best + 0.3) { nb = { kind: "station", label: STATION_LABEL[st.kind], i: st.i, j: st.j, gearKind: st.kind }; best = dd; }
         }
         // merdiven: önünde F ile kat değişir
         if (cur.scope === "sato") for (const st of STAIRS) {
@@ -488,6 +507,22 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     else { stopAmbient(); setSound(false); }
   };
 
+  // kendi görünümün kuşandıklarına göre güncellenir
+  useEffect(() => { Object.assign(hero.current, lookFor(meP.level, myEq)); }, [myEq, meP.level]);
+  const onEquip = async (gearId: string) => {
+    const before = myEq;
+    setEquipment((all) => ({ ...all, [me]: sanitizeEquipment(toggleEquip(before, gearId), meP.level) })); // iyimser
+    setEquipBusy(true);
+    try {
+      const res = await api<{ equipment: Equipment }>("/api/gelisim/kusan", { body: { gearId } });
+      setEquipment((all) => ({ ...all, [me]: res.equipment }));
+    } catch (err) {
+      setEquipment((all) => ({ ...all, [me]: before }));
+      setMsg(err instanceof Error ? err.message : "Kuşanılamadı.");
+    }
+    setEquipBusy(false);
+  };
+
   const countOf = (id: string) => placed.filter((p) => p.userId === me && p.itemId === id).length;
   const padBtn = (v: [number, number], label: string, cls: string, glyph: string) => (
     <button type="button" className={`gw-pad-btn ${cls}`} aria-label={label}
@@ -601,6 +636,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         <button type="button" className="gw-pad-btn act" aria-label={near ? near.label : "Etkileşim"} onPointerDown={(e) => { e.preventDefault(); interact(); }}>✋</button>
       </div>
       {study && <StudyDesk me={me} profiles={profiles} tab={study} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
+      {armory && <ArmoryPanel kind={armory} level={meP.level} equipment={myEq} busy={equipBusy} onToggle={onEquip} onClose={() => setArmory(null)} />}
       {mailOpen && <Mailbox onClose={() => { setMailOpen(false); setUnread(0); }} partner={profiles.find((p) => p.id !== me)?.name.split(" ")[0] ?? "Sevgilin"} />}
     </div>
   );

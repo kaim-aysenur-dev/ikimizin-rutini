@@ -8,11 +8,13 @@ import { type Area, CASTLE, type Floor, FRONT_DOOR, HOUSES, POND, type Placed, R
 import { isFlat, itemById } from "./room-items";
 import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
+import { drawHeld } from "./combat-draw";
 import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] } };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] };
+  gear?: { weapon: string | null; swing?: number } }; // elde silah ve savuruş ilerlemesi (0..1)
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
@@ -450,6 +452,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       const lift = h.sit?.lift ?? 0;
       const pose = h.sit ? SEAT : h.moving ? walkFrame(h.dist) : STAND;
       const a = drawCharacter(c, { who: h.who, x, y: y - lift, dir: h.dir, pose, outfit: h.outfit, tint: h.tint, blink: h.sit?.sleep || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
       if (h.sit?.sleep) for (let k = 0; k < 3; k++) {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
         rect(c, zx, zy, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); px(c, zx + 1, zy + 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); rect(c, zx, zy + 2, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`);

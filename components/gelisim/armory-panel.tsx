@@ -1,0 +1,68 @@
+"use client";
+
+// Şatonun 3. katındaki zırh odası: istasyonun türündeki (zırh, silah, büyü) bütün eşyalar seviye sırasıyla.
+// Açık olanlar kuşanılır ya da çıkarılır; kilitliler gri görünür ve hangi seviyede açılacağını söyler.
+import { useEffect, useState } from "react";
+import { PixelIcon } from "@/components/pixel-icon";
+import { armorStats, spellStats, weaponStats } from "@/lib/combat-stats";
+import { type Equipment, SPELL_SLOTS } from "@/lib/equipment";
+import { GEAR, type GearKind, animated } from "@/lib/gear";
+
+const STYLE_NAME: Record<string, string> = { kilic: "Kılıç", hancer: "Hançer", yay: "Yay", mizrak: "Mızrak", agir: "Ağır silah", asa: "Asa", "iki-elli": "İki elli kılıç" };
+const TIER_NAME: Record<string, string> = { cloth: "Kumaş", leather: "Deri", steel: "Çelik", gold: "Altın", legend: "Efsane" };
+const KIND_TITLE: Record<GearKind, string> = { Zırh: "🛡 Zırh askısı", Silah: "⚔ Silah rafı", Büyü: "✨ Büyü kürsüsü" };
+
+/** Eşyanın oyundaki değerleri, kartta kısa yazı olarak */
+function statLine(id: string): string {
+  const w = weaponStats(id);
+  if (w) return `${STYLE_NAME[w.style]} · hasar ${w.damage} · ${(1 / w.cooldown).toFixed(1)} vuruş/sn · menzil ${w.range}${w.combo > 1 ? ` · ${w.combo}'lü kombo` : ""}`;
+  const a = armorStats(id);
+  if (a) return `${TIER_NAME[a.tier]} · savunma ${a.defense} · +${a.bonusHp} can`;
+  const s = spellStats(id);
+  if (s) return `${s.heal ? `şifa ${s.heal}` : s.damage ? `hasar ${s.damage}` : "koruma"} · ${s.mana} mana · ${s.cooldown} sn bekleme`;
+  return "";
+}
+
+export function ArmoryPanel({ kind, level, equipment, busy, onToggle, onClose }: {
+  kind: GearKind; level: number; equipment: Equipment; busy: boolean; onToggle: (gearId: string) => void; onClose: () => void;
+}) {
+  const [onlyOpen, setOnlyOpen] = useState(false);
+  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
+  const items = GEAR.filter((g) => g.kind === kind && (!onlyOpen || g.level <= level));
+  const worn = (id: string) => equipment.armor === id || equipment.weapon === id || equipment.spells.includes(id);
+  const open = GEAR.filter((g) => g.kind === kind && g.level <= level).length, total = GEAR.filter((g) => g.kind === kind).length;
+  return (
+    <div className="modal-backdrop" role="presentation" onClick={onClose}>
+      <div className="modal gw-armory" role="dialog" aria-modal="true" aria-labelledby="armory-title" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className="gw-armory-head">
+          <h2 id="armory-title">{KIND_TITLE[kind]}</h2>
+          <button type="button" className="btn btn-quiet" onClick={onClose} aria-label="Kapat">✕</button>
+        </div>
+        <p className="muted">
+          {open}/{total} açık · Lv {level}
+          {kind === "Büyü" && ` · ${equipment.spells.length}/${SPELL_SLOTS} yuva dolu (1–4 tuşları)`}
+        </p>
+        <label className="check-row"><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} /> Yalnız açılanları göster</label>
+        <ul className="gw-items">
+          {items.map((g) => {
+            const locked = g.level > level, on = worn(g.id);
+            return (
+              <li key={g.id} className={`gw-item${locked ? " is-locked" : ""}${on ? " is-active" : ""}`}>
+                <PixelIcon draw={(c, _w, _h, t) => g.draw(c, t)} size={[24, 24]} scale={2} animate={!locked && animated(g)} className="gw-item-icon" />
+                <div>
+                  <b>{locked ? "???" : g.name}{on && " ✓"}</b>
+                  <small>{locked ? `🔒 Seviye ${g.level}` : `Lv ${g.level} · ${statLine(g.id)}`}</small>
+                </div>
+                {!locked && (
+                  <button type="button" className={`btn ${on ? "btn-ghost" : "btn-primary"}`} disabled={busy} onClick={() => onToggle(g.id)}>
+                    {on ? "Çıkar" : "Kuşan"}
+                  </button>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}

@@ -1183,3 +1183,15 @@ button.xp-badge:hover {
   box-shadow: 0 0 0 2px var(--px-ink), inset 0 -4px 0 var(--px-gold-deep);
   z-index: 2;
 }
+
+/* ---------- Gelişim · zırh odası paneli ---------- */
+.gw-armory {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(560px, 100%);
+  max-height: min(86vh, 760px);
+}
+.gw-armory-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.gw-armory .gw-items { overflow-y: auto; padding-right: 4px; }
+.gw-item.is-locked .gw-item-icon { filter: grayscale(1) brightness(0.45); }
