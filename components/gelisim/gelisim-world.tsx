@@ -130,6 +130,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const root = useRef<HTMLDivElement>(null);
   const [full, setFull] = useState<"off" | "native" | "page">("off");
   const fullRef = useRef(full);
+  const fullTried = useRef(false); // yalnız ilk tık tam ekrana geçirir
+  const stairLock = useRef<{ until: number; i: number; j: number } | null>(null); // kat değişince merdiven kısa süre kilitli
   fullRef.current = full;
   const enterFull = async () => {
     const el = root.current;
@@ -235,7 +237,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (k === "escape") setMode({ kind: "walk" });
       if (k === "e") setInvOpen((v) => !v);
       if (k === "r") setRot((v) => (v ? 0 : 1));
-      if (k === "f" || k === " ") { e.preventDefault(); interact(); }
+      if (k === "f" || k === " ") { e.preventDefault(); if (!e.repeat) interact(); }
       if (k === "j") { e.preventDefault(); doAttack(); }
       if (/^[1-4]$/.test(k)) { e.preventDefault(); doCast(Number(k) - 1); }
       if (KEYS[k]) { keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
@@ -252,9 +254,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     let stop = false;
     const tick = async () => {
       const h = hero.current;
+      const sent = pendingAction.current;
       try {
-        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: pendingAction.current ?? undefined } });
-        pendingAction.current = null;
+        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined } });
+        if (pendingAction.current === sent) pendingAction.current = null;
         if (stop) return;
         setUnread(res.unread ?? 0);
         others.current = res.others.map((o) => {
@@ -374,6 +377,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           leave(placeOf(live.current.where));
           setWhere(f.to); live.current.where = f.to; h.i = f.spawn[0]; h.j = f.spawn[1];
           f.to = null; f.t = 0.25; keys.current.clear(); pad.current = null; cam.current.snap = true;
+          effects.current = []; // uçuştaki mermiler yeni sahneye taşınmaz
+          stairLock.current = { until: t + 0.8, i: h.i, j: h.j };
         }
         darken = f.t < 0.25 ? f.t / 0.25 : Math.max(0, 1 - (f.t - 0.25) / 0.25);
         if (!f.to && f.t >= 0.5) fade.current = null;
@@ -410,7 +415,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         if (cur.scope === "sato") for (const st of STAIRS) {
           if (st.floor !== cur.floor) continue;
           const to = stairsTarget(cur.floor, st.dir), dd = Math.hypot(st.spawn[0] - h.i, st.spawn[1] - h.j);
-          if (to && dd < 1.6 && dd < best + 0.3) { nb = { kind: "stairs", label: st.dir === "up" ? `Yukarı çık (${to}. kat)` : `Aşağı in (${to}. kat)`, i: st.i + 1, j: st.j + 1, to }; best = dd; }
+          const lock = stairLock.current, locked = !!lock && (t < lock.until || Math.hypot(h.i - lock.i, h.j - lock.j) < 0.6);
+          if (lock && !locked) stairLock.current = null;
+          if (to && !locked && dd < 1.6 && dd < best + 0.3) { nb = { kind: "stairs", label: st.dir === "up" ? `Yukarı çık (${to}. kat)` : `Aşağı in (${to}. kat)`, i: st.i + 1, j: st.j + 1, to }; best = dd; }
         }
         if (cur.scope === "bahce") HOUSES.forEach((hs) => {
           const mi = hs.door.i + 1.6, mj = hs.door.j + 0.6, dd = Math.hypot(mi - h.i, mj - h.j);
@@ -465,7 +472,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       // dövüş: can/mana dolar, mermiler uçar, savuruş ilerler
       const fgt = fighter.current;
       tickFighter(fgt, dt, t);
-      effects.current = stepEffects(effects.current, targets.current, t);
+      effects.current = stepEffects(effects.current, cur.scope === "sato" && cur.floor === 2 ? targets.current : [], t);
       const wpn = (eqRef.current.weapon && weaponStats(eqRef.current.weapon)) || FIST, since = t - fgt.comboAt;
       h.gear = { weapon: eqRef.current.weapon, swing: since >= 0 && since < wpn.cooldown ? since / wpn.cooldown : 0 };
       h.shield = fgt.shield > 0;
@@ -519,7 +526,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const { where: wh, placed: all, mode: md } = live.current;
     const hv = toTile(camOrigin(), hover.current[0], hover.current[1]);
     const scope = wh.scope;
-    if (md.kind === "walk" && fullRef.current === "off") { void enterFull(); return; } // ilk tık: tam ekran
+    if (md.kind === "walk" && !fullTried.current && fullRef.current === "off") { fullTried.current = true; void enterFull(); return; } // ilk tık: tam ekran
     if (md.kind === "walk") { doAttack(); return; } // yürürken tık: silah vuruşu
     if (scope === "sato") return; // şatoya eşya konmaz
     if (md.kind === "place") {

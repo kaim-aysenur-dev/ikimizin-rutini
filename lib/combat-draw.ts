@@ -127,6 +127,14 @@ export function drawEffect(c: Ctx, o: Origin, e: Effect, now: number, numbers = 
       for (let a = from; a <= cur; a += 0.12) px(c, Math.round(cx + Math.cos(a) * r * e.dir), Math.round(cy + Math.sin(a) * r * 0.7), k < 0.5 ? (e.color ?? "#ffffff") : "rgba(220,230,255,0.5)");
       break;
     }
+    case "kivilcim": case "ok": {
+      // mermisiz oynatılan büyü (karşı tarafın): elde parlayan kıvılcım ve önüne saçılan ışık
+      const cx = x + e.dir * 6, cy = y - 12, r = 2 + Math.round(k * 7);
+      disc(c, cx, cy, Math.max(1, 3 - Math.round(k * 2)), col);
+      for (let q = 0; q < 8; q++) { const a = (q / 8) * Math.PI * 2; px(c, Math.round(cx + Math.cos(a) * r), Math.round(cy + Math.sin(a) * r * 0.6), q % 2 ? col : "#ffffff"); }
+      lights.push({ x: cx, y: cy, r: 20, color: "255,200,140" });
+      break;
+    }
     case "kalkani": ring(c, x, y - 10, 11 + Math.sin(now * 6), col, 28, now * 2); ring(c, x, y - 10, 9, "rgba(255,255,255,0.35)", 20, -now * 2); break;
     case "muhru": case "patlamasi": {
       const r = (e.value ?? 2) * 11 * (e.kind === "patlamasi" ? k : 0.4 + k * 0.6);
