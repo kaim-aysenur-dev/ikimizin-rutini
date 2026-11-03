@@ -12,7 +12,7 @@ export const POST = withUser(async (req, user) => {
     return jsonError(400, "Geçersiz istek.");
   }
   const { xp } = await adventure(user.id, user.accountId, todayIstanbul());
-  const res = await placeItem(user, xp, itemId, scope, tx, ty, rot === 1 ? 1 : 0);
+  const res = await placeItem(user, xp, itemId, scope, tx, ty, rot === 1 || rot === 2 || rot === 3 ? rot : 0);
   if (!res.ok) return jsonError(res.status, res.error);
   return jsonOk({ item: res.item });
 });

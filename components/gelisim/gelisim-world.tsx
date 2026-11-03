@@ -8,7 +8,7 @@ import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScen
 import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
-import { CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
+import { CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, footprint, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
 import { ARMORY_STATIONS, CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
 import { type Equipment, NO_EQUIPMENT, sanitizeEquipment, toggleEquip } from "@/lib/equipment";
 import { FIST, armorStats, spellStats, weaponStats } from "@/lib/combat-stats";
@@ -20,7 +20,7 @@ import { type GearKind } from "@/lib/gear";
 import { ArmoryPanel } from "@/components/gelisim/armory-panel";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
-import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
+import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, isFlat, itemById } from "@/lib/room-items";
 import { TIERS } from "@/lib/scenes/hall";
 import { levelOf, tierOf, xpToLevel } from "@/lib/xp";
 import { XP_EVENT } from "@/components/xp-badge";
@@ -60,15 +60,43 @@ function nightNow(): number {
   return 0;
 }
 
-// oturulabilen eşyalar: oturuş yüksekliği (piksel); yataklarda uyunur
-const seatOf = (id: string): { lift: number; sleep?: boolean } | null =>
-  id === "yatak" || id.startsWith("cift-yatak-") ? { lift: 8, sleep: true }
-  : id.startsWith("koltuk-") || id.startsWith("berjer-") ? { lift: 6 }
-  : id.startsWith("sandalye-") || id === "taht" ? { lift: 7 }
-  : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6 }
+// oturulabilen eşyalar: oturuş yüksekliği (piksel), eşyanın kendi alanındaki yerler ve oturanın baktığı yön
+// (yataklarda ayakların yönü; baş karşı tarafta). Yataklarda uzanılır; çift kişilik yatakta ve koltukta iki kişi yan yana.
+type Seat = { lift: number; sleep?: boolean; slots: [number, number][]; face: [number, number] };
+const seatOf = (id: string): Seat | null =>
+  id === "yatak" ? { lift: 8, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
+  : id.startsWith("tek-yatak-") ? { lift: 7, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
+  : id.startsWith("cift-yatak-") ? { lift: 8, sleep: true, slots: [[1.08, 0.52], [1.08, 1.48]], face: [1, 0] }
+  : id.startsWith("kose-koltuk-") ? { lift: 6, slots: [[0.6, 0.6], [1.5, 0.6], [2.4, 0.6]], face: [0, 1] }
+  : id.startsWith("koltuk-") ? { lift: 6, slots: [[0.6, 0.6], [1.4, 0.6]], face: [0, 1] }
+  : id.startsWith("berjer-") ? { lift: 6, slots: [[0.5, 0.6]], face: [0, 1] }
+  : id.startsWith("sandalye-") || id.startsWith("calisma-sandalyesi-") ? { lift: 7, slots: [[0.5, 0.55]], face: [0, 1] }
+  : id === "taht" ? { lift: 7, slots: [[0.55, 0.5]], face: [1, 0] }
+  : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6, slots: [[0.6, 0.55], [1.4, 0.55]], face: [0, 1] }
   : null;
-type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station"; label: string; i: number; j: number; itemId?: string; to?: Floor; gearKind?: GearKind };
+type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station"; label: string; i: number; j: number; itemId?: string; to?: Floor; gearKind?: GearKind; p?: Placed };
 const STATION_LABEL: Record<GearKind, string> = { Zırh: "Zırh askısı", Silah: "Silah rafı", Büyü: "Büyü kürsüsü" };
+// masada oturulan yer (önü) ve oturanın baktığı yön (masaya doğru)
+const deskSeat = (id: string): { slot: [number, number]; face: [number, number] } => {
+  const w = itemById.get(id)?.size[0] ?? 1;
+  return { slot: [w / 2, 1.42], face: [0, -1] };
+};
+// eşyanın kendi alanındaki bir nokta ve yön, dönüşe göre dünyada
+function placeLocal(p: Placed, x: number, y: number): [number, number] {
+  const [W, D] = itemById.get(p.itemId)?.size ?? [1, 1], r = (p.rot ?? 0) & 3;
+  if (r & 2) { x = W - x; y = D - y; }
+  return r & 1 ? [p.tx + y, p.ty + x] : [p.tx + x, p.ty + y];
+}
+function faceDir(p: Placed, [a, b]: [number, number]): 1 | -1 {
+  const r = (p.rot ?? 0) & 3;
+  if (r & 2) { a = -a; b = -b; }
+  if (r & 1) [a, b] = [b, a];
+  return a - b >= 0 ? 1 : -1;
+}
+const depthOfPlaced = (p: Placed) => { const [w, d] = sizeOf(p.itemId, p.rot); return p.tx + w - 0.5 + p.ty + d - 0.5; };
+/** Canlı konumda gönderilen duruş */
+const poseOf = (h: Hero, desk: StudyTab | null) =>
+  !h.sit ? null : `${desk ? (desk === "kitaplik" ? "read" : "desk") : h.sit.sleep ? "lie" : "sit"}:${Math.round(h.sit.lift)}`;
 
 /** Kalkış: oturmadan önce durulan boş kareye dönülür */
 function standUp(h: Hero) {
@@ -184,6 +212,12 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [hud, setHud] = useState({ hp: fighter.current.hp, maxHp: fighter.current.maxHp, mana: fighter.current.mana, maxMana: fighter.current.maxMana, shield: 0, spells: [] as HudSpell[] });
   // masa başında oturuyoruz: avatar masada, sayaç açıkken odadan çıkılmaz
   const [atDesk, setAtDesk] = useState<StudyTab | null>(null);
+  const zoomed = atDesk === "masa";
+  const beforeDeskZoom = useRef<number | null>(null);
+  useEffect(() => {
+    if (zoomed) { beforeDeskZoom.current = zoomRef.current; changeZoom(Math.max(zoomRef.current, 1.15)); }
+    else if (beforeDeskZoom.current !== null) { changeZoom(beforeDeskZoom.current); beforeDeskZoom.current = null; }
+  }, [zoomed]);
   const [partnerStudy, setPartnerStudy] = useState<{ label: string; startedAt: string; reading: boolean } | null>(null);
 
   const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...lookFor(playerLevel, initialEquipment[me]) });
@@ -239,8 +273,17 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     if (h.sit && deskSit.current) { setStudy(deskSit.current); return; } // masadayken F paneli açar
     if (h.sit) { standUp(h); return; }
     if (!nb) return;
-    // oturmadan önceki boş kare saklanır: eşyanın kareleri dolu sayıldığından kalkınca oraya dönülür
-    if (nb.kind === "sit" && nb.itemId) { h.sit = { ...seatOf(nb.itemId)!, from: [h.i, h.j] }; h.i = nb.i; h.j = nb.j; }
+    // oturmadan önceki boş kare saklanır: eşyanın kareleri dolu sayıldığından kalkınca oraya dönülür.
+    // Birden çok yeri olan eşyada (çift kişilik yatak, koltuk) diğerinin oturmadığı en yakın yer seçilir.
+    if (nb.kind === "sit" && nb.p) {
+      const seat = seatOf(nb.p.itemId)!;
+      const spots = seat.slots.map(([x, y]) => placeLocal(nb.p!, x, y))
+        .filter(([a, b]) => !others.current.some((r) => r.sit && Math.hypot(r.ti - a, r.tj - b) < 0.45))
+        .sort((u, v) => Math.hypot(u[0] - h.i, u[1] - h.j) - Math.hypot(v[0] - h.i, v[1] - h.j));
+      if (!spots.length) { setMsg(seat.sleep ? "Yatakta yer kalmadı." : "Burası dolu."); return; }
+      h.sit = { lift: seat.lift, sleep: seat.sleep, from: [h.i, h.j], at: performance.now() / 1000, depth: depthOfPlaced(nb.p) + 0.02 };
+      [h.i, h.j] = spots[0]; h.dir = faceDir(nb.p, seat.face); h.moving = false;
+    }
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
     else if (nb.kind === "station" && nb.gearKind) setArmory(nb.gearKind);
@@ -249,10 +292,20 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       fade.current = { t: 0, to: { scope: "sato", floor: nb.to }, spawn: arrivalAt(nb.to, nb.to > from) };
     }
     else if (nb.kind === "desk" || nb.kind === "shelf") {
-      // masaya otur: avatar durduğu yerde masaya döner (masa karesi dolu olduğu için içine girmez), panel açılır
+      // masaya otur: avatar masanın önüne geçip ona döner (ön kare doluysa durduğu yerde), panel açılır
       const tab: StudyTab = nb.kind === "desk" ? "masa" : "kitaplik";
-      const sx = (nb.i - h.i) - (nb.j - h.j); if (sx !== 0) h.dir = sx > 0 ? 1 : -1;
-      h.moving = false; h.sit = { lift: 4 };
+      const from: [number, number] = [h.i, h.j];
+      if (nb.kind === "desk" && nb.p) {
+        const ds = deskSeat(nb.p.itemId), [si, sj] = placeLocal(nb.p, ...ds.slot);
+        const wh = live.current.where, here = scenePlaced(wh, live.current.placed);
+        const okSpot = wh.scope === "oda" && !blockedSet("oda", here).has(`${Math.floor(si)},${Math.floor(sj)}`)
+          && roomAt(Math.floor(si), Math.floor(sj))?.name === roomAt(Math.floor(h.i), Math.floor(h.j))?.name;
+        if (okSpot) { h.i = si; h.j = sj; }
+        h.dir = faceDir(nb.p, ds.face);
+      } else {
+        const sx = (nb.i - h.i) - (nb.j - h.j); if (sx !== 0) h.dir = sx > 0 ? 1 : -1;
+      }
+      h.moving = false; h.sit = { lift: 4, from, at: performance.now() / 1000 };
       deskSit.current = tab; setAtDesk(tab); setStudy(tab);
     }
   };
@@ -261,6 +314,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     standUp(hero.current); deskSit.current = null; setAtDesk(null);
   };
 
+  const seatDepth = (i: number, j: number) => {
+    const fi = Math.floor(i), fj = Math.floor(j);
+    const under = scenePlaced(live.current.where, live.current.placed).filter((p) => !isFlat(p.itemId) && footprint(p.itemId, p.tx, p.ty, p.rot).some(([a, b]) => a === fi && b === fj));
+    return under.length ? Math.max(...under.map(depthOfPlaced)) + 0.02 : undefined;
+  };
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
   const scenePlaced = (w: Where, all: Placed[]) => (w.scope === "sato" ? [] : all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner)));
   const ownerName = where.scope === "oda" ? profiles.find((p) => p.id === where.owner)?.name.split(" ")[0] ?? "" : "";
@@ -310,9 +368,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const sent = actionHistory(recentActions.current, Date.now());
       try {
         const res = await api<{
-          others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null; study?: { reading: boolean } | null }[];
+          others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null; pose?: string | null; focus?: boolean }[];
           unread?: number; timers?: { userId: string; label: string; startedAt: string; reading: boolean }[];
-        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined } });
+        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined, pose: poseOf(h, deskSit.current) } });
         if (stop) return;
         setUnread(res.unread ?? 0);
         const pt = res.timers?.[0];
@@ -320,6 +378,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         others.current = res.others.map((o) => {
           const prev = others.current.find((p) => p.userId === o.userId);
           const prof = profiles.find((p) => p.id === o.userId);
+          // duruş: "lie:8" uzanıyor, "sit:6" oturuyor, "desk:4" masada, "read:4" kitaplıkta
+          const [kind, lift] = (o.pose ?? "").split(":");
+          const seated = !o.moving && ["sit", "lie", "desk", "read"].includes(kind);
+          const sit = seated ? { lift: Number(lift) || 0, sleep: kind === "lie", at: prev?.sit ? prev.sit.at : performance.now() / 1000, depth: seatDepth(o.x, o.y) } : undefined;
+          const study = seated && (kind === "desk" || kind === "read") ? { reading: kind === "read", focus: !!o.focus } : undefined;
           // karşının yeni saldırısı: savuruşu ya da büyüsü burada da oynar (hasar yalnız kendi ekranında)
           let swingAt = prev?.swingAt;
           const seen = remoteSeen.current[o.userId] ??= new Set<number>();
@@ -328,8 +391,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             if (act.kind === "vurus") swingAt = now;
             remoteEffects.current.push(...replayEffects(act, now));
           }
-          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt,
-            ...(o.study ? { sit: { lift: 4 }, study: { reading: o.study.reading, focus: true } } : {}) };
+          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt, sit, study };
         });
       } catch { /* bağlantı koparsa kısa olay geçmişiyle yeniden dener */ }
       finally { inFlight = false; }
@@ -471,9 +533,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           const [sw, sd] = sizeOf(p.itemId, p.rot);
           const ci = p.tx + sw / 2, cj = p.ty + sd / 2, dd = Math.hypot(ci - h.i, cj - h.j);
           if (dd >= best + Math.max(sw, sd) / 2) continue;
-          if (seatOf(p.itemId)) { nb = { kind: "sit", label: seatOf(p.itemId)!.sleep ? "Uzan" : "Otur", i: ci, j: cj, itemId: p.itemId }; best = dd; }
+          if (seatOf(p.itemId)) { nb = { kind: "sit", label: seatOf(p.itemId)!.sleep ? "Uzan" : "Otur", i: ci, j: cj, itemId: p.itemId, p }; best = dd; }
           else if (p.itemId.startsWith("piyano-")) { nb = { kind: "piano", label: "Piyano çal", i: ci, j: cj }; best = dd; }
-          else if (isDesk(p.itemId)) { nb = { kind: "desk", label: "Masayı aç", i: ci, j: cj }; best = dd; }
+          else if (isDesk(p.itemId)) { nb = { kind: "desk", label: "Masaya otur", i: ci, j: cj, itemId: p.itemId, p }; best = dd; }
           else if (isShelf(p.itemId)) { nb = { kind: "shelf", label: "Kitaplığı aç", i: ci, j: cj }; best = dd; }
         }
         // zırh odası istasyonları: yanında F ile o türün listesi açılır
@@ -567,6 +629,12 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           thunder(0.3 + (1 - p) * 1.6, p * (cur.scope === "bahce" ? 1 : 0.55));
         }
         heard = strike;
+      }
+      if (deskSit.current === "masa" && h.sit) {
+        const sx = o.ox + (h.i - h.j) * 8, sy = o.oy + (h.i + h.j) * 4 - 12;
+        const g = c.createRadialGradient(sx, sy, 26, sx, sy, Math.max(70, cv.width * 0.42));
+        g.addColorStop(0, "rgba(8,6,18,0)"); g.addColorStop(1, `rgba(8,6,18,${studyLock.current ? 0.86 : 0.7})`);
+        c.fillStyle = g; c.fillRect(0, 0, cv.width, cv.height);
       }
       if (darken > 0) { c.fillStyle = `rgba(20,16,30,${darken.toFixed(2)})`; c.fillRect(0, 0, cv.width, cv.height); }
       placeTags(anchors, cv.width);
@@ -712,7 +780,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   modalRef.current = !!(study || mailOpen || armory);
   useEffect(() => { if (study || mailOpen || armory || invOpen) { keys.current.clear(); pad.current = null; } }, [study, mailOpen, armory, invOpen]);
   const toggleRotate = () => {
-    if (mode.kind === "place") setRot((v) => v ? 0 : 1);
+    if (mode.kind === "place") setRot((v) => (v + 1) % 4);
     else if (canEditHere) setMode(mode.kind === "rotate" ? { kind: "walk" } : { kind: "rotate" });
   };
   const toggleRemove = () => { if (canEditHere) setMode(mode.kind === "edit" ? { kind: "walk" } : { kind: "edit" }); };
@@ -783,7 +851,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           <span key={n} ref={(el) => { tagRefs.current[`ev${k}`] = el; }} className="hall-tag is-house" style={{ display: "none" }} aria-hidden="true">{n}</span>
         ))}
         {mode.kind === "place" && <p className="gw-tip">{itemById.get(mode.itemId)?.name}: koymak için bir kareye dokun · R ya da ↻ ile döndür · Esc ile vazgeç</p>}
-        {mode.kind === "place" && <button type="button" className="gw-rot" onPointerDown={(e) => e.stopPropagation()} onClick={() => setRot((v) => (v ? 0 : 1))} aria-label="Döndür">↻</button>}
+        {mode.kind === "place" && <button type="button" className="gw-rot" onPointerDown={(e) => e.stopPropagation()} onClick={() => setRot((v) => (v + 1) % 4)} aria-label="Döndür">↻</button>}
         {mode.kind === "edit" && <p className="gw-tip">Geri almak istediğin eşyaya dokun</p>}
         {mode.kind === "rotate" && <p className="gw-tip">Döndürmek istediğin eşyaya dokun</p>}
         {msg && <p className="gw-msg" role="status">{msg}</p>}
@@ -795,7 +863,6 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             {studyTimer ? <em>❤️ birlikte · +%50</em> : <em>sen de başla: +%50 XP</em>}
           </p>
         )}
-        {locked && <div className="gw-focus-veil" aria-hidden="true" />}
 
         <section className={`card gw-inv${invOpen ? " is-open" : ""}`} aria-labelledby="envanter" onPointerDown={(e) => e.stopPropagation()} onPointerMove={(e) => e.stopPropagation()}>
           <div className="gw-inv-head">

@@ -203,14 +203,14 @@ export function gardenSolid(i: number, j: number): boolean {
 
 /* -------------------------------- yerleştirme ------------------------------- */
 
-// rot: 1 ise eşya döndürülmüş (eni ve boyu yer değiştirir)
+// rot: 0-3; tek sayılarda eşya yan döner (eni ve boyu yer değiştirir), 2 ve 3 tersidir
 export type Placed = { id: string; itemId: string; scope: Scope; tx: number; ty: number; userId: string; rot?: number };
 
 /** Döndürmeye göre eşyanın kapladığı en ve boy */
 export function sizeOf(itemId: string, rot = 0): [number, number] {
   const it = itemById.get(itemId);
   if (!it) return [1, 1];
-  return rot ? [it.size[1], it.size[0]] : it.size;
+  return rot & 1 ? [it.size[1], it.size[0]] : it.size;
 }
 
 /** Bir eşyadan en çok kaç tane konabilir: halı 10, sandalye ve çiçek gibi küçükler daha çok, büyük mobilya az */

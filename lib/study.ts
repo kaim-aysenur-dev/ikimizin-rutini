@@ -34,7 +34,7 @@ export const studyXp = (minutes: number, pages: number, together: boolean) =>
   Math.floor((Math.floor(minutes / 15) * STUDY_XP.quarter + Math.floor(pages / 2) * STUDY_XP.perTwoPages) * (together ? STUDY_XP.together : 1));
 
 /** Masa eşyaları ve kitaplıklar (lib/room-items.ts kimlikleri) */
-export const isDesk = (itemId: string) => itemId === "masa" || itemId.startsWith("yazi-masasi-");
+export const isDesk = (itemId: string) => itemId === "masa" || itemId === "bilgisayar-masasi" || itemId.startsWith("yazi-masasi-");
 export const isShelf = (itemId: string) => itemId === "kitaplik" || itemId.startsWith("kitaplik-");
 
 // kendi kendini denetler

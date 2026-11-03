@@ -18,16 +18,44 @@ const flame = (c: Ctx, x: number, y: number, t: number, big = 1) => {
   lights.push({ x, y: y - 2, r: 16 * big + f, color: "240,162,74" });
 };
 
+// masaüstü ekranı: arkası koyu kasa, ön yüzde akan kod satırları ve imleç (z: tabla üstü)
+function monitor(c: Ctx, o: Origin, i: number, j: number, w: number, t: number) {
+  const [sx, sy] = at(o, i + w / 2, j + 0.1);
+  rect(c, sx - 1, sy - 16, 3, 4, "#2a2533"); rect(c, sx - 3, sy - 13, 7, 1, "#2a2533"); // ayak
+  box(c, o, i, j, w, 0.1, 12, shade("#2a2533"), 15);
+  const col = ["#7fd1b9", "#9fd0e8", "#c9a6f0", "#f3d48a"];
+  const scroll = Math.floor(t * 2);
+  for (let r = 0; r < 4; r++) {
+    const len = 0.25 + (((r + scroll) * 37) % 50) / 100;
+    const [ax, ay] = at(o, i + 0.08, j + 0.1), [bx, by] = at(o, i + 0.08 + Math.min(w - 0.16, len), j + 0.1);
+    line(c, [ax, ay - 25 + r * 2], [bx, by - 25 + r * 2], 1, col[(r + scroll) % 4]);
+  }
+  if (Math.floor(t * 2.5) % 2) { const [qx, qy] = at(o, i + w - 0.12, j + 0.1); px(c, qx, qy - 17, "#ffffff"); }
+  lights.push({ x: sx, y: sy - 21, r: 14, color: "140,200,255" });
+}
+// dizüstü bilgisayar: tabanı ve açık kapağı (kapakta parlayan ekran)
+function laptop(c: Ctx, o: Origin, i: number, j: number, t: number) {
+  box(c, o, i, j, 0.44, 0.34, 1, shade("#9aa0ae"), 12, false);
+  box(c, o, i, j, 0.44, 0.05, 7, shade("#3a3346"), 13);
+  const [ax, ay] = at(o, i + 0.06, j + 0.05);
+  for (let r = 0; r < 2; r++) rect(c, ax + 1, ay - 18 + r * 2, 2 + ((Math.floor(t * 2) + r) % 3), 1, r ? "#9fd0e8" : "#7fd1b9");
+  lights.push({ x: ax + 2, y: ay - 17, r: 10, color: "140,200,255" });
+}
+
 // elle çizilmiş ilk eşyalar (kimlikleri kayıtlarda kullanılıyor, değişmez)
 const HANDMADE: RoomItem[] = [
   /* ---------------------------------- oda ---------------------------------- */
   { id: "yatak", level: 1, name: "Yatak", scope: "oda", size: [2, 1], draw: (c, o, i, j) => {
-    box(c, o, i, j, 2, 1, 5, WOOD);
-    box(c, o, i + 0.05, j + 0.05, 1.9, 0.9, 3, shade("#e6d3a8"), 5, false);
-    box(c, o, i + 0.6, j + 0.05, 1.35, 0.9, 1, shade("#b56b7a"), 8, false); // battaniye
-    box(c, o, i + 0.1, j + 0.15, 0.4, 0.7, 2, shade("#f8f0e0"), 8, false); // yastık
-    box(c, o, i, j, 0.15, 1, 16, WOOD_DK); // başlık
-    const [x, y] = at(o, i + 1.3, j + 0.5); px(c, x, y - 9, "#e48aa0"); px(c, x + 2, y - 10, "#e48aa0");
+    // başlık arkada: önce çizilir, yatak ve yastık önüne geçer
+    box(c, o, i, j, 0.16, 1, 17, WOOD_DK);
+    box(c, o, i + 0.02, j + 0.12, 0.12, 0.76, 3, shade("#a87a50"), 12, false); // başlık oyması
+    box(c, o, i + 0.16, j, 1.84, 1, 5, WOOD);
+    box(c, o, i + 0.2, j + 0.05, 1.76, 0.9, 3, shade("#e6d3a8"), 5, false); // şilte
+    box(c, o, i + 0.26, j + 0.14, 0.42, 0.72, 2, shade("#f8f0e0"), 8, false); // yastık
+    box(c, o, i + 0.8, j + 0.04, 1.16, 0.92, 1, shade("#b56b7a"), 8, false); // battaniye
+    box(c, o, i + 0.8, j + 0.04, 0.14, 0.92, 1, shade("#f2e4c2"), 8, false); // kıvrılan çarşaf
+    box(c, o, i + 1.9, j, 0.1, 1, 8, WOOD_DK); // ayak ucu
+    const [x, y] = at(o, i + 1.4, j + 0.5); px(c, x, y - 9, "#e48aa0"); px(c, x + 2, y - 10, "#e48aa0");
   } },
   { id: "komodin", level: 1, name: "Komodin ve mum", scope: "oda", size: [1, 1], draw: (c, o, i, j, t) => {
     box(c, o, i + 0.15, j + 0.15, 0.7, 0.7, 9, WOOD);
@@ -61,11 +89,13 @@ const HANDMADE: RoomItem[] = [
     const [x, y] = at(o, i + 0.5, j + 0.8); rect(c, x - 1, y - 7, 2, 3, P.gold); px(c, x, y - 6, P.ink);
   } },
   { id: "masa", level: 1, name: "Çalışma masası", scope: "oda", size: [1, 1], draw: (c, o, i, j, t) => {
-    for (const [a, b] of [[0.15, 0.15], [0.8, 0.15], [0.15, 0.8], [0.8, 0.8]]) box(c, o, i + a, j + b, 0.08, 0.08, 9, WOOD_DK);
-    box(c, o, i + 0.1, j + 0.1, 0.8, 0.8, 2, WOOD, 9);
-    const [x, y] = at(o, i + 0.5, j + 0.5);
-    rect(c, x - 5, y - 13, 6, 2, P.cream); rect(c, x - 2, y - 13, 1, 2, P.woodDk); // açık kitap
-    rect(c, x + 3, y - 15, 2, 3, "#e8e0f0"); if (Math.floor(t * 2) % 2) px(c, x + 3, y - 17, "rgba(255,255,255,0.6)");
+    for (const [a, b] of [[0.08, 0.08], [0.86, 0.08], [0.08, 0.86], [0.86, 0.86]]) box(c, o, i + a, j + b, 0.07, 0.07, 10, WOOD_DK);
+    box(c, o, i + 0.05, j + 0.05, 0.9, 0.9, 2, WOOD, 10);
+    laptop(c, o, i + 0.3, j + 0.18, t);
+    const [x, y] = at(o, i + 0.2, j + 0.75);
+    rect(c, x - 3, y - 14, 6, 2, P.cream); rect(c, x, y - 14, 1, 2, P.woodDk); // açık defter
+    const [mx, my] = at(o, i + 0.8, j + 0.7); rect(c, mx - 1, my - 16, 3, 3, "#e8e0f0"); px(c, mx + 2, my - 15, "#e8e0f0"); // kupa
+    if (Math.floor(t * 1.5) % 2) px(c, mx, my - 18, "rgba(255,255,255,0.55)");
   } },
   { id: "zirh-askisi", level: 7, name: "Zırh askısı", scope: "oda", size: [1, 1], draw: (c, o, i, j) => {
     box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 2, WOOD_DK);
@@ -118,6 +148,27 @@ const HANDMADE: RoomItem[] = [
     box(c, o, i + 0.2, j + 0.2, 0.6, 0.6, 2, shade("#8a3a4a"), 7, false);
     box(c, o, i + 0.15, j + 0.15, 0.12, 0.7, 24, GOLD);
     const [x, y] = at(o, i + 0.2, j + 0.5); px(c, x, y - 26, "#d8485a"); px(c, x - 1, y - 25, P.goldLt);
+  } },
+
+  // bilgisayarlı çalışma masası: çekmeceli gövde, ekranda akan kod, klavye, lamba, kupa ve kitaplar
+  { id: "bilgisayar-masasi", level: 1, name: "Bilgisayarlı çalışma masası", scope: "oda", size: [2, 1], draw: (c, o, i, j, t) => {
+    box(c, o, i + 0.06, j + 0.1, 0.62, 0.82, 10, WOOD_DK); // çekmece gövdesi
+    for (const [a, b] of [[1.84, 0.1], [1.84, 0.84]]) box(c, o, i + a, j + b, 0.08, 0.08, 10, WOOD_DK);
+    const [dx, dy] = at(o, i + 0.37, j + 0.92);
+    for (const k of [3, 7]) { rect(c, dx - 3, dy - k - 1, 6, 1, "#3a2a20"); px(c, dx, dy - k - 2, P.gold); } // çekmece kolları
+    box(c, o, i, j + 0.04, 2, 0.92, 2, WOOD, 10); // tabla
+    monitor(c, o, i + 0.55, j + 0.16, 0.9, t);
+    box(c, o, i + 0.7, j + 0.52, 0.6, 0.22, 1, shade("#3a3346"), 12); // klavye
+    const [kx, ky] = at(o, i + 1, j + 0.63);
+    for (let k = 0; k < 4; k++) px(c, kx - 3 + k * 2, ky - 13, (Math.floor(t * 6) + k) % 4 ? "#6a6476" : "#9fd0e8");
+    const [ux, uy] = at(o, i + 1.48, j + 0.62); rect(c, ux, uy - 13, 2, 1, "#e8e0f0"); // fare
+    const [lx, ly] = at(o, i + 1.78, j + 0.24); // lamba
+    rect(c, lx - 2, ly - 13, 4, 1, "#2a2533"); rect(c, lx, ly - 21, 1, 8, "#2a2533"); rect(c, lx - 3, ly - 23, 6, 2, P.gold);
+    px(c, lx - 1, ly - 21, "#fff2c8"); lights.push({ x: lx, y: ly - 20, r: 20, color: "255,214,150" });
+    const [cx, cy] = at(o, i + 0.32, j + 0.62); rect(c, cx - 1, cy - 16, 3, 3, "#d8485a"); px(c, cx + 2, cy - 15, "#d8485a"); // kupa
+    if (Math.floor(t * 1.5) % 2) px(c, cx, cy - 18, "rgba(255,255,255,0.55)");
+    const [bx, by] = at(o, i + 0.2, j + 0.25); // kitap yığını
+    rect(c, bx - 3, by - 14, 6, 2, "#2f3b6b"); rect(c, bx - 2, by - 16, 6, 2, "#8a3a4a"); rect(c, bx - 3, by - 18, 5, 2, "#4f7a4f");
   } },
 
   /* --------------------------------- bahçe --------------------------------- */
@@ -259,11 +310,14 @@ const TEMPLATES: GenTmpl[] = [
     for (let k = 0; k < 3; k++) tile(c, o, i + 0.4 + k * 0.8, j + 0.7, shade(p, 0.3).top, 0.5, 0.6);
   } },
   { id: "cift-yatak", noun: "Çift Kişilik Yatak", cat: "Yatak odası", scope: "oda", size: [2, 2], pals: FAB, draw: (c, o, i, j, _t, p) => {
-    box(c, o, i, j, 2, 2, 5, shade("#8c6448"));
-    box(c, o, i + 0.05, j + 0.05, 1.9, 1.9, 3, shade("#f2e4c2"), 5, false);
-    box(c, o, i + 0.6, j + 0.05, 1.35, 1.9, 1, shade(p), 8, false);
-    box(c, o, i + 0.12, j + 0.15, 0.4, 0.75, 2, shade("#ffffff"), 8, false); box(c, o, i + 0.12, j + 1.05, 0.4, 0.75, 2, shade("#ffffff"), 8, false);
-    box(c, o, i, j, 0.15, 2, 18, shade("#6b4a35"));
+    box(c, o, i, j, 0.16, 2, 19, shade("#6b4a35")); // başlık arkada: önce çizilir
+    box(c, o, i + 0.02, j + 0.15, 0.12, 1.7, 3, shade(p, 0.25, 0.1), 13, false); // döşemeli başlık
+    box(c, o, i + 0.16, j, 1.84, 2, 5, shade("#8c6448"));
+    box(c, o, i + 0.2, j + 0.05, 1.76, 1.9, 3, shade("#f2e4c2"), 5, false);
+    box(c, o, i + 0.26, j + 0.14, 0.42, 0.76, 2, shade("#ffffff"), 8, false); box(c, o, i + 0.26, j + 1.1, 0.42, 0.76, 2, shade("#ffffff"), 8, false);
+    box(c, o, i + 0.8, j + 0.04, 1.16, 1.92, 1, shade(p), 8, false);
+    box(c, o, i + 0.8, j + 0.04, 0.14, 1.92, 1, shade("#f2e4c2"), 8, false);
+    box(c, o, i + 1.9, j, 0.1, 2, 9, shade("#6b4a35"));
     const [x, y] = at2(o, i + 1.3, j + 1); px(c, x - 1, y - 10, "#e48aa0"); px(c, x + 1, y - 10, "#e48aa0"); px(c, x, y - 9, "#e48aa0");
   } },
   { id: "ocak", noun: "Ocak", cat: "Mutfak", scope: "oda", size: [1, 1], pals: TONES, draw: (c, o, i, j, t, p) => {
@@ -310,6 +364,7 @@ const TEMPLATES: GenTmpl[] = [
     box(c, o, i, j + 0.1, 2, 0.8, 2, shade(p), 10);
     const [x, y] = at2(o, i + 1, j + 0.5); rect(c, x - 4, y - 14, 7, 2, P.cream); rect(c, x + 5, y - 17, 1, 5, "#2a1c3a"); px(c, x + 5, y - 18, "#f3d48a");
     rect(c, x - 9, y - 15, 2, 3, P.cream); if (Math.floor(t * 2) % 2) px(c, x - 8, y - 17, P.amber);
+    laptop(c, o, i + 1.3, j + 0.2, t);
   } },
   { id: "kure", noun: "Dünya Küresi", cat: "Çalışma", scope: "oda", size: [1, 1], pals: [{ name: "Antika", c: "#5a9ac8" }], draw: (c, o, i, j, t) => {
     const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 3, y - 2, 6, 2, P.woodDk); rect(c, x, y - 9, 1, 7, P.woodDk);
@@ -369,9 +424,10 @@ const TEMPLATES: GenTmpl[] = [
     const [x, y] = at2(o, i + 1, j + 0.5); rect(c, x - 6, y - 15, 3, 4, "#6f86d6"); px(c, x - 5, y - 17, "#f3d48a"); rect(c, x + 2, y - 14, 5, 2, "#d8485a");
   } },
   { id: "tek-yatak", noun: "Tek Kişilik Yatak", cat: "Yatak odası", scope: "oda", size: [2, 1], pals: FAB.slice(0, 6), draw: (c, o, i, j, _t, p) => {
-    box(c, o, i, j + 0.1, 2, 0.8, 4, shade("#a87a50")); box(c, o, i + 0.05, j + 0.15, 1.9, 0.7, 3, shade("#f2e4c2"), 4, false);
-    box(c, o, i + 0.6, j + 0.15, 1.35, 0.7, 1, shade(p), 7, false); box(c, o, i + 0.1, j + 0.25, 0.35, 0.5, 2, shade("#ffffff"), 7, false);
-    box(c, o, i, j + 0.1, 0.12, 0.8, 13, shade("#8c6448"));
+    box(c, o, i, j + 0.1, 0.13, 0.8, 14, shade("#8c6448")); // başlık arkada: önce çizilir
+    box(c, o, i + 0.13, j + 0.1, 1.87, 0.8, 4, shade("#a87a50")); box(c, o, i + 0.17, j + 0.15, 1.79, 0.7, 3, shade("#f2e4c2"), 4, false);
+    box(c, o, i + 0.22, j + 0.25, 0.36, 0.5, 2, shade("#ffffff"), 7, false);
+    box(c, o, i + 0.75, j + 0.13, 1.21, 0.74, 1, shade(p), 7, false); box(c, o, i + 0.75, j + 0.13, 0.12, 0.74, 1, shade("#f2e4c2"), 7, false);
   } },
   { id: "calisma-sandalyesi", noun: "Çalışma Sandalyesi", cat: "Çalışma", scope: "oda", size: [1, 1], pals: FAB.slice(0, 3), draw: (c, o, i, j, _t, p) => {
     const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 4, y - 1, 9, 1, "#3a3346"); rect(c, x, y - 6, 1, 5, "#3a3346");
@@ -546,7 +602,7 @@ const GENERATED: RoomItem[] = order.map(({ tp, p }, k) => ({
 }));
 
 const HANDMADE_CAT: Record<string, Cat> = {
-  yatak: "Yatak odası", komodin: "Yatak odası", ayna: "Yatak odası", hali: "Halı", kitaplik: "Çalışma", masa: "Çalışma", saksi: "Bitki",
+  "bilgisayar-masasi": "Çalışma", yatak: "Yatak odası", komodin: "Yatak odası", ayna: "Yatak odası", hali: "Halı", kitaplik: "Çalışma", masa: "Çalışma", saksi: "Bitki",
   sandik: "Dekor", "zirh-askisi": "Dekor", "silah-rafi": "Dekor", "kedi-minderi": "Dekor", kazan: "Dekor", yumurta: "Dekor", somine: "Salon", taht: "Salon",
 };
 for (const it of HANDMADE) it.cat = it.scope === "bahce" ? "Bahçe" : HANDMADE_CAT[it.id] ?? "Dekor";

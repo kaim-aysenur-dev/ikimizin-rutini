@@ -6,10 +6,13 @@ import { partnerTimers } from "@/lib/study-server";
 import { parseActionHistory } from "@/lib/combat-sync";
 import { UUID_RE } from "@/lib/skin";
 
+// duruş: oturuyor / uzanıyor / masada / kitaplıkta ve yüksekliği (ör. "lie:8")
+const POSE_RE = /^(sit|lie|desk|read):\d{1,2}$/;
+
 // Canlı konum: bahçede, şatoda ya da bir evde. Kendi konumunu yaz, aynı yerdeki diğerini al. here: false ise ayrıldın.
 export const POST = withUser(async (req, user) => {
   const body = await readJson(req);
-  const { here, place, x, y, dir, moving, action } = body ?? {};
+  const { here, place, x, y, dir, moving, action, pose } = body ?? {};
   // son saldırı ya da büyü: yalnız biçimi doğruysa saklanır (diğer kişi efekti oynatır)
   const act = parseActionHistory(action);
   const isHouse = typeof place === "string" && place.startsWith("ev:") && UUID_RE.test(place.slice(3));
@@ -21,12 +24,8 @@ export const POST = withUser(async (req, user) => {
     return jsonError(400, "Geçersiz konum.");
   }
   const [others, unread, timers] = await Promise.all([
-    syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act }), unreadNotes(user.id), partnerTimers(user),
+    syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act, pose: typeof pose === "string" && POSE_RE.test(pose) ? pose : null }), unreadNotes(user.id), partnerTimers(user),
   ]);
-  // evde sayacı açık ve yerinde duran kişi masada çalışıyor görünür; şerit için sayaçlar ayrıca döner
-  const studyOf = (id: string, moving: boolean) => {
-    const t = isHouse && !moving ? timers.find((x) => x.userId === id) : undefined;
-    return t ? { reading: t.reading } : null;
-  };
-  return jsonOk({ others: others.map((o) => ({ ...o, study: studyOf(o.userId, o.moving) })), unread, timers });
+  // masada oturan ve sayacı açık olan odakta görünür; şerit için sayaçlar ayrıca döner
+  return jsonOk({ others: others.map((o) => ({ ...o, focus: timers.some((x) => x.userId === o.userId) })), unread, timers });
 });
