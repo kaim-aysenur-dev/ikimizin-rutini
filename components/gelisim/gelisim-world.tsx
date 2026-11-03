@@ -104,6 +104,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [clock, setClock] = useState(() => Date.now());
   // fırtına sesi: tarayıcı ancak dokunuşla başlatır; tercih hatırlanır
   const [sound, setSound] = useState(false);
+  // masa başında oturuyoruz: avatar masada, sayaç açıkken odadan çıkılmaz
+  const [atDesk, setAtDesk] = useState<StudyTab | null>(null);
+  const [partnerStudy, setPartnerStudy] = useState<{ label: string; startedAt: string; reading: boolean } | null>(null);
 
   const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
   const keys = useRef(new Set<string>());
@@ -123,18 +126,32 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   live.current = { where, placed, mode, rot, sound };
   const liveUnread = useRef(0);
   liveUnread.current = unread;
+  const deskSit = useRef<StudyTab | null>(null); // oyun döngüsü için atDesk'in kopyası
+  const studyLock = useRef(false); // masa başında ve sayaç açık: yürünmez
+  const locked = !!studyTimer && !!atDesk;
+  studyLock.current = locked;
 
   // F / ✋: yakındaki şeyle etkileşim
   const interact = () => {
     const h = hero.current, nb = nearRef.current;
+    if (h.sit && deskSit.current) { setStudy(deskSit.current); return; } // masadayken F paneli açar
     if (h.sit) { standUp(h); return; }
     if (!nb) return;
     // oturmadan önceki boş kare saklanır: eşyanın kareleri dolu sayıldığından kalkınca oraya dönülür
     if (nb.kind === "sit" && nb.itemId) { h.sit = { ...seatOf(nb.itemId)!, from: [h.i, h.j] }; h.i = nb.i; h.j = nb.j; }
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
-    else if (nb.kind === "desk") setStudy("masa");
-    else if (nb.kind === "shelf") setStudy("kitaplik");
+    else if (nb.kind === "desk" || nb.kind === "shelf") {
+      // masaya otur: avatar durduğu yerde masaya döner (masa karesi dolu olduğu için içine girmez), panel açılır
+      const tab: StudyTab = nb.kind === "desk" ? "masa" : "kitaplik";
+      const sx = (nb.i - h.i) - (nb.j - h.j); if (sx !== 0) h.dir = sx > 0 ? 1 : -1;
+      h.moving = false; h.sit = { lift: 4 };
+      deskSit.current = tab; setAtDesk(tab); setStudy(tab);
+    }
+  };
+  const leaveDesk = () => {
+    if (studyLock.current) return;
+    standUp(hero.current); deskSit.current = null; setAtDesk(null);
   };
 
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
@@ -158,7 +175,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (k === "e") setInvOpen((v) => !v);
       if (k === "r") setRot((v) => (v ? 0 : 1));
       if (k === "f" || k === " ") { e.preventDefault(); interact(); }
-      if (KEYS[k]) { keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
+      if (KEYS[k]) {
+        keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault();
+        if (studyLock.current && !e.repeat) setMsg("Çalışırken masadan kalkılmaz: önce sayacı bitir.");
+      }
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase());
     const blur = () => keys.current.clear();
@@ -173,13 +193,19 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const tick = async () => {
       const h = hero.current;
       try {
-        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
+        const res = await api<{
+          others: { userId: string; x: number; y: number; dir: number; moving: boolean; study?: { reading: boolean } | null }[];
+          unread?: number; timers?: { userId: string; label: string; startedAt: string; reading: boolean }[];
+        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
         if (stop) return;
         setUnread(res.unread ?? 0);
+        const pt = res.timers?.[0];
+        setPartnerStudy((cur) => (pt ? (cur?.startedAt === pt.startedAt && cur.label === pt.label ? cur : { label: pt.label, startedAt: pt.startedAt, reading: pt.reading }) : null));
         others.current = res.others.map((o) => {
           const prev = others.current.find((p) => p.userId === o.userId);
           const prof = profiles.find((p) => p.id === o.userId);
-          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...look(prof?.level ?? 1), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving };
+          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...look(prof?.level ?? 1), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving,
+            ...(o.study ? { sit: { lift: 4 }, study: { reading: o.study.reading, focus: true } } : {}) };
         });
       } catch { /* bağlantı koparsa bir sonraki turda yeniden dener */ }
     };
@@ -223,11 +249,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const h = hero.current;
 
       let di = 0, dj = 0;
-      for (const k of keys.current) { const v = KEYS[k]; if (v) { di += v[0]; dj += v[1]; } }
-      if (pad.current) { di += pad.current[0]; dj += pad.current[1]; }
+      if (!studyLock.current) {
+        for (const k of keys.current) { const v = KEYS[k]; if (v) { di += v[0]; dj += v[1]; } }
+        if (pad.current) { di += pad.current[0]; dj += pad.current[1]; }
+      }
       const len = Math.hypot(di, dj);
       h.moving = len > 0 && !fade.current;
-      if (h.moving && h.sit) standUp(h);
+      if (h.moving && h.sit) { standUp(h); if (deskSit.current) { deskSit.current = null; setAtDesk(null); } }
+      // masa başında: önünde defter/kitap, sayaç açıksa odak ışığı
+      h.study = deskSit.current && h.sit ? { reading: deskSit.current === "kitaplik", focus: studyLock.current } : undefined;
       if (h.moving) {
         const step = (SPEED * dt) / len;
         const free = (i: number, j: number) => {
@@ -297,7 +327,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
 
       // yakındaki etkileşim: oturulacak eşya, piyano ya da posta kutusu
       let nb: Near | null = null, best = 1.3;
-      if (!h.sit) {
+      if (h.sit && deskSit.current) {
+        nb = deskSit.current === "masa" ? { kind: "desk", label: "Masayı aç", i: h.i, j: h.j } : { kind: "shelf", label: "Kitaplığı aç", i: h.i, j: h.j };
+      } else if (!h.sit) {
         for (const p of cur.scope === "sato" ? SATO_SEATS : scenePlaced(cur, all)) {
           if (!itemById.get(p.itemId)) continue;
           const [sw, sd] = sizeOf(p.itemId, p.rot);
@@ -446,7 +478,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     setBusy(false);
   };
 
-  useEffect(() => { if (!studyTimer) return; const id = window.setInterval(() => setClock(Date.now()), 1000); return () => window.clearInterval(id); }, [studyTimer]);
+  useEffect(() => { if (!studyTimer && !partnerStudy) return; const id = window.setInterval(() => setClock(Date.now()), 1000); return () => window.clearInterval(id); }, [studyTimer, partnerStudy]);
   useEffect(() => { if (!msg) return; const id = window.setTimeout(() => setMsg(null), 2600); return () => window.clearTimeout(id); }, [msg]);
   useEffect(() => { setTab(where.scope === "bahce" ? "bahce" : "oda"); }, [where.scope]);
 
@@ -488,7 +520,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         <span className="gw-where">
           {where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
         </span>
-        <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}</span>
+        <span className="gw-hint">
+          {locked ? <b className="gw-near">🔒 Masada çalışıyorsun · F: paneli aç</b>
+            : atDesk ? <b className="gw-near">F: {atDesk === "masa" ? "Masayı aç" : "Kitaplığı aç"} · yürüyünce kalkarsın</b>
+            : near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}
+        </span>
         {canEditHere && (
           <button type="button" className={`btn ${mode.kind === "rotate" ? "btn-primary" : "btn-ghost"}`} onClick={() => setMode(mode.kind === "rotate" ? { kind: "walk" } : { kind: "rotate" })}>
             {mode.kind === "rotate" ? "Bitir" : "↻ Döndür"}
@@ -500,16 +536,17 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           </button>
         )}
         {studyTimer && (
-          <button type="button" className="btn btn-primary gw-study-chip" onClick={() => setStudy("masa")} title="Çalışma panelini aç">
+          <button type="button" className={`btn btn-primary gw-study-chip${locked ? " is-locked" : ""}`} onClick={() => setStudy(atDesk ?? "masa")} title="Çalışma panelini aç">
             ⏱ {studyTimer.label} <span className="num">{formatClock((clock - new Date(studyTimer.startedAt).getTime()) / 1000)}</span>
           </button>
         )}
         {!studyTimer && roomName === "Çalışma odası" && where.scope === "oda" && (
-          <button type="button" className="btn btn-ghost" onClick={() => setStudy("masa")}>📚 Çalışma</button>
+          <button type="button" className="btn btn-ghost" onClick={() => setStudy(atDesk ?? "masa")}>📚 Çalışma</button>
         )}
         <button type="button" className={`btn ${sound ? "btn-primary" : "btn-ghost"}`} onClick={toggleSound} aria-pressed={sound} title="Yağmur ve gök gürültüsü">
           {sound ? "🔊" : "🔇"} Fırtına
         </button>
+        {atDesk && !locked && <button type="button" className="btn btn-ghost" onClick={leaveDesk}>Masadan kalk</button>}
         <button type="button" className={`btn ${invOpen ? "btn-primary" : "btn-ghost"}`} onClick={() => setInvOpen((v) => !v)} aria-expanded={invOpen}>🎒 Envanter</button>
       </div>
 
@@ -528,6 +565,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         {mode.kind === "edit" && <p className="gw-tip">Geri almak istediğin eşyaya dokun</p>}
         {mode.kind === "rotate" && <p className="gw-tip">Döndürmek istediğin eşyaya dokun</p>}
         {msg && <p className="gw-msg" role="status">{msg}</p>}
+        {partnerStudy && (
+          <p className="gw-partner-study" role="status">
+            <span className="gw-ps-dot" aria-hidden="true" />
+            <b>{profiles.find((p) => p.id !== me)?.name.split(" ")[0]}</b> şu an <b>{partnerStudy.label}</b> {partnerStudy.reading ? "okuyor" : "çalışıyor"}
+            <span className="num">{formatClock(Math.max(0, (clock - new Date(partnerStudy.startedAt).getTime()) / 1000))}</span>
+            {studyTimer ? <em>❤️ birlikte · +%50</em> : <em>sen de başla: +%50 XP</em>}
+          </p>
+        )}
+        {locked && <div className="gw-focus-veil" aria-hidden="true" />}
 
         <section className={`card gw-inv${invOpen ? " is-open" : ""}`} aria-labelledby="envanter" onPointerDown={(e) => e.stopPropagation()} onPointerMove={(e) => e.stopPropagation()}>
           <div className="gw-inv-head">
@@ -578,14 +624,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         </section>
       </div>
 
-      <div className="gw-pad" aria-label="Yön tuşları">
+      <div className={`gw-pad${locked ? " is-locked" : ""}`} aria-label="Yön tuşları">
         {padBtn([-1, -1], "Yukarı", "up", "▲")}
         {padBtn([-1, 1], "Sola", "left", "◀")}
         {padBtn([1, -1], "Sağa", "right", "▶")}
         {padBtn([1, 1], "Aşağı", "down", "▼")}
         <button type="button" className="gw-pad-btn act" aria-label={near ? near.label : "Etkileşim"} onPointerDown={(e) => { e.preventDefault(); interact(); }}>✋</button>
       </div>
-      {study && <StudyDesk me={me} profiles={profiles} tab={study} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
+      {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
       {mailOpen && <Mailbox onClose={() => { setMailOpen(false); setUnread(0); }} partner={profiles.find((p) => p.id !== me)?.name.split(" ")[0] ?? "Sevgilin"} />}
     </div>
   );

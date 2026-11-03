@@ -12,7 +12,7 @@ import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] } };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] }; study?: { reading: boolean; focus: boolean } };
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
@@ -449,6 +449,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
         rect(c, zx, zy, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); px(c, zx + 1, zy + 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); rect(c, zx, zy + 2, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`);
       }
+      if (h.study) studyProps(c, x, y - lift, h.dir, h.study, t);
       anchors.push({ key: h.who, x: a.head[0], y: a.head[1] - 2 });
     } });
   }
@@ -544,4 +545,24 @@ export function drawItemPreview(c: Ctx, w: number, h: number, itemId: string, t:
   const [sw, sd] = it.size;
   const o: Origin = { ox: w / 2 - (sw - sd) * 4, oy: h - 6 - (sw + sd) * 4 };
   it.draw(c, o, 0, 0, t);
+}
+
+// masa başında çalışan: önünde açık defter ya da kitap, sayfası arada çevrilir; sayaç açıkken başında odak ışığı ve yükselen kıvılcımlar
+function studyProps(c: Ctx, x: number, y: number, dir: 1 | -1, st: { reading: boolean; focus: boolean }, t: number) {
+  const bx = x + dir * 4 - 4, by = y - 9;
+  if (st.reading) {
+    rect(c, bx, by, 9, 5, "#3b2f4a"); rect(c, bx + 1, by + 1, 3, 3, "#f4ead2"); rect(c, bx + 5, by + 1, 3, 3, "#f4ead2");
+    if ((t % 5) < 0.35) rect(c, bx + 4, by - 1, 2, 4, "#fff8e6"); // sayfa çevriliyor
+  } else {
+    rect(c, bx, by + 1, 9, 4, "#f4ead2"); rect(c, bx, by + 1, 9, 1, "#9b7cc4");
+    const k = Math.floor(t * 3) % 3; rect(c, bx + 2 + k * 2, by + 3, 1, 1, "#3b2f4a"); // kalem yazıyor
+  }
+  if (!st.focus) return;
+  for (let k = 0; k < 3; k++) {
+    const q = (t * 0.4 + k / 3) % 1;
+    const a = (1 - q).toFixed(2);
+    px(c, Math.round(x - 6 + k * 6 + Math.sin(q * 5 + k) * 2), Math.round(y - 30 - q * 14), `rgba(243,212,138,${a})`);
+  }
+  const g = 0.5 + 0.5 * Math.sin(t * 2);
+  rect(c, x - 1, y - 33, 3, 1, `rgba(255,236,170,${(0.45 + 0.4 * g).toFixed(2)})`);
 }
