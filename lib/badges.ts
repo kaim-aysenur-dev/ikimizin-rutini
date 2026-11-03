@@ -16,6 +16,8 @@ const TRACKS: Track[] = [
   { metric: "best", icon: "🔥", group: "Seri", unit: "günlük en iyi seri", tiers: [[3, "Kıvılcım"], [7, "Bir Hafta"], [14, "İki Hafta"], [21, "Alışkanlık"], [30, "Bir Ay"], [60, "İki Ay"], [100, "Yüz Gün"], [180, "Yarım Yıl"], [365, "Bir Yıl"]] },
   { metric: "activeDays", icon: "📅", group: "Seri", unit: "aktif gün", tiers: [[1, "İlk Gün"], [7, "Bir Haftalık Yolcu"], [30, "Bir Aylık Yolcu"], [90, "Mevsim"], [180, "Yarım Yıl Yolcusu"], [365, "Yıl Boyu"]] },
   { metric: "together", icon: "❤️", group: "Birlikte", unit: "gün birlikte tamamlanan", tiers: [[1, "Birlikte"], [3, "Üç Gün Beraber"], [7, "Kalp Kalbe"], [14, "El Ele"], [30, "Bir Ay Birlikte"], [60, "Ayrılmaz İkili"], [100, "Yüz Gün Aşk"], [180, "Yarım Yıl Beraber"], [365, "Sonsuza Dek"]] },
+  { metric: "studyMin", icon: "📚", group: "Çalışma", unit: "dakika çalışma ve okuma", tiers: [[60, "İlk Saat"], [300, "Odaklı"], [600, "On Saat"], [1500, "Çalışkan"], [3000, "Bilge Çırak"], [6000, "Âlim"], [12000, "Üstat"]] },
+  { metric: "pages", icon: "📖", group: "Çalışma", unit: "sayfa", tiers: [[10, "İlk Sayfalar"], [100, "Kitap Kurdu"], [500, "Okur"], [1000, "Bin Sayfa"], [3000, "Kütüphaneci"], [10000, "Bilge"]] },
   { metric: "decor", icon: "🏠", group: "Ev", unit: "eşya evde", tiers: [[1, "İlk Eşya"], [5, "Yuva Kuran"], [10, "Ev Gibi Ev"], [25, "İç Mimar"], [50, "Saray"], [100, "Masal Evi"]] },
   { metric: "garden", icon: "🌷", group: "Ev", unit: "eşya bahçede", tiers: [[1, "İlk Fide"], [5, "Bahçıvan"], [15, "Çiçek Bahçesi"], [30, "Cennet Bahçesi"]] },
   { metric: "level", icon: "✨", group: "Seviye", unit: "seviye", tiers: [[3, "Yola Çıkış"], [6, "Yolcu"], [10, "Çift Hane"], [12, "Şövalye"], [20, "Kahraman"], [30, "Efsane"], [45, "Destan"], [60, "Ejderha Lordu"], [75, "Yıldız Bekçisi"], [90, "Ölümsüz"], [100, "Zirve"]] },
@@ -45,7 +47,7 @@ export const METRICS = TRACKS.map((t) => t.metric);
 // kendi kendini denetler
 if (process.env.NODE_ENV !== "production") {
   console.assert(BADGES.length >= 90 && new Set(BADGES.map((b) => b.id)).size === BADGES.length, "90+ rozet, kimlikler benzersiz");
-  const zero = { checks: 0, meals: 0, yoga: 0, sport: 0, streak: 0, best: 0, together: 0, sportMin: 0, journal: 0, waterDays: 0, activeDays: 0, decor: 0, garden: 0 };
+  const zero = { checks: 0, meals: 0, yoga: 0, sport: 0, streak: 0, best: 0, together: 0, sportMin: 0, journal: 0, waterDays: 0, activeDays: 0, decor: 0, garden: 0, studyMin: 0, pages: 0 };
   console.assert(BADGES.filter((b) => b.ok({ ...zero, checks: 10 }, 1)).length === 2, "eşik sayımı");
   console.assert(progressOf("checks", { ...zero, checks: 12 }, 1).next?.need === 25, "sıradaki rozet");
 }

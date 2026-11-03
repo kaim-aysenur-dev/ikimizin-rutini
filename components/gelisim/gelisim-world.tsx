@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PixelIcon } from "@/components/pixel-icon";
+import { StudyDesk, type StudyTab } from "@/components/gelisim/study-desk";
 import { api } from "@/lib/api-client";
 import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
 import { type Origin, toTile } from "@/lib/iso";
+import { formatClock } from "@/lib/slots";
+import { isDesk, isShelf } from "@/lib/study";
 import { FRONT_DOOR, HOUSES, type Placed, SIZE, blockedSet, canPlace, gardenSolid, houseStep, maxCopies, roomAt, sizeOf } from "@/lib/room";
 import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
 import { TIERS } from "@/lib/scenes/hall";
@@ -38,7 +41,7 @@ const seatOf = (id: string): { lift: number; sleep?: boolean } | null =>
   : id.startsWith("sandalye-") || id === "taht" ? { lift: 7 }
   : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6 }
   : null;
-type Near = { kind: "sit" | "piano" | "mail"; label: string; i: number; j: number; itemId?: string };
+type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf"; label: string; i: number; j: number; itemId?: string };
 
 // piyano: kısa bir melodi (dokunuştan sonra çaldığı için tarayıcı izin verir)
 function tune() {
@@ -60,7 +63,9 @@ const KEYS: Record<string, [number, number]> = {
 
 // Gelişim: kendi evin (altı oda) ve ortak bahçe. Kamera seni izler; envanterden eşya koyarsın; aynı yerdekiler birbirini canlı görür.
 // startIn: "bahce" ise oyun kişinin kapısının önünde, bahçede başlar
-export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: { me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope }) {
+export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null }: {
+  me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope; initialStudyTimer?: { label: string; startedAt: string } | null;
+}) {
   const meP = profiles.find((p) => p.id === me)!;
   const myDoor = HOUSES[Math.min(Math.max(0, profiles.findIndex((p) => p.id === me)), HOUSES.length - 1)].door;
   const [where, setWhere] = useState<Where>(startIn === "bahce" ? { scope: "bahce" } : { scope: "oda", owner: me });
@@ -78,6 +83,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
   const [rot, setRot] = useState(0); // yerleştirilecek eşyanın yönü
   const [unread, setUnread] = useState(0);
   const [mailOpen, setMailOpen] = useState(false);
+  // çalışma odası: masa ve kitaplık paneli, çalışan sayaç
+  const [study, setStudy] = useState<StudyTab | null>(null);
+  const [studyTimer, setStudyTimer] = useState(initialStudyTimer);
+  const [clock, setClock] = useState(() => Date.now());
 
   const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
   const keys = useRef(new Set<string>());
@@ -106,6 +115,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
     if (nb.kind === "sit" && nb.itemId) { h.i = nb.i; h.j = nb.j; h.sit = seatOf(nb.itemId)!; }
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
+    else if (nb.kind === "desk") setStudy("masa");
+    else if (nb.kind === "shelf") setStudy("kitaplik");
   };
 
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
@@ -265,6 +276,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
           if (dd >= best + Math.max(sw, sd) / 2) continue;
           if (seatOf(p.itemId)) { nb = { kind: "sit", label: seatOf(p.itemId)!.sleep ? "Uzan" : "Otur", i: ci, j: cj, itemId: p.itemId }; best = dd; }
           else if (p.itemId.startsWith("piyano-")) { nb = { kind: "piano", label: "Piyano çal", i: ci, j: cj }; best = dd; }
+          else if (isDesk(p.itemId)) { nb = { kind: "desk", label: "Masayı aç", i: ci, j: cj }; best = dd; }
+          else if (isShelf(p.itemId)) { nb = { kind: "shelf", label: "Kitaplığı aç", i: ci, j: cj }; best = dd; }
         }
         if (cur.scope === "bahce") HOUSES.forEach((hs) => {
           const mi = hs.door.i + 1.6, mj = hs.door.j + 0.6, dd = Math.hypot(mi - h.i, mj - h.j);
@@ -393,6 +406,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
     setBusy(false);
   };
 
+  useEffect(() => { if (!studyTimer) return; const id = window.setInterval(() => setClock(Date.now()), 1000); return () => window.clearInterval(id); }, [studyTimer]);
   useEffect(() => { if (!msg) return; const id = window.setTimeout(() => setMsg(null), 2600); return () => window.clearTimeout(id); }, [msg]);
   useEffect(() => { setTab(where.scope === "bahce" ? "bahce" : "oda"); }, [where.scope]);
 
@@ -421,6 +435,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
           <button type="button" className={`btn ${mode.kind === "edit" ? "btn-primary" : "btn-ghost"}`} onClick={() => setMode(mode.kind === "edit" ? { kind: "walk" } : { kind: "edit" })}>
             {mode.kind === "edit" ? "Bitir" : "Eşya kaldır"}
           </button>
+        )}
+        {studyTimer && (
+          <button type="button" className="btn btn-primary gw-study-chip" onClick={() => setStudy("masa")} title="Çalışma panelini aç">
+            ⏱ {studyTimer.label} <span className="num">{formatClock((clock - new Date(studyTimer.startedAt).getTime()) / 1000)}</span>
+          </button>
+        )}
+        {!studyTimer && roomName === "Çalışma odası" && where.scope === "oda" && (
+          <button type="button" className="btn btn-ghost" onClick={() => setStudy("masa")}>📚 Çalışma</button>
         )}
         <button type="button" className={`btn ${invOpen ? "btn-primary" : "btn-ghost"}`} onClick={() => setInvOpen((v) => !v)} aria-expanded={invOpen}>🎒 Envanter</button>
       </div>
@@ -497,6 +519,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
         {padBtn([1, 1], "Aşağı", "down", "▼")}
         <button type="button" className="gw-pad-btn act" aria-label={near ? near.label : "Etkileşim"} onPointerDown={(e) => { e.preventDefault(); interact(); }}>✋</button>
       </div>
+      {study && <StudyDesk me={me} profiles={profiles} tab={study} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
       {mailOpen && <Mailbox onClose={() => { setMailOpen(false); setUnread(0); }} partner={profiles.find((p) => p.id !== me)?.name.split(" ")[0] ?? "Sevgilin"} />}
     </div>
   );

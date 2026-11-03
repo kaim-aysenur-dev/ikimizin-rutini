@@ -4,7 +4,7 @@ import { sql } from "./db";
 import { streakAndDays } from "./overview";
 import { XP, type Stats } from "./xp";
 
-type Counts = { checks: number; meals: number; yoga: number; sport: number };
+type Counts = { checks: number; meals: number; yoga: number; sport: number; studyXp: number };
 
 // since: seviye sıfırlama anı (users.xp_since); öncesindeki kayıtlar sayılmaz. days: yalnız o günler (birlikte bonusu)
 const counts = async (userId: string, since: string | null, days?: string[]): Promise<Counts> => {
@@ -18,10 +18,13 @@ const counts = async (userId: string, since: string | null, days?: string[]): Pr
       (select count(*) from face_yoga_sessions where user_id = ${userId}
         and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[])))::int as yoga,
       (select count(*) from sport_sessions where user_id = ${userId}
-        and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[])))::int as sport`;
+        and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[])))::int as sport,
+      -- çalışma/okuma XP'si: lib/study.ts studyXp ile aynı kural
+      (select coalesce(sum(floor(((minutes / 15) * 10 + (pages / 2)) * case when together then 1.5 else 1 end)), 0) from study_sessions where user_id = ${userId}
+        and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[])))::int as "studyXp"`;
   return r as Counts;
 };
-// rozetler için ek sayaçlar: spor dakikası, cilt günlüğü, su günleri, aktif gün, evdeki ve bahçedeki eşyalar
+// rozetler için ek sayaçlar: spor dakikası, cilt günlüğü, su günleri, aktif gün, evdeki ve bahçedeki eşyalar, çalışma dakikası ve sayfa
 const extras = async (userId: string, since: string | null, sinceDay: string | null) => {
   const [r] = await sql()`
     select
@@ -30,10 +33,15 @@ const extras = async (userId: string, since: string | null, sinceDay: string | n
       (select count(*) from nutrition_days where user_id = ${userId} and water_glasses >= 8 and (${sinceDay}::date is null or day >= ${sinceDay}::date))::int as water_days,
       (select count(distinct day) from checks where user_id = ${userId} and (${since}::timestamptz is null or checked_at >= ${since}))::int as active_days,
       (select count(*) from placed_items where user_id = ${userId} and scope = 'oda')::int as decor,
-      (select count(*) from placed_items where user_id = ${userId} and scope = 'bahce')::int as garden`;
-  return { sportMin: r.sport_min as number, journal: r.journal as number, waterDays: r.water_days as number, activeDays: r.active_days as number, decor: r.decor as number, garden: r.garden as number };
+      (select count(*) from placed_items where user_id = ${userId} and scope = 'bahce')::int as garden,
+      (select coalesce(sum(minutes), 0) from study_sessions where user_id = ${userId} and (${since}::timestamptz is null or created_at >= ${since}))::int as study_min,
+      (select coalesce(sum(pages), 0) from study_sessions where user_id = ${userId} and (${since}::timestamptz is null or created_at >= ${since}))::int as pages`;
+  return {
+    sportMin: r.sport_min as number, journal: r.journal as number, waterDays: r.water_days as number, activeDays: r.active_days as number,
+    decor: r.decor as number, garden: r.garden as number, studyMin: r.study_min as number, pages: r.pages as number,
+  };
 };
-const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport;
+const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport + c.studyXp;
 
 export type Adventure = { xp: number; stats: Stats; meToday: boolean; partnerToday: boolean; partnerName: string | null };
 
@@ -51,7 +59,7 @@ export const adventure = cache(async (userId: string, accountId: string, today: 
   const bonus = together.length ? xpOf(await counts(userId, since, together)) : 0;
   return {
     xp: xpOf(all) + bonus,
-    stats: { ...all, ...extra, streak: mine.streak.current, best: mine.streak.best, together: together.length },
+    stats: { checks: all.checks, meals: all.meals, yoga: all.yoga, sport: all.sport, ...extra, streak: mine.streak.current, best: mine.streak.best, together: together.length },
     meToday: mine.streak.todayComplete,
     partnerToday: theirs?.streak.todayComplete ?? false,
     partnerName: partner?.display_name ?? null,

@@ -1,5 +1,5 @@
 // Macera Günlüğü: XP ve seviye. Yeni tablo yok; XP mevcut kayıtlardan hesaplanır.
-// Bakım tiki 10, öğün 15, yüz yogası 20, spor seansı 30 XP.
+// Bakım tiki 10, öğün 15, yüz yogası 20, spor seansı 30 XP. Çalışma/okuma: her 15 dk 10, her 2 sayfa 1 XP (lib/study.ts).
 export const XP = { check: 10, meal: 15, faceYoga: 20, sport: 30 } as const;
 
 // Seviye L'den L+1'e geçmek için 100 + (L-1)*15 XP gerekir: 100, 115, 130, ... En yüksek seviye 100.
@@ -93,6 +93,7 @@ export const TIER_NAMES: Record<Tier, string> = { cloth: "Kumaş giysi", leather
 export type Stats = {
   checks: number; meals: number; yoga: number; sport: number; streak: number; best: number; together: number;
   sportMin: number; journal: number; waterDays: number; activeDays: number; decor: number; garden: number;
+  studyMin: number; pages: number;
 };
 
 // kendi kendini denetler

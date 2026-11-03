@@ -1,0 +1,239 @@
+/* ==========================================================================
+   Gelişim · Çalışma odası: masa (alanlar) ve kitaplık (okuma listesi) paneli.
+   Renkler sections-3.css'teki data-color'dan (--t), çerçeveler pixel-theme.css'ten.
+   ========================================================================== */
+
+.modal.st {
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  outline: none;
+}
+
+.st-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.st-head h2 {
+  margin: 0;
+}
+
+.st-intro,
+.st-empty {
+  margin: 0;
+  font-size: 14px;
+}
+
+.st-sub {
+  margin: 6px 0 0;
+  font-size: 16px;
+}
+
+.st-msg {
+  margin: 0;
+  padding: 8px 12px;
+  background: var(--ok-soft);
+  box-shadow: inset 0 0 0 2px var(--ok);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* ---------- canlı sayaçlar ---------- */
+
+.st-live {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line-strong);
+}
+
+.st-live-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  font-size: 14px;
+}
+
+.st-live-row.is-mine {
+  font-size: 15px;
+}
+
+.st-clock {
+  font-size: 20px;
+  letter-spacing: 0.02em;
+}
+
+.st-together {
+  margin: 0;
+  font-size: 13px;
+  color: var(--week);
+  font-weight: 600;
+}
+
+/* ---------- alan ve kitap kartları ---------- */
+
+.st-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .st-cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.st-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line), inset 4px 0 0 var(--t, var(--accent));
+}
+
+.st-card.is-picked {
+  box-shadow: inset 0 0 0 2px var(--t, var(--accent)), inset 4px 0 0 var(--t, var(--accent));
+}
+
+.st-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.st-card-top b {
+  margin-right: auto;
+  overflow-wrap: anywhere;
+}
+
+.st-tag {
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--ts, var(--surface-2));
+  color: var(--ink-2);
+}
+
+.st-bar {
+  height: 8px;
+  background: var(--idle-soft);
+  overflow: hidden;
+}
+
+.st-bar i {
+  display: block;
+  height: 100%;
+  background: var(--t, var(--accent));
+}
+
+.st-note {
+  font-size: 13px;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+
+.st-actions {
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+/* ---------- günlük ---------- */
+
+.st-journal {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.st-day {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.st-day b {
+  color: var(--ink);
+}
+
+.st-journal ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.st-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  background: var(--surface-2);
+}
+
+.st-entry > i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  margin-top: 5px;
+  background: var(--t, var(--week));
+}
+
+.st-entry .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.st-entry small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.st-confirm {
+  gap: 6px;
+}
+
+/* ---------- formlar ---------- */
+
+.st-form {
+  gap: 8px;
+}
+
+.st-form .field-label {
+  margin-top: 4px;
+}
+
+.st-two {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.st-two > span {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Gelişim çubuğunda çalışan sayaç */
+.gw-study-chip .num {
+  margin-left: 6px;
+}

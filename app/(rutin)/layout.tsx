@@ -7,6 +7,7 @@ import "./sections-2.css";
 import "./sections-3.css";
 import "./sections-4.css";
 import "./pixel-theme.css";
+import "./study.css";
 
 // Başlıklar: yumuşak serif (SOFT ekseni açık). Metin ve sayılar: DM Sans (tabular rakamlar CSS'te).
 const display = Fraunces({
