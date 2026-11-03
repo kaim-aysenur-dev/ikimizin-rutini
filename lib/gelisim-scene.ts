@@ -5,7 +5,7 @@ import { lights } from "./env";
 import { type Origin, at, box, shade, tile } from "./iso";
 import { type CharState, type Ctx, type V, P, STAND, drawCharacter, line, poly, px, rect } from "./pixel";
 import { FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, footprint, innerWalls, isPath } from "./room";
-import { type Scope, itemById } from "./room-items";
+import { type Scope, isFlat, itemById } from "./room-items";
 import { walkFrame } from "./anim";
 
 const WALL_H = 44;
@@ -210,7 +210,7 @@ function mailbox(c: Ctx, o: Origin, i: number, j: number) {
 
 /* -------------------------------- sahne çizimi ------------------------------- */
 
-const flat = (id: string) => id === "hali";
+const flat = isFlat;
 
 /** Bütün sahne. Dönen değer: isim etiketlerinin ekran noktaları (dünya pikseli). */
 export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {

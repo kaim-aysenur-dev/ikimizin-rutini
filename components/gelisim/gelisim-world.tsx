@@ -1,12 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PixelCanvas } from "@/components/pixel-canvas";
+import { PixelIcon } from "@/components/pixel-icon";
 import { api } from "@/lib/api-client";
 import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
 import { type Origin, toTile } from "@/lib/iso";
 import { FRONT_DOOR, HOUSES, type Placed, SIZE, blockedSet, canPlace, gardenSolid, houseStep, roomAt } from "@/lib/room";
-import { ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
+import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
 import { TIERS } from "@/lib/scenes/hall";
 import { tierOf } from "@/lib/xp";
 
@@ -32,6 +32,9 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
   const [placed, setPlaced] = useState(initialPlaced);
   const [mode, setMode] = useState<Mode>({ kind: "walk" });
   const [tab, setTab] = useState<Scope>("oda");
+  const [catFilter, setCatFilter] = useState<ItemCat | "Tümü">("Tümü");
+  const [q, setQ] = useState("");
+  const [onlyOpen, setOnlyOpen] = useState(true);
   const [invOpen, setInvOpen] = useState(false);
   const [roomName, setRoomName] = useState("Giriş holü");
   const [msg, setMsg] = useState<string | null>(null);
@@ -344,15 +347,25 @@ export function GelisimWorld({ me, profiles, initialPlaced }: { me: string; prof
             <button type="button" role="tab" className="chip" aria-selected={tab === "bahce"} onClick={() => setTab("bahce")}>Bahçe eşyaları</button>
           </div>
           <p className="muted">{tab === "oda" ? "Ev eşyalarını kendi evinde istediğin odaya koyarsın." : "Bahçe eşyaları ortak bahçeye konur; ikiniz de görürsünüz."}</p>
+          <input className="input" type="search" placeholder="Eşya ara" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Eşya ara" />
+          {tab === "oda" && (
+            <div className="chips gw-cats" role="group" aria-label="Kategori">
+              {(["Tümü", ...CATS.filter((c2) => c2 !== "Bahçe")] as const).map((c2) => (
+                <button key={c2} type="button" className="chip" aria-pressed={catFilter === c2} onClick={() => setCatFilter(c2)}>{c2}</button>
+              ))}
+            </div>
+          )}
+          <label className="check-row"><input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} /> Yalnız açılanları göster</label>
           <ul className="gw-items">
-            {ROOM_ITEMS.filter((it) => it.scope === tab).map((it) => {
+            {ROOM_ITEMS.filter((it) => it.scope === tab && (tab === "bahce" || catFilter === "Tümü" || it.cat === catFilter) && (!onlyOpen || it.level <= meP.level)
+              && (!q.trim() || (it.level <= meP.level && it.name.toLocaleLowerCase("tr").includes(q.trim().toLocaleLowerCase("tr"))))).map((it) => {
               const locked = it.level > meP.level;
               const isPlaced = mine.has(it.id);
               const rightPlace = tab === where.scope && canEditHere;
               const row = placed.find((p) => p.userId === me && p.itemId === it.id);
               return (
                 <li key={it.id} className={`gw-item${locked ? " is-locked" : ""}${mode.kind === "place" && mode.itemId === it.id ? " is-active" : ""}`}>
-                  <PixelCanvas draw={(c, w, h, t) => drawItemPreview(c, w, h, it.id, t)} size={[48, 40]} scale={2} fps={locked ? 1 : 6} className="gw-item-icon" />
+                  <PixelIcon draw={(c, w, h, t) => drawItemPreview(c, w, h, it.id, t)} size={[48, 44]} scale={2} className="gw-item-icon" />
                   <div>
                     <b>{locked ? "???" : it.name}</b>
                     <small>{locked ? `🔒 Seviye ${it.level}` : isPlaced ? "Yerleştirildi" : `Lv ${it.level} · ${it.size[0]}×${it.size[1]}`}</small>

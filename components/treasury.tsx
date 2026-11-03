@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { PixelCanvas } from "@/components/pixel-canvas";
+import { PixelIcon } from "@/components/pixel-icon";
 import { STAND_F } from "@/lib/anim";
-import { GEAR, type GearKind } from "@/lib/gear";
+import { GEAR, type GearKind, animated } from "@/lib/gear";
 import { type Ctx, drawCharacter, rect } from "@/lib/pixel";
 import { CHEER, TIERS } from "@/lib/scenes/hall";
 import { REWARDS, TIER_NAMES, levelOf, tierOf, xpToLevel } from "@/lib/xp";
@@ -13,9 +14,15 @@ const FILTERS: ("Tümü" | GearKind)[] = ["Tümü", "Zırh", "Silah", "Büyü"];
 // Hazine: seviyeyle açılan zırhlar, silahlar, büyüler ve salon ödülleri
 export function Treasury({ xp }: { xp: number }) {
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("Tümü");
+  const [status, setStatus] = useState<"Tümü" | "Açık" | "Kilitli">("Tümü");
+  const [q, setQ] = useState("");
   const lv = levelOf(xp);
   const tier = tierOf(lv.level);
-  const shown = GEAR.filter((g) => filter === "Tümü" || g.kind === filter);
+  const needle = q.trim().toLocaleLowerCase("tr");
+  const shown = GEAR.filter((g) =>
+    (filter === "Tümü" || g.kind === filter) &&
+    (status === "Tümü" || (status === "Açık") === g.level <= lv.level) &&
+    (!needle || (g.level <= lv.level && g.name.toLocaleLowerCase("tr").includes(needle)) || String(g.level) === needle));
   const open = GEAR.filter((g) => g.level <= lv.level).length;
 
   // önizleme: ikisi karşılıklı, şu anki zırhla; arada bir sevinçle kollarını kaldırırlar
@@ -40,6 +47,15 @@ export function Treasury({ xp }: { xp: number }) {
         </div>
       </section>
 
+      <div className="treasury-tools">
+        <input className="input" type="search" placeholder="Eşya ara (ad ya da seviye)" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Eşya ara" />
+        <div className="chips" role="group" aria-label="Durum">
+          {(["Tümü", "Açık", "Kilitli"] as const).map((s2) => (
+            <button key={s2} type="button" className="chip" aria-pressed={status === s2} onClick={() => setStatus(s2)}>{s2}</button>
+          ))}
+        </div>
+        <span className="muted">{shown.length} eşya</span>
+      </div>
       <div className="chips treasury-filter" role="tablist" aria-label="Eşya türü">
         {FILTERS.map((f) => (
           <button key={f} type="button" role="tab" aria-selected={filter === f} className="chip" onClick={() => setFilter(f)}>{f}</button>
@@ -51,7 +67,7 @@ export function Treasury({ xp }: { xp: number }) {
           const locked = g.level > lv.level;
           return (
             <li key={g.id} className={`treasury-item${locked ? " is-locked" : ""}`}>
-              <PixelCanvas draw={(c, w, h, t) => { c.clearRect(0, 0, w, h); g.draw(c, t); }} size={[24, 24]} scale={3} fps={locked ? 1 : g.kind === "Büyü" ? 10 : 4} className="treasury-icon" />
+              <PixelIcon draw={(c, _w, _h, t) => g.draw(c, t)} size={[24, 24]} scale={3} animate={!locked && animated(g)} className="treasury-icon" />
               <div>
                 <p className="treasury-meta">{g.kind} · {g.owner} · <b>Lv {g.level}</b></p>
                 <h3>{locked ? "???" : g.name}</h3>

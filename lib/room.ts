@@ -1,6 +1,6 @@
 // Gelişim: evin kat planı, bahçenin düzeni ve yerleştirme / yürüme kuralları.
 // Hem tarayıcı (önizleme, çarpışma) hem sunucu (doğrulama) kullanır. scope "oda" = kişinin evi.
-import { type Scope, itemById } from "./room-items";
+import { type Scope, isFlat, itemById } from "./room-items";
 
 export const SIZE: Record<Scope, { w: number; d: number }> = { oda: { w: 20, d: 14 }, bahce: { w: 36, d: 26 } };
 
@@ -118,7 +118,7 @@ export function canPlace(scope: Scope, itemId: string, tx: number, ty: number, p
 
 /** Yürürken çarpılan kareler (eşyalar; halı gibi düz olanlar hariç) */
 export function blockedSet(scope: Scope, placed: Placed[]): Set<string> {
-  return new Set(placed.filter((p) => p.scope === scope && p.itemId !== "hali").flatMap((p) => footprint(p.itemId, p.tx, p.ty).map(([a, b]) => `${a},${b}`)));
+  return new Set(placed.filter((p) => p.scope === scope && !isFlat(p.itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty).map(([a, b]) => `${a},${b}`)));
 }
 
 // kendi kendini denetler
