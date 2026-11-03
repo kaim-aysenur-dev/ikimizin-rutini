@@ -31,7 +31,19 @@ Cengiz ve Ayşenur gerçek bir aksiyon oyunu gibi oynamak istiyor. Seviye atlad�
    - 1–4 tuşları büyüleri atar ve büyüler mana harcar.
    - Hedefe vurunca hasar sayısı uçar, hedef sarsılır.
    - Can ve mana zamanla dolar. Şimdilik hasar veren düşman olmadığı için can bar yalnız İyileştirme ve Kalkan gibi büyülerle oynar. Düşman geldiğinde azalacak.
-7. **Tam ekran:** Gelişim alanına tıklayınca (ya da bir düğmeyle) oyun tarayıcının tam ekran moduna geçer. Esc ile çıkılır. Can barı ve büyü yuvaları tam ekranda da görünür.
+7. **Eşyalar yetenek verir (kullanıcı onayladı):** Seviye atladıkça açılan her eşya kuşanınca karaktere güç katar, daha yüksek seviyeli eşya daha güçlüdür.
+   - **Silah:** hasar, hız (vuruş aralığı), menzil ve vuruş tarzı.
+     - Tahta Kılıç zayıf ve kısa.
+     - Ejder Kılıcı güçlü ve alevli iz bırakır.
+     - Kalp Kılıcı en güçlüsü.
+     - Yay uzaktan, hançer çok hızlı, mızrak uzun menzilli.
+   - **Zırh:** savunma (ileride düşman hasarını azaltır) ve ek can.
+     - Kumaş Tunik +0.
+     - Deri, Çelik ve Altın Zırh giderek artar.
+     - Efsane Zırhı en yüksek.
+   - **Büyü:** her büyü ayrı bir yetenek açar (aşağıdaki listede). Güçlü büyüler daha çok mana harcar ve daha uzun bekleme süresi ister.
+   - Değerler `lib/gear.ts` yanında tek bir tabloda durur ki sonradan dengelemesi kolay olsun.
+8. **Tam ekran:** Gelişim alanına tıklayınca (ya da bir düğmeyle) oyun tarayıcının tam ekran moduna geçer. Esc ile çıkılır. Can barı ve büyü yuvaları tam ekranda da görünür.
 
 ## Hedef olmayanlar (bu aşamada yok)
 
