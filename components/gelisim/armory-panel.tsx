@@ -15,9 +15,9 @@ const KIND_TITLE: Record<GearKind, string> = { Zırh: "🛡 Zırh askısı", Sil
 /** Eşyanın oyundaki değerleri, kartta kısa yazı olarak */
 function statLine(id: string): string {
   const w = weaponStats(id);
-  if (w) return `${STYLE_NAME[w.style]} · hasar ${w.damage} · ${(1 / w.cooldown).toFixed(1)} vuruş/sn · menzil ${w.range}${w.combo > 1 ? ` · ${w.combo}'lü kombo` : ""}`;
+  if (w) return `${STYLE_NAME[w.style]} · hasar ${w.damage} · ${(1 / w.cooldown).toFixed(1)} vuruş/sn · ~${Math.round(w.damage / w.cooldown * (w.combo > 1 ? 1 + 0.8 / w.combo : 1))} hasar/sn · menzil ${w.range}${w.combo > 1 ? ` · ${w.combo}'lü kombo` : ""}`;
   const a = armorStats(id);
-  if (a) return `${TIER_NAME[a.tier]} · savunma ${a.defense} · +${a.bonusHp} can`;
+  if (a) return `${TIER_NAME[a.tier]} · savunma ${a.defense} (%${Math.round(a.defense / (60 + a.defense) * 100)} koruma) · +${a.bonusHp} can`;
   const s = spellStats(id);
   if (s) return `${s.heal ? `şifa ${s.heal}` : s.damage ? `hasar ${s.damage}` : "koruma"} · ${s.mana} mana · ${s.cooldown} sn bekleme`;
   return "";

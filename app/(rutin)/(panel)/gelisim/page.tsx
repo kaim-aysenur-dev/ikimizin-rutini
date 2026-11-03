@@ -16,7 +16,7 @@ export default async function Page() {
   const today = todayIstanbul();
   const [profiles, placed, timer, equipped] = await Promise.all([profilesOf(user.accountId), placedOf(user.accountId), myTimer(user.id), equipmentOf(user.accountId)]);
   // iki profilin seviyesi: zırh rengi ve envanter kilidi
-  const withLevel = await Promise.all(profiles.map(async (p) => ({ ...p, level: levelOf((await adventure(p.id, user.accountId, today)).xp).level })));
+  const withLevel = await Promise.all(profiles.map(async (p) => { const xp = (await adventure(p.id, user.accountId, today)).xp; return { ...p, xp, level: levelOf(xp).level }; }));
   // kuşanılanlar: seviyesi yetmeyen ya da artık olmayan eşyalar düşer
   const initialEquipment = Object.fromEntries(withLevel.map((p) => [p.id, sanitizeEquipment(equipped[p.id], p.level)]));
   return (

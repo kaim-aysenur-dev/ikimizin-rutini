@@ -5,7 +5,7 @@ import { type Scope, itemById } from "./room-items";
 import { levelOf } from "./xp";
 
 export type Profile = { id: string; name: string };
-export type Action = { kind: "vurus" | "buyu"; id: string; at: number };
+import { type Action } from "./combat-sync";
 export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean; action?: Action | null };
 export type PresenceOut = Presence & { equipment: { armor: string | null; weapon: string | null; spells: string[] } };
 // place: "bahce" ya da "ev:<ev sahibinin kimliği>"; yalnız aynı yerdekiler birbirini görür
@@ -67,7 +67,7 @@ export async function syncPresence(user: { id: string; accountId: string }, plac
     await sql()`
       insert into garden_presence (user_id, place, x, y, dir, moving, action, updated_at) values (${user.id}, ${place}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, ${action}::jsonb, now())
       on conflict (user_id) do update set place = excluded.place, x = excluded.x, y = excluded.y, dir = excluded.dir, moving = excluded.moving,
-        action = coalesce(excluded.action, garden_presence.action), updated_at = now()`;
+        action = case when garden_presence.place = excluded.place then coalesce(excluded.action, garden_presence.action) else excluded.action end, updated_at = now()`;
   } else {
     await sql()`delete from garden_presence where user_id = ${user.id}`;
   }

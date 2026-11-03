@@ -13,13 +13,13 @@ const byId = new Map(GEAR.map((g) => [g.id, g]));
 /* --------------------------------- silahlar -------------------------------- */
 
 const BASE: Record<WeaponStyle, { damage: number; cooldown: number; range: number; combo: number }> = {
-  kilic: { damage: 10, cooldown: 0.35, range: 1.2, combo: 3 },
-  hancer: { damage: 6, cooldown: 0.22, range: 0.9, combo: 2 },
-  yay: { damage: 8, cooldown: 0.6, range: 7, combo: 1 },
-  mizrak: { damage: 11, cooldown: 0.5, range: 2.2, combo: 1 },
-  agir: { damage: 16, cooldown: 0.75, range: 1.2, combo: 1 },
-  asa: { damage: 7, cooldown: 0.55, range: 6, combo: 1 },
-  "iki-elli": { damage: 18, cooldown: 0.8, range: 1.6, combo: 1 },
+  kilic: { damage: 10, cooldown: 0.45, range: 1.2, combo: 3 },
+  hancer: { damage: 6, cooldown: 0.28, range: 0.9, combo: 2 },
+  yay: { damage: 14, cooldown: 0.6, range: 7, combo: 1 },
+  mizrak: { damage: 13, cooldown: 0.55, range: 2.2, combo: 1 },
+  agir: { damage: 20, cooldown: 0.8, range: 1.2, combo: 1 },
+  asa: { damage: 12, cooldown: 0.55, range: 6, combo: 1 },
+  "iki-elli": { damage: 24, cooldown: 0.9, range: 1.6, combo: 1 },
 };
 // elle çizilmiş silahların tarzı; üretilmişlerde kimliğin öneki belirler
 const HAND_STYLE: Record<string, WeaponStyle> = {
@@ -43,6 +43,13 @@ export function weaponStats(id: string): WeaponStats | null {
   if (!style) return null;
   const b = BASE[style];
   return { style, damage: Math.round(b.damage * (1 + g.level * 0.06)), cooldown: b.cooldown, range: b.range, combo: b.combo, ...(TRAIL[id] ? { trail: TRAIL[id] } : {}) };
+}
+
+/** Azalan getirili savunma: yüksek seviye zırh güçlüdür ama dokunulmazlık vermez. */
+export function damageAfterArmor(raw: number, defense = 0): number {
+  if (raw <= 0) return 0;
+  const reduction = Math.min(0.65, Math.max(0, defense) / (60 + Math.max(0, defense)));
+  return Math.max(1, Math.round(raw * (1 - reduction)));
 }
 
 /* ---------------------------------- zırhlar --------------------------------- */

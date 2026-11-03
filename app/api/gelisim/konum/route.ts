@@ -3,6 +3,7 @@ import { withUser } from "@/lib/auth/session";
 import { SIZE } from "@/lib/room";
 import { syncPresence, unreadNotes } from "@/lib/room-server";
 import { partnerTimers } from "@/lib/study-server";
+import { parseActionHistory } from "@/lib/combat-sync";
 import { UUID_RE } from "@/lib/skin";
 
 // Canlı konum: bahçede, şatoda ya da bir evde. Kendi konumunu yaz, aynı yerdeki diğerini al. here: false ise ayrıldın.
@@ -10,9 +11,7 @@ export const POST = withUser(async (req, user) => {
   const body = await readJson(req);
   const { here, place, x, y, dir, moving, action } = body ?? {};
   // son saldırı ya da büyü: yalnız biçimi doğruysa saklanır (diğer kişi efekti oynatır)
-  const a = action as { kind?: unknown; id?: unknown; at?: unknown } | undefined;
-  const act = a && (a.kind === "vurus" || a.kind === "buyu") && typeof a.id === "string" && a.id.length <= 60 && typeof a.at === "number" && Number.isFinite(a.at)
-    ? { kind: a.kind as "vurus" | "buyu", id: a.id, at: a.at } : null;
+  const act = parseActionHistory(action);
   const isHouse = typeof place === "string" && place.startsWith("ev:") && UUID_RE.test(place.slice(3));
   const isCastle = place === "sato" || place === "sato:2" || place === "sato:3";
   if (place !== "bahce" && !isCastle && !isHouse) return jsonError(400, "Geçersiz yer.");
