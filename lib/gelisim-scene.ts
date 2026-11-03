@@ -4,9 +4,9 @@ import { duldul, parrot } from "./companions";
 import { lights } from "./env";
 import { type Origin, at, box, shade, tile } from "./iso";
 import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, line, poly, px, rect, rnd, sprite } from "./pixel";
-import { type Area, CASTLE, FRONT_DOOR, HALLS, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, gardenSolid, innerWalls, isPath, sizeOf } from "./room";
+import { type Area, CASTLE, type Floor, FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, gardenSolid, innerWalls, isPath, sizeOf } from "./room";
 import { isFlat, itemById } from "./room-items";
-import { CASTLE_DECOR, CASTLE_GUESTS, CASTLE_WALLS, GATE_GUARD, castleInterior, castleOutside, castleWallFaces, decorIsFlat, decorSize, drawDecor } from "./castle";
+import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
 import { STAND_F, walkFrame } from "./anim";
 
@@ -26,6 +26,8 @@ export type SceneState = {
   pick: string | null;
   cat: Cat | null;
   night: number; // 0 gündüz, 1 gece (İstanbul saatine göre)
+  floor?: Floor; // şatoda hangi kat
+  targetState?: Record<string, { hit: number; hp: number }>; // talim hedeflerinin sarsıntısı ve canı (0..1)
   mailHeart: number | null; // okunmamış not: bu evin posta kutusunda kalp
   music: { i: number; j: number; t0: number } | null; // piyanodan yükselen notalar
 };
@@ -386,23 +388,26 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, draw: () => box(c, o, i, d - 0.1, 1, 0.2, 6, faces, 0, false) });
   } else if (s.scope === "sato") {
     c.fillStyle = "#0a0a14"; c.fillRect(0, 0, W, Hc);
-    castleInterior(c, o, t, KIT);
+    const floor = s.floor ?? 1;
+    castleInterior(c, o, t, KIT, floor);
     const di = (p: { itemId: string; tx: number; ty: number; rot?: number }) => drawItem(c, o, p, t);
-    for (const d of CASTLE_DECOR) if (decorIsFlat(d)) drawDecor(c, o, d, t, di);
-    for (const d of CASTLE_DECOR) {
+    const decor = castleDecor(floor);
+    for (const d of decor) if (decorIsFlat(d)) drawDecor(c, o, d, t, di);
+    for (const d of decor) {
       if (decorIsFlat(d)) continue;
       const [w, dd] = decorSize(d);
       list.push({ key: d.tx + w - 0.5 + d.ty + dd - 0.5, draw: () => drawDecor(c, o, d, t, di) });
     }
-    for (const wl of CASTLE_WALLS) {
-      const h = HALLS.find((r) => wl.i - (wl.axis === "j" ? 1 : 0) >= r.i0 && wl.i - (wl.axis === "j" ? 1 : 0) < r.i1 && wl.j - (wl.axis === "i" ? 1 : 0) >= r.j0 && wl.j - (wl.axis === "i" ? 1 : 0) < r.j1)!;
-      list.push({ key: wl.i + wl.j + 0.5, draw: () => innerWall(c, o, wl, castleWallFaces(h.id), 18) });
+    for (const wl of castleWalls(floor)) list.push({ key: wl.i + wl.j + 0.5, draw: () => innerWall(c, o, wl, castleWallFaces(wl.hall), 18) });
+    if (floor === 2) for (const tg of TARGETS) {
+      const st = s.targetState?.[tg.id];
+      list.push({ key: tg.i + tg.j, draw: () => drawTarget(c, o, tg, t, st?.hit ?? 0, st?.hp ?? 1) });
     }
     const { w, d } = SIZE.sato, fr = castleWallFaces("buyuk-salon");
     for (let j = 0; j < d; j++) list.push({ key: w + j + 0.55, draw: () => box(c, o, w - 0.1, j, 0.2, 1, 8, fr, 0, false) });
     for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, draw: () => box(c, o, i, d - 0.1, 1, 0.2, 8, fr, 0, false) });
-    for (const g of CASTLE_GUESTS) person(g.key, g.who, g.i, g.j, g.dir);
-    list.push({ key: 12.5 + 3.5 + 0.1, draw: () => {
+    for (const g of castleGuests(floor)) person(g.key, g.who, g.i, g.j, g.dir);
+    if (floor === 1) list.push({ key: 12.5 + 3.5 + 0.1, draw: () => {
       const [x, y] = at(o, 12.5, 3.5);
       const a = parrot(c, [x + 1, y - 21], -1, "perch", t, false);
       anchors.push({ key: "parrot", x: a.head[0], y: a.head[1] });
@@ -532,6 +537,14 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
 
   // fırtına: dışarıda yağmur perdesi; şimşekte her yer bir an ağarır
   if (outside) screenRain(c, W, Hc, t, 1);
+  else if (s.scope === "sato" && s.floor === 2) {
+    // açık balkon: yağmur yalnız balkonun üstüne düşer
+    const lift = (p: V): V => [p[0], p[1] - 80];
+    const b = BALCONY, q = [at(o, b.i0, b.j0), at(o, b.i1, b.j0), at(o, b.i1, b.j1), at(o, b.i0, b.j1)];
+    c.save(); c.beginPath();
+    for (const [x, y] of [lift(q[0]), lift(q[1]), q[1], q[2], q[3], lift(q[3])]) c.lineTo(x, y);
+    c.closePath(); c.clip(); screenRain(c, W, Hc, t, 1); c.restore();
+  }
   if (flashNow > 0) { c.fillStyle = `rgba(220,228,255,${(flashNow * (outside ? 0.5 : 0.16)).toFixed(3)})`; c.fillRect(0, 0, W, Hc); }
   return anchors;
 }

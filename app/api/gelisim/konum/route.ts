@@ -13,9 +13,10 @@ export const POST = withUser(async (req, user) => {
   const act = a && (a.kind === "vurus" || a.kind === "buyu") && typeof a.id === "string" && a.id.length <= 60 && typeof a.at === "number" && Number.isFinite(a.at)
     ? { kind: a.kind as "vurus" | "buyu", id: a.id, at: a.at } : null;
   const isHouse = typeof place === "string" && place.startsWith("ev:") && UUID_RE.test(place.slice(3));
-  if (place !== "bahce" && place !== "sato" && !isHouse) return jsonError(400, "Geçersiz yer.");
+  const isCastle = place === "sato" || place === "sato:2" || place === "sato:3";
+  if (place !== "bahce" && !isCastle && !isHouse) return jsonError(400, "Geçersiz yer.");
   if (here === false) return jsonOk({ others: await syncPresence(user, place as string, null) });
-  const { w, d } = SIZE[isHouse ? "oda" : place === "sato" ? "sato" : "bahce"];
+  const { w, d } = SIZE[isHouse ? "oda" : isCastle ? "sato" : "bahce"];
   if (typeof x !== "number" || typeof y !== "number" || !(x >= -1 && x <= w + 1 && y >= -1 && y <= d + 1) || (dir !== 1 && dir !== -1)) {
     return jsonError(400, "Geçersiz konum.");
   }

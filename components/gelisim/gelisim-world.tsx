@@ -8,8 +8,8 @@ import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScen
 import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
-import { CASTLE, CASTLE_ENTRY, CASTLE_PLAN, FRONT_DOOR, HOUSES, type Placed, SIZE, atEntry, atGate, blockedSet, canPlace, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stepIn } from "@/lib/room";
-import { CASTLE_BLOCKED, CASTLE_DECOR, castleInteractive } from "@/lib/castle";
+import { CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
+import { CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
 import { type Equipment } from "@/lib/equipment";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
@@ -18,14 +18,15 @@ import { TIERS } from "@/lib/scenes/hall";
 import { tierOf } from "@/lib/xp";
 
 type Profile = { id: string; name: string; level: number };
-type Where = { scope: "oda"; owner: string } | { scope: "bahce" } | { scope: "sato" };
+type Where = { scope: "oda"; owner: string } | { scope: "bahce" } | { scope: "sato"; floor: Floor };
 type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" } | { kind: "rotate" };
 type Remote = Hero & { userId: string; ti: number; tj: number };
 
 const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
 const look = (level: number) => { const t = TIERS[tierOf(level)]; return { outfit: t.outfit, tint: t.tint }; };
-const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope);
-const SATO_SEATS = castleInteractive();
+const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope === "sato" && w.floor > 1 ? `sato:${w.floor}` : w.scope);
+const floorOf = (w: Where): Floor => (w.scope === "sato" ? w.floor : 1);
+const SATO_SEATS: Record<Floor, Placed[]> = { 1: castleInteractive(1), 2: castleInteractive(2), 3: castleInteractive(3) };
 const SATO_CUSHION = CASTLE_DECOR.find((d) => d.id === "kedi-minderi");
 const SOUND_KEY = "gelisim-firtina-sesi";
 // sahnedeki isim etiketleri (çizimden gelen noktalara oturur)
@@ -50,7 +51,7 @@ const seatOf = (id: string): { lift: number; sleep?: boolean } | null =>
   : id.startsWith("sandalye-") || id === "taht" ? { lift: 7 }
   : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6 }
   : null;
-type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf"; label: string; i: number; j: number; itemId?: string };
+type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs"; label: string; i: number; j: number; itemId?: string; to?: Floor };
 
 /** Kalkış: oturmadan önce durulan boş kareye dönülür */
 function standUp(h: Hero) {
@@ -136,6 +137,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     if (nb.kind === "sit" && nb.itemId) { h.sit = { ...seatOf(nb.itemId)!, from: [h.i, h.j] }; h.i = nb.i; h.j = nb.j; }
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
+    else if (nb.kind === "stairs" && nb.to && !fade.current) {
+      const from = floorOf(live.current.where);
+      fade.current = { t: 0, to: { scope: "sato", floor: nb.to }, spawn: arrivalAt(nb.to, nb.to > from) };
+    }
     else if (nb.kind === "desk") setStudy("masa");
     else if (nb.kind === "shelf") setStudy("kitaplik");
   };
@@ -222,7 +227,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const scope = wh.scope;
       const here = scenePlaced(wh, all);
       const { w, d } = SIZE[scope];
-      const blocked = scope === "sato" ? CASTLE_BLOCKED : blockedSet(scope, here);
+      const floor = floorOf(wh);
+      const blocked = scope === "sato" ? castleBlocked(floor) : blockedSet(scope, here);
       const h = hero.current;
 
       let di = 0, dj = 0;
@@ -241,9 +247,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             // başka kareye geçerken aynı oda ya da kapı boşluğu olmalı
             if ((ci !== fi || cj !== fj) && ci >= 0 && !houseStep([fi, fj], [ci, cj])) return false;
           } else if (scope === "sato") {
-            const atDoor = atEntry(cj) && i < 1;
+            const atDoor = floor === 1 && atEntry(cj) && i < 1;
             if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
-            if ((ci !== fi || cj !== fj) && ci >= 0 && !stepIn(CASTLE_PLAN, [fi, fj], [ci, cj])) return false;
+            if ((ci !== fi || cj !== fj) && ci >= 0 && !stepIn(castlePlan(floor), [fi, fj], [ci, cj])) return false;
           } else {
             const atDoor = HOUSES.some((hs) => ci === hs.door.i && j > hs.door.j - 0.2 && j < hs.door.j + 0.5)
               || (atGate(ci) && j > CASTLE.j1 - 0.2 && j < CASTLE.j1 + 0.5);
@@ -266,14 +272,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           const k = Math.max(0, profiles.findIndex((p) => p.id === wh.owner));
           const door = HOUSES[Math.min(k, HOUSES.length - 1)].door;
           fade.current = { t: 0, to: { scope: "bahce" }, spawn: [door.i + 0.5, door.j + 1.4] };
-        } else if (scope === "sato" && h.i < 0.1 && atEntry(Math.floor(h.j))) {
+        } else if (scope === "sato" && floor === 1 && h.i < 0.1 && atEntry(Math.floor(h.j))) {
           // şatodan çıkış: bahçede şato kapısının önü
           fade.current = { t: 0, to: { scope: "bahce" }, spawn: [CASTLE.gate.i + CASTLE.gate.width / 2, CASTLE.j1 + 1.4] };
         } else if (scope === "bahce") {
           const k = HOUSES.findIndex((hs) => Math.floor(h.i) === hs.door.i && h.j < hs.door.j + 0.15);
           const owner = profiles[k]?.id;
           if (owner) fade.current = { t: 0, to: { scope: "oda", owner }, spawn: [1.4, FRONT_DOOR.j + 0.5] };
-          else if (atGate(Math.floor(h.i)) && h.j < CASTLE.j1 + 0.15) fade.current = { t: 0, to: { scope: "sato" }, spawn: [1.4, CASTLE_ENTRY.j + CASTLE_ENTRY.width / 2] };
+          else if (atGate(Math.floor(h.i)) && h.j < CASTLE.j1 + 0.15) fade.current = { t: 0, to: { scope: "sato", floor: 1 }, spawn: [1.4, CASTLE_ENTRY.j + CASTLE_ENTRY.width / 2] };
         }
       }
       let darken = 0;
@@ -289,7 +295,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         if (!f.to && f.t >= 0.5) fade.current = null;
       }
       const cur = live.current.where;
-      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "sato" ? roomIn(CASTLE_PLAN, Math.floor(h.i), Math.floor(h.j))?.name ?? "" : "Bahçe";
+      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "sato" ? roomIn(castlePlan(cur.floor), Math.floor(h.i), Math.floor(h.j))?.name ?? "" : "Bahçe";
       if (rn && rn !== lastRoom) { lastRoom = rn; setRoomName(rn); }
 
       // kamera: karakteri yumuşakça izler
@@ -301,7 +307,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       // yakındaki etkileşim: oturulacak eşya, piyano ya da posta kutusu
       let nb: Near | null = null, best = 1.3;
       if (!h.sit) {
-        for (const p of cur.scope === "sato" ? SATO_SEATS : scenePlaced(cur, all)) {
+        for (const p of cur.scope === "sato" ? SATO_SEATS[cur.floor] : scenePlaced(cur, all)) {
           if (!itemById.get(p.itemId)) continue;
           const [sw, sd] = sizeOf(p.itemId, p.rot);
           const ci = p.tx + sw / 2, cj = p.ty + sd / 2, dd = Math.hypot(ci - h.i, cj - h.j);
@@ -310,6 +316,12 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           else if (p.itemId.startsWith("piyano-")) { nb = { kind: "piano", label: "Piyano çal", i: ci, j: cj }; best = dd; }
           else if (isDesk(p.itemId)) { nb = { kind: "desk", label: "Masayı aç", i: ci, j: cj }; best = dd; }
           else if (isShelf(p.itemId)) { nb = { kind: "shelf", label: "Kitaplığı aç", i: ci, j: cj }; best = dd; }
+        }
+        // merdiven: önünde F ile kat değişir
+        if (cur.scope === "sato") for (const st of STAIRS) {
+          if (st.floor !== cur.floor) continue;
+          const to = stairsTarget(cur.floor, st.dir), dd = Math.hypot(st.spawn[0] - h.i, st.spawn[1] - h.j);
+          if (to && dd < 1.6 && dd < best + 0.3) { nb = { kind: "stairs", label: st.dir === "up" ? `Yukarı çık (${to}. kat)` : `Aşağı in (${to}. kat)`, i: st.i + 1, j: st.j + 1, to }; best = dd; }
         }
         if (cur.scope === "bahce") HOUSES.forEach((hs) => {
           const mi = hs.door.i + 1.6, mj = hs.door.j + 0.6, dd = Math.hypot(mi - h.i, mj - h.j);
@@ -323,7 +335,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       let catState: Cat | null = null;
       const cushion = cur.scope === "oda" ? scenePlaced(cur, all).find((p) => p.itemId === "kedi-minderi") : undefined;
       if (cushion) catState = { i: cushion.tx + 0.5, j: cushion.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
-      if (cur.scope === "sato" && SATO_CUSHION) catState = { i: SATO_CUSHION.tx + 0.5, j: SATO_CUSHION.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
+      if (cur.scope === "sato" && cur.floor === 1 && SATO_CUSHION) catState = { i: SATO_CUSHION.tx + 0.5, j: SATO_CUSHION.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
       if (cur.scope === "bahce") {
         const k = cat.current;
         const gi = k.goal[0] + 0.5 - k.i, gj = k.goal[1] + 0.5 - k.j, gl = Math.hypot(gi, gj);
@@ -365,7 +377,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         scope: cur.scope, cam: o, theme: cur.scope === "oda" ? themeOf(cur.owner) : "cengiz",
         houseThemes: profiles.slice(0, HOUSES.length).map((p) => whoOf(p.name)),
         placed: scenePlaced(cur, all), heroes: [h, ...others.current], ghost, pick, cat: catState,
-        night: night.current, music: music.current,
+        night: night.current, music: music.current, floor: cur.scope === "sato" ? cur.floor : undefined,
         mailHeart: liveUnread.current > 0 ? Math.max(0, profiles.findIndex((p) => p.id === me)) : null,
       });
       // gök gürültüsü: her şimşekten sonra bir kez, uzaklığa göre gecikmeli; içeride boğuk
@@ -489,7 +501,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     <div className="gw">
       <div className="gw-bar">
         <span className="gw-where">
-          {where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
+          {where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
         </span>
         <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}</span>
         {canEditHere && (

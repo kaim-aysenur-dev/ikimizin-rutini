@@ -73,6 +73,61 @@ export const CASTLE_PLAN: Plan<HallId> = {
 export const CASTLE_ENTRY = { i: 0, j: 5, width: 2 };
 export const atEntry = (j: number) => j >= CASTLE_ENTRY.j && j < CASTLE_ENTRY.j + CASTLE_ENTRY.width;
 
+/* ------------------------- şatonun üst katları ve merdiven ------------------------ */
+
+export type Floor = 1 | 2 | 3;
+export type TrainingId = "arena" | "okculuk" | "buyu-odasi" | "balkon";
+export type ArmoryId = "cengiz-odasi" | "koridor" | "aysenur-odasi";
+
+// 2. kat: talim katı
+export const TRAINING_HALLS: Room<TrainingId>[] = [
+  { id: "arena", name: "Talim arenası", i0: 0, j0: 0, i1: 18, j1: 14 },
+  { id: "okculuk", name: "Okçuluk alanı", i0: 18, j0: 0, i1: 36, j1: 10 },
+  { id: "buyu-odasi", name: "Büyü odası", i0: 18, j0: 10, i1: 36, j1: 24 },
+  { id: "balkon", name: "Fırtına balkonu", i0: 0, j0: 14, i1: 18, j1: 24 },
+];
+// 3. kat: iki zırh odası ve aradaki merdivenli koridor
+export const ARMORY_HALLS: Room<ArmoryId>[] = [
+  { id: "cengiz-odasi", name: "Cengiz'in zırh odası", i0: 0, j0: 0, i1: 12, j1: 24 },
+  { id: "koridor", name: "Kule koridoru", i0: 12, j0: 0, i1: 24, j1: 24 },
+  { id: "aysenur-odasi", name: "Ayşenur'un zırh odası", i0: 24, j0: 0, i1: 36, j1: 24 },
+];
+const TRAINING_PLAN: Plan<TrainingId> = {
+  ...SIZE.sato, rooms: TRAINING_HALLS,
+  doors: [
+    ...wide([17, 4], [18, 4], "j"), // arena - okçuluk
+    ...wide([17, 11], [18, 11], "j"), // arena - büyü odası
+    ...wide([27, 9], [27, 10], "i"), // okçuluk - büyü odası
+    ...wide([8, 13], [8, 14], "i"), // arena - balkon
+    ...wide([17, 19], [18, 19], "j"), // balkon - büyü odası
+  ],
+};
+const ARMORY_PLAN: Plan<ArmoryId> = {
+  ...SIZE.sato, rooms: ARMORY_HALLS,
+  doors: [...wide([11, 8], [12, 8], "j"), ...wide([11, 17], [12, 17], "j"), ...wide([23, 8], [24, 8], "j"), ...wide([23, 17], [24, 17], "j")],
+};
+export const castlePlan = (floor: Floor): Plan => (floor === 1 ? CASTLE_PLAN : floor === 2 ? TRAINING_PLAN : ARMORY_PLAN);
+
+/**
+ * Sarmal taş merdivenler: çıkan merdiven (12,1) ve inen merdiven (14,1), 2x2 kare.
+ * Çıkınca üst katın inen merdiveninin önünde, inince alt katın çıkan merdiveninin önünde doğulur.
+ */
+export type Stair = { floor: Floor; dir: "up" | "down"; i: number; j: number; spawn: [number, number] };
+export const STAIRS: Stair[] = [
+  { floor: 1, dir: "up", i: 12, j: 1, spawn: [13, 3.6] },
+  { floor: 2, dir: "up", i: 12, j: 1, spawn: [13, 3.6] },
+  { floor: 2, dir: "down", i: 14, j: 1, spawn: [15, 3.6] },
+  { floor: 3, dir: "down", i: 14, j: 1, spawn: [15, 3.6] },
+];
+export function stairsTarget(floor: Floor, dir: "up" | "down"): Floor | null {
+  if (!STAIRS.some((s) => s.floor === floor && s.dir === dir)) return null;
+  return (dir === "up" ? floor + 1 : floor - 1) as Floor;
+}
+/** Kat değiştirince doğulan nokta: çıkınca üst katın inen, inince alt katın çıkan merdiveninin önü */
+export function arrivalAt(to: Floor, cameUp: boolean): [number, number] {
+  return STAIRS.find((s) => s.floor === to && s.dir === (cameUp ? "down" : "up"))!.spawn;
+}
+
 export const planOf = (area: "oda" | "sato"): Plan => (area === "oda" ? HOUSE_PLAN : CASTLE_PLAN);
 export const roomIn = <Id extends string>(plan: Plan<Id>, i: number, j: number) => plan.rooms.find((r) => i >= r.i0 && i < r.i1 && j >= r.j0 && j < r.j1);
 export const roomAt = (i: number, j: number) => roomIn(HOUSE_PLAN, i, j);
