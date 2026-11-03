@@ -4,14 +4,14 @@ import { duldul, parrot } from "./companions";
 import { lights } from "./env";
 import { type Origin, at, box, shade, tile } from "./iso";
 import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, line, poly, px, rect, rnd, sprite } from "./pixel";
-import { FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, footprint, innerWalls, isPath } from "./room";
+import { FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, footprint, innerWalls, isPath, sizeOf } from "./room";
 import { type Scope, isFlat, itemById } from "./room-items";
 import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
 export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean } };
-export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean } | null;
+export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
   scope: Scope;
@@ -224,6 +224,20 @@ function mailbox(c: Ctx, o: Origin, i: number, j: number) {
 
 /* -------------------------------- sahne çizimi ------------------------------- */
 
+// Döndürülmüş eşya: (ty, tx) konumunda düz çizilip ekranda ox ekseni etrafında aynalanır.
+// İzometride yatay aynalama i ile j'yi yer değiştirir; eşya tam döndürülmüş yerine oturur.
+function drawItem(c: Ctx, o: Origin, p: { itemId: string; tx: number; ty: number; rot?: number }, t: number) {
+  const it = itemById.get(p.itemId); if (!it) return;
+  if (!p.rot) { it.draw(c, o, p.tx, p.ty, t); return; }
+  const n = lights.length;
+  c.save(); c.translate(2 * o.ox, 0); c.scale(-1, 1);
+  it.draw(c, o, p.ty, p.tx, t);
+  c.restore();
+  for (let k = n; k < lights.length; k++) lights[k] = { ...lights[k], x: 2 * o.ox - lights[k].x };
+}
+// derinlik: eşyanın en öndeki karesinin merkezi (iç duvarlar kenar + 0.5, karakter i + j ile aynı ölçek)
+const depthOf = (p: { itemId: string; tx: number; ty: number; rot?: number }) => { const [w, d] = sizeOf(p.itemId, p.rot); return p.tx + w - 0.5 + p.ty + d - 0.5; };
+
 const flat = isFlat;
 
 /** Bütün sahne. Dönen değer: isim etiketlerinin ekran noktaları (dünya pikseli). */
@@ -234,14 +248,13 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   if (s.scope === "oda") { c.fillStyle = "#141a33"; c.fillRect(0, 0, c.canvas.width, c.canvas.height); house(c, o, t, s.theme); }
   else gardenGround(c, o, t);
 
-  for (const p of s.placed) if (flat(p.itemId)) itemById.get(p.itemId)?.draw(c, o, p.tx, p.ty, t);
+  for (const p of s.placed) if (flat(p.itemId)) drawItem(c, o, p, t);
   type D = { key: number; draw: () => void };
   const list: D[] = [];
   const anchors: Anchor[] = [];
   for (const p of s.placed) {
-    if (flat(p.itemId)) continue;
-    const it = itemById.get(p.itemId); if (!it) continue;
-    list.push({ key: p.tx + it.size[0] / 2 + p.ty + it.size[1] / 2, draw: () => it.draw(c, o, p.tx, p.ty, t) });
+    if (flat(p.itemId) || !itemById.get(p.itemId)) continue;
+    list.push({ key: depthOf(p), draw: () => drawItem(c, o, p, t) });
   }
   if (s.scope === "oda") {
     const th = THEME[s.theme];
@@ -337,12 +350,12 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
 
   if (s.pick) {
     const p = s.placed.find((q) => q.id === s.pick);
-    if (p) for (const [a, b] of footprint(p.itemId, p.tx, p.ty)) tile(c, o, a, b, "rgba(232,96,96,0.35)");
+    if (p) for (const [a, b] of footprint(p.itemId, p.tx, p.ty, p.rot)) tile(c, o, a, b, "rgba(232,96,96,0.35)");
   }
   if (s.ghost) {
     const g = s.ghost;
-    for (const [a, b] of footprint(g.itemId, g.tx, g.ty)) tile(c, o, a, b, g.ok ? "rgba(120,220,140,0.45)" : "rgba(232,96,96,0.45)");
-    c.save(); c.globalAlpha = 0.7; itemById.get(g.itemId)?.draw(c, o, g.tx, g.ty, t); c.restore();
+    for (const [a, b] of footprint(g.itemId, g.tx, g.ty, g.rot)) tile(c, o, a, b, g.ok ? "rgba(120,220,140,0.45)" : "rgba(232,96,96,0.45)");
+    c.save(); c.globalAlpha = 0.7; drawItem(c, o, g, t); c.restore();
   }
 
   c.save();

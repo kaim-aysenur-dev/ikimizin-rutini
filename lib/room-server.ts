@@ -1,6 +1,6 @@
 import "server-only";
 import { sql } from "./db";
-import { type Placed, canPlace } from "./room";
+import { type Placed, canPlace, maxCopies } from "./room";
 import { type Scope, itemById } from "./room-items";
 import { levelOf } from "./xp";
 
@@ -16,29 +16,39 @@ export async function profilesOf(accountId: string): Promise<Profile[]> {
 /** Hesaptaki bütün yerleştirilmiş eşyalar: iki oda + ortak bahçe */
 export async function placedOf(accountId: string): Promise<Placed[]> {
   const rows = await sql()`
-    select p.id, p.user_id, p.item_id, p.scope, p.tx, p.ty
+    select p.id, p.user_id, p.item_id, p.scope, p.tx, p.ty, p.rot
     from placed_items p join users u on u.id = p.user_id
     where u.account_id = ${accountId}`;
-  return rows.map((r) => ({ id: r.id, userId: r.user_id, itemId: r.item_id, scope: r.scope, tx: r.tx, ty: r.ty }));
+  return rows.map((r) => ({ id: r.id, userId: r.user_id, itemId: r.item_id, scope: r.scope, tx: r.tx, ty: r.ty, rot: r.rot }));
 }
 
 export type PlaceResult = { ok: true; item: Placed } | { ok: false; status: number; error: string };
 
 /** Envanterden bir eşyayı kendi odasına ya da ortak bahçeye koyar. Seviye ve yer sunucuda doğrulanır. */
-export async function placeItem(user: { id: string; accountId: string }, xp: number, itemId: string, scope: Scope, tx: number, ty: number): Promise<PlaceResult> {
+export async function placeItem(user: { id: string; accountId: string }, xp: number, itemId: string, scope: Scope, tx: number, ty: number, rot = 0): Promise<PlaceResult> {
   const it = itemById.get(itemId);
   if (!it || it.scope !== scope) return { ok: false, status: 400, error: "Bu eşya buraya konamaz." };
   if (it.level > levelOf(xp).level) return { ok: false, status: 403, error: `Bu eşya seviye ${it.level}'de açılır.` };
   const all = await placedOf(user.accountId);
-  if (all.some((p) => p.userId === user.id && p.itemId === itemId)) return { ok: false, status: 409, error: "Bu eşya zaten yerleştirilmiş." };
+  if (all.filter((p) => p.userId === user.id && p.itemId === itemId).length >= maxCopies(itemId)) return { ok: false, status: 409, error: `Bu eşyadan en çok ${maxCopies(itemId)} tane konabilir.` };
   // odada yalnız kendi eşyaların, bahçede herkesinki engel sayılır
   const around = all.filter((p) => (scope === "oda" ? p.scope === "oda" && p.userId === user.id : p.scope === "bahce"));
-  if (!canPlace(scope, itemId, tx, ty, around)) return { ok: false, status: 409, error: "Bu kare dolu ya da kapı önünde." };
+  if (!canPlace(scope, itemId, tx, ty, around, rot)) return { ok: false, status: 409, error: "Bu kare dolu ya da kapı önünde." };
   const [r] = await sql()`
-    insert into placed_items (user_id, item_id, scope, tx, ty) values (${user.id}, ${itemId}, ${scope}, ${tx}, ${ty})
-    on conflict (user_id, item_id) do nothing returning id`;
-  if (!r) return { ok: false, status: 409, error: "Bu eşya zaten yerleştirilmiş." };
-  return { ok: true, item: { id: r.id, userId: user.id, itemId, scope, tx, ty } };
+    insert into placed_items (user_id, item_id, scope, tx, ty, rot) values (${user.id}, ${itemId}, ${scope}, ${tx}, ${ty}, ${rot}) returning id`;
+  return { ok: true, item: { id: r.id, userId: user.id, itemId, scope, tx, ty, rot } };
+}
+
+/** Yerleştirilmiş eşyayı döndürür; döndürülmüş hali sığmıyorsa reddeder */
+export async function rotateItem(user: { id: string; accountId: string }, id: string): Promise<PlaceResult> {
+  const all = await placedOf(user.accountId);
+  const p = all.find((q) => q.id === id && q.userId === user.id);
+  if (!p) return { ok: false, status: 404, error: "Eşya bulunamadı." };
+  const rot = p.rot ? 0 : 1;
+  const around = all.filter((q) => q.id !== id && (p.scope === "oda" ? q.scope === "oda" && q.userId === user.id : q.scope === "bahce"));
+  if (!canPlace(p.scope, p.itemId, p.tx, p.ty, around, rot)) return { ok: false, status: 409, error: "Döndürünce sığmıyor: duvara ya da başka eşyaya değiyor." };
+  await sql()`update placed_items set rot = ${rot} where id = ${id} and user_id = ${user.id}`;
+  return { ok: true, item: { ...p, rot } };
 }
 
 /** Kişi yalnız kendi koyduğu eşyayı envantere geri alabilir */

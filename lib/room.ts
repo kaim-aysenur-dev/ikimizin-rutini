@@ -85,14 +85,33 @@ export function gardenSolid(i: number, j: number): boolean {
 
 /* -------------------------------- yerleştirme ------------------------------- */
 
-export type Placed = { id: string; itemId: string; scope: Scope; tx: number; ty: number; userId: string };
+// rot: 1 ise eşya döndürülmüş (eni ve boyu yer değiştirir)
+export type Placed = { id: string; itemId: string; scope: Scope; tx: number; ty: number; userId: string; rot?: number };
+
+/** Döndürmeye göre eşyanın kapladığı en ve boy */
+export function sizeOf(itemId: string, rot = 0): [number, number] {
+  const it = itemById.get(itemId);
+  if (!it) return [1, 1];
+  return rot ? [it.size[1], it.size[0]] : it.size;
+}
+
+/** Bir eşyadan en çok kaç tane konabilir: halı 10, sandalye ve çiçek gibi küçükler daha çok, büyük mobilya az */
+export function maxCopies(itemId: string): number {
+  const it = itemById.get(itemId);
+  if (!it) return 1;
+  if (isFlat(itemId) && !itemId.startsWith("piknik-")) return 10;
+  if (/^(sandalye-|cit-|lale-|cicek|lavanta|aycicegi|mantar|bahce-feneri-|fener)/.test(itemId)) return 12;
+  if (/^(puf-|berjer-|calisma-sandalyesi-|bitki-|saksi|cali-|meyve-agaci-|agac|sebze-|kus-evi-)/.test(itemId) || it.cat === "Bitki") return 6;
+  if (/^(lambader-|samdan-|vazo-|sehpa-|kitaplik|komodin|bahce-banki-|bank|kedi-yatagi-)/.test(itemId)) return 4;
+  return 2;
+}
 
 /** Eşyanın kapladığı kareler */
-export function footprint(itemId: string, tx: number, ty: number): [number, number][] {
-  const it = itemById.get(itemId);
-  if (!it) return [];
+export function footprint(itemId: string, tx: number, ty: number, rot = 0): [number, number][] {
+  if (!itemById.get(itemId)) return [];
+  const [w, d] = sizeOf(itemId, rot);
   const out: [number, number][] = [];
-  for (let a = 0; a < it.size[0]; a++) for (let b = 0; b < it.size[1]; b++) out.push([tx + a, ty + b]);
+  for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) out.push([tx + a, ty + b]);
   return out;
 }
 
@@ -103,22 +122,23 @@ function keepClear(scope: Scope): [number, number][] {
 }
 
 /** Bu kareye konabilir mi: sahne içinde, tek odada, engel ve kapı önünde değil, başka eşyayla çakışmıyor */
-export function canPlace(scope: Scope, itemId: string, tx: number, ty: number, placed: Placed[]): boolean {
+export function canPlace(scope: Scope, itemId: string, tx: number, ty: number, placed: Placed[], rot = 0): boolean {
   const it = itemById.get(itemId);
   if (!it || it.scope !== scope || !Number.isInteger(tx) || !Number.isInteger(ty)) return false;
   const { w, d } = SIZE[scope];
-  const cells = footprint(itemId, tx, ty);
+  const cells = footprint(itemId, tx, ty, rot);
   if (cells.some(([a, b]) => a < 0 || b < 0 || a >= w || b >= d)) return false;
   if (scope === "oda" && new Set(cells.map(([a, b]) => roomAt(a, b)?.id)).size !== 1) return false;
   if (scope === "bahce" && cells.some(([a, b]) => gardenSolid(a, b))) return false;
-  const busy = new Set(placed.filter((p) => p.scope === scope).flatMap((p) => footprint(p.itemId, p.tx, p.ty).map(([a, b]) => `${a},${b}`)));
+  // halının üstüne mobilya konabilir; halı da halıyla değil yalnız kendi gibilerle çakışır
+  const busy = new Set(placed.filter((p) => p.scope === scope && isFlat(p.itemId) === isFlat(itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty, p.rot).map(([a, b]) => `${a},${b}`)));
   keepClear(scope).forEach(([a, b]) => busy.add(`${a},${b}`));
   return cells.every(([a, b]) => !busy.has(`${a},${b}`));
 }
 
 /** Yürürken çarpılan kareler (eşyalar; halı gibi düz olanlar hariç) */
 export function blockedSet(scope: Scope, placed: Placed[]): Set<string> {
-  return new Set(placed.filter((p) => p.scope === scope && !isFlat(p.itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty).map(([a, b]) => `${a},${b}`)));
+  return new Set(placed.filter((p) => p.scope === scope && !isFlat(p.itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty, p.rot).map(([a, b]) => `${a},${b}`)));
 }
 
 // kendi kendini denetler
@@ -129,4 +149,7 @@ if (process.env.NODE_ENV !== "production") {
   console.assert(canPlace("oda", "yatak", 15, 1, []) && !canPlace("oda", "yatak", 13, 1, []), "eşya iki odaya taşmaz");
   console.assert(!canPlace("oda", "komodin", 0, 2, []) && !canPlace("oda", "komodin", 6, 3, []), "kapı önü");
   console.assert(!canPlace("bahce", "agac", 4, 3, []) && canPlace("bahce", "agac", 10, 20, []), "bahçe engelleri");
+  console.assert(!canPlace("oda", "yatak", 19, 1, []) && canPlace("oda", "yatak", 19, 1, [], 1), "döndürünce sığar");
+  console.assert(canPlace("oda", "koltuk-kırmızı", 8, 2, [{ id: "h", itemId: "hali", scope: "oda", tx: 8, ty: 2, userId: "u" }]), "halının üstüne mobilya");
+  console.assert(maxCopies("hali") === 10 && maxCopies("sandalye-meşe") === 12 && maxCopies("piyano-siyah") === 2, "adet sınırı");
 }

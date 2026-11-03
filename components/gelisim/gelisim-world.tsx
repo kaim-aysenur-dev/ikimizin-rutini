@@ -5,14 +5,14 @@ import { PixelIcon } from "@/components/pixel-icon";
 import { api } from "@/lib/api-client";
 import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
 import { type Origin, toTile } from "@/lib/iso";
-import { FRONT_DOOR, HOUSES, type Placed, SIZE, blockedSet, canPlace, gardenSolid, houseStep, roomAt } from "@/lib/room";
+import { FRONT_DOOR, HOUSES, type Placed, SIZE, blockedSet, canPlace, gardenSolid, houseStep, maxCopies, roomAt, sizeOf } from "@/lib/room";
 import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
 import { TIERS } from "@/lib/scenes/hall";
 import { tierOf } from "@/lib/xp";
 
 type Profile = { id: string; name: string; level: number };
 type Where = { scope: "oda"; owner: string } | { scope: "bahce" };
-type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" };
+type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" } | { kind: "rotate" };
 type Remote = Hero & { userId: string; ti: number; tj: number };
 
 const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
@@ -75,6 +75,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
   const [msg, setMsg] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [near, setNear] = useState<Near | null>(null);
+  const [rot, setRot] = useState(0); // yerleştirilecek eşyanın yönü
   const [unread, setUnread] = useState(0);
   const [mailOpen, setMailOpen] = useState(false);
 
@@ -92,8 +93,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
   const nearRef = useRef<Near | null>(null);
   const music = useRef<{ i: number; j: number; t0: number } | null>(null);
   const night = useRef(nightNow());
-  const live = useRef({ where, placed, mode });
-  live.current = { where, placed, mode };
+  const live = useRef({ where, placed, mode, rot });
+  live.current = { where, placed, mode, rot };
   const liveUnread = useRef(0);
   liveUnread.current = unread;
 
@@ -113,8 +114,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
   const visiting = where.scope === "oda" && where.owner !== me;
   const canEditHere = where.scope === "bahce" || !visiting;
   const inside = (p: Placed, [hi, hj]: [number, number]) => {
-    const it = itemById.get(p.itemId); if (!it) return false;
-    return hi >= p.tx && hi < p.tx + it.size[0] && hj >= p.ty && hj < p.ty + it.size[1];
+    if (!itemById.get(p.itemId)) return false;
+    const [w, d] = sizeOf(p.itemId, p.rot);
+    return hi >= p.tx && hi < p.tx + w && hj >= p.ty && hj < p.ty + d;
   };
   const camOrigin = (): Origin => ({ ox: Math.round(cam.current.ox), oy: Math.round(cam.current.oy) });
 
@@ -125,6 +127,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
       if (e.target instanceof Element && e.target.closest("input, textarea, select")) return;
       if (k === "escape") setMode({ kind: "walk" });
       if (k === "e") setInvOpen((v) => !v);
+      if (k === "r") setRot((v) => (v ? 0 : 1));
       if (k === "f" || k === " ") { e.preventDefault(); interact(); }
       if (KEYS[k]) { keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
     };
@@ -183,7 +186,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const t = now / 1000, dt = Math.min(0.05, last ? t - last : 0); last = t;
-      const { where: wh, placed: all, mode: md } = live.current;
+      const { where: wh, placed: all, mode: md, rot: pr } = live.current;
       const scope = wh.scope;
       const here = scenePlaced(wh, all);
       const { w, d } = SIZE[scope];
@@ -256,9 +259,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
       let nb: Near | null = null, best = 1.3;
       if (!h.sit) {
         for (const p of scenePlaced(cur, all)) {
-          const it = itemById.get(p.itemId); if (!it) continue;
-          const ci = p.tx + it.size[0] / 2, cj = p.ty + it.size[1] / 2, dd = Math.hypot(ci - h.i, cj - h.j);
-          if (dd >= best + it.size[0] / 2) continue;
+          if (!itemById.get(p.itemId)) continue;
+          const [sw, sd] = sizeOf(p.itemId, p.rot);
+          const ci = p.tx + sw / 2, cj = p.ty + sd / 2, dd = Math.hypot(ci - h.i, cj - h.j);
+          if (dd >= best + Math.max(sw, sd) / 2) continue;
           if (seatOf(p.itemId)) { nb = { kind: "sit", label: seatOf(p.itemId)!.sleep ? "Uzan" : "Otur", i: ci, j: cj, itemId: p.itemId }; best = dd; }
           else if (p.itemId.startsWith("piyano-")) { nb = { kind: "piano", label: "Piyano çal", i: ci, j: cj }; best = dd; }
         }
@@ -303,11 +307,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
       let ghost = null, pick: string | null = null;
       const hv = hover.current ? toTile(o, hover.current[0], hover.current[1]) : null;
       if (hv && md.kind === "place") {
-        const it = itemById.get(md.itemId)!;
-        const gx = Math.floor(hv[0] - (it.size[0] - 1) / 2), gy = Math.floor(hv[1] - (it.size[1] - 1) / 2);
+        const [sw, sd] = sizeOf(md.itemId, pr);
+        const gx = Math.floor(hv[0] - (sw - 1) / 2), gy = Math.floor(hv[1] - (sd - 1) / 2);
         const around = cur.scope === "oda" ? here : all.filter((p) => p.scope === "bahce");
-        ghost = { itemId: md.itemId, tx: gx, ty: gy, ok: canPlace(cur.scope, md.itemId, gx, gy, around) };
-      } else if (hv && md.kind === "edit") {
+        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: canPlace(cur.scope, md.itemId, gx, gy, around, pr) };
+      } else if (hv && (md.kind === "edit" || md.kind === "rotate")) {
         pick = here.find((p) => p.userId === me && inside(p, hv))?.id ?? null;
       }
 
@@ -349,20 +353,33 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
     const scope = wh.scope;
     if (md.kind === "place") {
       const it = itemById.get(md.itemId)!;
-      const tx = Math.floor(hv[0] - (it.size[0] - 1) / 2), ty = Math.floor(hv[1] - (it.size[1] - 1) / 2);
+      const pr = live.current.rot;
+      const [sw, sd] = sizeOf(md.itemId, pr);
+      const tx = Math.floor(hv[0] - (sw - 1) / 2), ty = Math.floor(hv[1] - (sd - 1) / 2);
       const around = scope === "oda" ? scenePlaced(wh, all) : all.filter((p) => p.scope === "bahce");
-      if (!canPlace(scope, md.itemId, tx, ty, around)) { setMsg("Buraya konamaz: kare dolu, iki odaya taşıyor ya da kapı önü."); return; }
+      if (!canPlace(scope, md.itemId, tx, ty, around, pr)) { setMsg("Buraya konamaz: kare dolu, iki odaya taşıyor ya da kapı önü."); return; }
       setBusy(true);
       try {
-        const res = await api<{ item: Placed }>("/api/gelisim/esya", { body: { itemId: md.itemId, scope, tx, ty } });
+        const res = await api<{ item: Placed }>("/api/gelisim/esya", { body: { itemId: md.itemId, scope, tx, ty, rot: pr } });
         setPlaced((p) => [...p, res.item]);
-        setMode({ kind: "walk" });
+        // daha konabiliyorsa yerleştirme açık kalır (ör. halı döşerken)
+        const count = all.filter((q) => q.userId === me && q.itemId === md.itemId).length + 1;
+        if (count >= maxCopies(md.itemId)) setMode({ kind: "walk" });
         setMsg(`${it.name} yerleştirildi.`);
       } catch (err) { setMsg(err instanceof Error ? err.message : "Yerleştirilemedi."); }
       setBusy(false);
     } else if (md.kind === "edit") {
       const p = scenePlaced(wh, all).find((q) => q.userId === me && inside(q, hv));
       if (p) await takeBack(p);
+    } else if (md.kind === "rotate") {
+      const p = scenePlaced(wh, all).find((q) => q.userId === me && inside(q, hv));
+      if (!p) return;
+      setBusy(true);
+      try {
+        const res = await api<{ item: Placed }>(`/api/gelisim/esya/${p.id}`, { method: "PATCH" });
+        setPlaced((cur) => cur.map((q) => (q.id === p.id ? res.item : q)));
+      } catch (err) { setMsg(err instanceof Error ? err.message : "Döndürülemedi."); }
+      setBusy(false);
     }
   };
 
@@ -379,7 +396,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
   useEffect(() => { if (!msg) return; const id = window.setTimeout(() => setMsg(null), 2600); return () => window.clearTimeout(id); }, [msg]);
   useEffect(() => { setTab(where.scope === "bahce" ? "bahce" : "oda"); }, [where.scope]);
 
-  const mine = new Set(placed.filter((p) => p.userId === me).map((p) => p.itemId));
+  const countOf = (id: string) => placed.filter((p) => p.userId === me && p.itemId === id).length;
   const padBtn = (v: [number, number], label: string, cls: string, glyph: string) => (
     <button type="button" className={`gw-pad-btn ${cls}`} aria-label={label}
       onPointerDown={(e) => { e.preventDefault(); pad.current = v; }} onPointerUp={() => (pad.current = null)} onPointerLeave={() => (pad.current = null)} onPointerCancel={() => (pad.current = null)}>
@@ -395,6 +412,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
           {where.scope === "bahce" ? "🌳 Ortak bahçe" : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
         </span>
         <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}</span>
+        {canEditHere && (
+          <button type="button" className={`btn ${mode.kind === "rotate" ? "btn-primary" : "btn-ghost"}`} onClick={() => setMode(mode.kind === "rotate" ? { kind: "walk" } : { kind: "rotate" })}>
+            {mode.kind === "rotate" ? "Bitir" : "↻ Döndür"}
+          </button>
+        )}
         {canEditHere && (
           <button type="button" className={`btn ${mode.kind === "edit" ? "btn-primary" : "btn-ghost"}`} onClick={() => setMode(mode.kind === "edit" ? { kind: "walk" } : { kind: "edit" })}>
             {mode.kind === "edit" ? "Bitir" : "Eşya kaldır"}
@@ -413,8 +435,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
         {houseNames.map((n, k) => (
           <span key={n} ref={(el) => { tagRefs.current[`ev${k}`] = el; }} className="hall-tag is-house" style={{ display: "none" }} aria-hidden="true">{n}</span>
         ))}
-        {mode.kind === "place" && <p className="gw-tip">{itemById.get(mode.itemId)?.name}: koymak için bir kareye dokun · Esc ile vazgeç</p>}
+        {mode.kind === "place" && <p className="gw-tip">{itemById.get(mode.itemId)?.name}: koymak için bir kareye dokun · R ya da ↻ ile döndür · Esc ile vazgeç</p>}
+        {mode.kind === "place" && <button type="button" className="gw-rot" onPointerDown={(e) => e.stopPropagation()} onClick={() => setRot((v) => (v ? 0 : 1))} aria-label="Döndür">↻</button>}
         {mode.kind === "edit" && <p className="gw-tip">Geri almak istediğin eşyaya dokun</p>}
+        {mode.kind === "rotate" && <p className="gw-tip">Döndürmek istediğin eşyaya dokun</p>}
         {msg && <p className="gw-msg" role="status">{msg}</p>}
 
         <section className={`card gw-inv${invOpen ? " is-open" : ""}`} aria-labelledby="envanter" onPointerDown={(e) => e.stopPropagation()} onPointerMove={(e) => e.stopPropagation()}>
@@ -440,15 +464,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
             {ROOM_ITEMS.filter((it) => it.scope === tab && (tab === "bahce" || catFilter === "Tümü" || it.cat === catFilter) && (!onlyOpen || it.level <= meP.level)
               && (!q.trim() || (it.level <= meP.level && it.name.toLocaleLowerCase("tr").includes(q.trim().toLocaleLowerCase("tr"))))).map((it) => {
               const locked = it.level > meP.level;
-              const isPlaced = mine.has(it.id);
+              const count = countOf(it.id), max = maxCopies(it.id), isPlaced = count >= max;
               const rightPlace = tab === where.scope && canEditHere;
-              const row = placed.find((p) => p.userId === me && p.itemId === it.id);
+              const row = [...placed].reverse().find((p) => p.userId === me && p.itemId === it.id);
               return (
                 <li key={it.id} className={`gw-item${locked ? " is-locked" : ""}${mode.kind === "place" && mode.itemId === it.id ? " is-active" : ""}`}>
                   <PixelIcon draw={(c, w, h, t) => drawItemPreview(c, w, h, it.id, t)} size={[48, 44]} scale={2} className="gw-item-icon" />
                   <div>
                     <b>{locked ? "???" : it.name}</b>
-                    <small>{locked ? `🔒 Seviye ${it.level}` : isPlaced ? "Yerleştirildi" : `Lv ${it.level} · ${it.size[0]}×${it.size[1]}`}</small>
+                    <small>{locked ? `🔒 Seviye ${it.level}` : `Lv ${it.level} · ${it.size[0]}×${it.size[1]} · ${count}/${max} kondu`}</small>
                   </div>
                   {!locked && !isPlaced && (
                     <button type="button" className="btn btn-primary" disabled={!rightPlace || busy}
@@ -457,7 +481,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda" }: {
                       Yerleştir
                     </button>
                   )}
-                  {!locked && isPlaced && row && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => takeBack(row)}>Geri al</button>}
+                  {!locked && row && <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => takeBack(row)} title="Son konanı envantere geri al">Geri al</button>}
                 </li>
               );
             })}

@@ -1168,3 +1168,18 @@ button.xp-badge:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* yerleştirirken döndür butonu (dokunmatik için) */
+.gw-rot {
+  position: absolute;
+  top: 44px;
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  font: 700 22px/1 var(--body);
+  color: var(--px-ink);
+  background: var(--px-gold);
+  box-shadow: 0 0 0 2px var(--px-ink), inset 0 -4px 0 var(--px-gold-deep);
+  z-index: 2;
+}
