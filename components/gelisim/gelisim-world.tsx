@@ -8,19 +8,27 @@ import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScen
 import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
-import { FRONT_DOOR, HOUSES, type Placed, SIZE, blockedSet, canPlace, gardenSolid, houseStep, maxCopies, roomAt, sizeOf } from "@/lib/room";
+import { CASTLE, CASTLE_ENTRY, CASTLE_PLAN, FRONT_DOOR, HOUSES, type Placed, SIZE, atEntry, atGate, blockedSet, canPlace, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stepIn } from "@/lib/room";
+import { CASTLE_BLOCKED, CASTLE_DECOR, castleInteractive } from "@/lib/castle";
+import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
+import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
 import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, itemById } from "@/lib/room-items";
 import { TIERS } from "@/lib/scenes/hall";
 import { tierOf } from "@/lib/xp";
 
 type Profile = { id: string; name: string; level: number };
-type Where = { scope: "oda"; owner: string } | { scope: "bahce" };
+type Where = { scope: "oda"; owner: string } | { scope: "bahce" } | { scope: "sato" };
 type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" } | { kind: "rotate" };
 type Remote = Hero & { userId: string; ti: number; tj: number };
 
 const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
 const look = (level: number) => { const t = TIERS[tierOf(level)]; return { outfit: t.outfit, tint: t.tint }; };
-const placeOf = (w: Where) => (w.scope === "bahce" ? "bahce" : `ev:${w.owner}`);
+const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope);
+const SATO_SEATS = castleInteractive();
+const SATO_CUSHION = CASTLE_DECOR.find((d) => d.id === "kedi-minderi");
+const SOUND_KEY = "gelisim-firtina-sesi";
+// sahnedeki isim etiketleri (çizimden gelen noktalara oturur)
+const TAGS = { cengiz: "Cengiz", aysenur: "Ayşenur", duldul: "Düldül", parrot: "Papağan", gandalf: "Gandalf", gimli: "Gimli", legolas: "Legolas", jon: "Jon Snow", sato: "Şato" };
 const leave = (place: string) => { void fetch("/api/gelisim/konum", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ here: false, place }), keepalive: true }); };
 const SPEED = 3.2; // kare / saniye
 
@@ -94,13 +102,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [study, setStudy] = useState<StudyTab | null>(null);
   const [studyTimer, setStudyTimer] = useState(initialStudyTimer);
   const [clock, setClock] = useState(() => Date.now());
+  // fırtına sesi: tarayıcı ancak dokunuşla başlatır; tercih hatırlanır
+  const [sound, setSound] = useState(false);
 
   const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...look(meP.level) });
   const keys = useRef(new Set<string>());
   const pad = useRef<[number, number] | null>(null);
   const hover = useRef<[number, number] | null>(null); // tuval pikseli
   const others = useRef<Remote[]>([]);
-  const cat = useRef<Cat & { goal: [number, number]; wait: number }>({ i: 14, j: 14, dir: 1, dist: 0, moving: false, goal: [14, 14], wait: 2 });
+  const cat = useRef<Cat & { goal: [number, number]; wait: number }>({ i: 14, j: 28, dir: 1, dist: 0, moving: false, goal: [14, 28], wait: 2 });
   const fade = useRef<{ t: number; to: Where | null; spawn: [number, number] } | null>(null);
   const cam = useRef<Origin & { snap: boolean }>({ ox: 0, oy: 0, snap: true });
   const stage = useRef<HTMLDivElement>(null);
@@ -109,8 +119,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const nearRef = useRef<Near | null>(null);
   const music = useRef<{ i: number; j: number; t0: number } | null>(null);
   const night = useRef(nightNow());
-  const live = useRef({ where, placed, mode, rot });
-  live.current = { where, placed, mode, rot };
+  const live = useRef({ where, placed, mode, rot, sound });
+  live.current = { where, placed, mode, rot, sound };
   const liveUnread = useRef(0);
   liveUnread.current = unread;
 
@@ -128,10 +138,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   };
 
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
-  const scenePlaced = (w: Where, all: Placed[]) => all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner));
+  const scenePlaced = (w: Where, all: Placed[]) => (w.scope === "sato" ? [] : all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner)));
   const ownerName = where.scope === "oda" ? profiles.find((p) => p.id === where.owner)?.name.split(" ")[0] ?? "" : "";
   const visiting = where.scope === "oda" && where.owner !== me;
-  const canEditHere = where.scope === "bahce" || !visiting;
+  const canEditHere = where.scope === "bahce" || (where.scope === "oda" && !visiting);
   const inside = (p: Placed, [hi, hj]: [number, number]) => {
     if (!itemById.get(p.itemId)) return false;
     const [w, d] = sizeOf(p.itemId, p.rot);
@@ -201,7 +211,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   // oyun döngüsü: bir kez kurulur, değişen durumu live.current üzerinden okur
   useEffect(() => {
     const cv = canvas.current!, c = cv.getContext("2d")!;
-    let raf = 0, last = 0, lastRoom = "";
+    let raf = 0, last = 0, lastRoom = "", heard = 0;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const t = now / 1000, dt = Math.min(0.05, last ? t - last : 0); last = t;
@@ -209,7 +219,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const scope = wh.scope;
       const here = scenePlaced(wh, all);
       const { w, d } = SIZE[scope];
-      const blocked = blockedSet(scope, here);
+      const blocked = scope === "sato" ? CASTLE_BLOCKED : blockedSet(scope, here);
       const h = hero.current;
 
       let di = 0, dj = 0;
@@ -227,8 +237,13 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
             // başka kareye geçerken aynı oda ya da kapı boşluğu olmalı
             if ((ci !== fi || cj !== fj) && ci >= 0 && !houseStep([fi, fj], [ci, cj])) return false;
+          } else if (scope === "sato") {
+            const atDoor = atEntry(cj) && i < 1;
+            if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
+            if ((ci !== fi || cj !== fj) && ci >= 0 && !stepIn(CASTLE_PLAN, [fi, fj], [ci, cj])) return false;
           } else {
-            const atDoor = HOUSES.some((hs) => ci === hs.door.i && j > hs.door.j - 0.2 && j < hs.door.j + 0.5);
+            const atDoor = HOUSES.some((hs) => ci === hs.door.i && j > hs.door.j - 0.2 && j < hs.door.j + 0.5)
+              || (atGate(ci) && j > CASTLE.j1 - 0.2 && j < CASTLE.j1 + 0.5);
             if (i < 0.3 || i > w - 0.3 || j > d - 0.3 || j < 0.3) return false;
             if (!atDoor && gardenSolid(ci, cj)) return false;
           }
@@ -248,10 +263,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           const k = Math.max(0, profiles.findIndex((p) => p.id === wh.owner));
           const door = HOUSES[Math.min(k, HOUSES.length - 1)].door;
           fade.current = { t: 0, to: { scope: "bahce" }, spawn: [door.i + 0.5, door.j + 1.4] };
+        } else if (scope === "sato" && h.i < 0.1 && atEntry(Math.floor(h.j))) {
+          // şatodan çıkış: bahçede şato kapısının önü
+          fade.current = { t: 0, to: { scope: "bahce" }, spawn: [CASTLE.gate.i + CASTLE.gate.width / 2, CASTLE.j1 + 1.4] };
         } else if (scope === "bahce") {
           const k = HOUSES.findIndex((hs) => Math.floor(h.i) === hs.door.i && h.j < hs.door.j + 0.15);
           const owner = profiles[k]?.id;
           if (owner) fade.current = { t: 0, to: { scope: "oda", owner }, spawn: [1.4, FRONT_DOOR.j + 0.5] };
+          else if (atGate(Math.floor(h.i)) && h.j < CASTLE.j1 + 0.15) fade.current = { t: 0, to: { scope: "sato" }, spawn: [1.4, CASTLE_ENTRY.j + CASTLE_ENTRY.width / 2] };
         }
       }
       let darken = 0;
@@ -267,7 +286,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         if (!f.to && f.t >= 0.5) fade.current = null;
       }
       const cur = live.current.where;
-      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : "Bahçe";
+      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "sato" ? roomIn(CASTLE_PLAN, Math.floor(h.i), Math.floor(h.j))?.name ?? "" : "Bahçe";
       if (rn && rn !== lastRoom) { lastRoom = rn; setRoomName(rn); }
 
       // kamera: karakteri yumuşakça izler
@@ -279,7 +298,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       // yakındaki etkileşim: oturulacak eşya, piyano ya da posta kutusu
       let nb: Near | null = null, best = 1.3;
       if (!h.sit) {
-        for (const p of scenePlaced(cur, all)) {
+        for (const p of cur.scope === "sato" ? SATO_SEATS : scenePlaced(cur, all)) {
           if (!itemById.get(p.itemId)) continue;
           const [sw, sd] = sizeOf(p.itemId, p.rot);
           const ci = p.tx + sw / 2, cj = p.ty + sd / 2, dd = Math.hypot(ci - h.i, cj - h.j);
@@ -301,6 +320,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       let catState: Cat | null = null;
       const cushion = cur.scope === "oda" ? scenePlaced(cur, all).find((p) => p.itemId === "kedi-minderi") : undefined;
       if (cushion) catState = { i: cushion.tx + 0.5, j: cushion.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
+      if (cur.scope === "sato" && SATO_CUSHION) catState = { i: SATO_CUSHION.tx + 0.5, j: SATO_CUSHION.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
       if (cur.scope === "bahce") {
         const k = cat.current;
         const gi = k.goal[0] + 0.5 - k.i, gj = k.goal[1] + 0.5 - k.j, gl = Math.hypot(gi, gj);
@@ -309,7 +329,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           if (k.wait <= 0) {
             for (let tries = 0; tries < 10; tries++) {
               const a = Math.floor(k.i) - 4 + Math.floor(Math.random() * 9), b = Math.floor(k.j) - 4 + Math.floor(Math.random() * 9);
-              if (a > 0 && b > 8 && a < SIZE.bahce.w - 1 && b < SIZE.bahce.d - 1 && !gardenSolid(a, b) && !blocked.has(`${a},${b}`)) { k.goal = [a, b]; break; }
+              if (a > 0 && b > CASTLE.j1 + 1 && a < SIZE.bahce.w - 1 && b < SIZE.bahce.d - 1 && !gardenSolid(a, b) && !blocked.has(`${a},${b}`)) { k.goal = [a, b]; break; }
             }
             k.wait = 2 + Math.random() * 4;
           }
@@ -333,7 +353,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         const [sw, sd] = sizeOf(md.itemId, pr);
         const gx = Math.floor(hv[0] - (sw - 1) / 2), gy = Math.floor(hv[1] - (sd - 1) / 2);
         const around = cur.scope === "oda" ? here : all.filter((p) => p.scope === "bahce");
-        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: canPlace(cur.scope, md.itemId, gx, gy, around, pr) };
+        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: cur.scope !== "sato" && canPlace(cur.scope, md.itemId, gx, gy, around, pr) };
       } else if (hv && (md.kind === "edit" || md.kind === "rotate")) {
         pick = here.find((p) => p.userId === me && inside(p, hv))?.id ?? null;
       }
@@ -345,6 +365,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         night: night.current, music: music.current,
         mailHeart: liveUnread.current > 0 ? Math.max(0, profiles.findIndex((p) => p.id === me)) : null,
       });
+      // gök gürültüsü: her şimşekten sonra bir kez, uzaklığa göre gecikmeli; içeride boğuk
+      const strike = lastStormStrike(t);
+      if (strike > heard) {
+        if (heard > 0 && live.current.sound && ambientRunning() && t - strike < 0.5) {
+          const p = strikePower(strike);
+          thunder(0.3 + (1 - p) * 1.6, p * (cur.scope === "bahce" ? 1 : 0.55));
+        }
+        heard = strike;
+      }
       if (darken > 0) { c.fillStyle = `rgba(20,16,30,${darken.toFixed(2)})`; c.fillRect(0, 0, cv.width, cv.height); }
       placeTags(anchors, cv.width);
     };
@@ -374,6 +403,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const { where: wh, placed: all, mode: md } = live.current;
     const hv = toTile(camOrigin(), hover.current[0], hover.current[1]);
     const scope = wh.scope;
+    if (scope === "sato") return; // şatoya eşya konmaz
     if (md.kind === "place") {
       const it = itemById.get(md.itemId)!;
       const pr = live.current.rot;
@@ -420,6 +450,29 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   useEffect(() => { if (!msg) return; const id = window.setTimeout(() => setMsg(null), 2600); return () => window.clearTimeout(id); }, [msg]);
   useEffect(() => { setTab(where.scope === "bahce" ? "bahce" : "oda"); }, [where.scope]);
 
+  // fırtına sesi: dışarıda tam yağmur, içeride boğuk; şatonun ateşli salonlarında çıtırtı
+  const fireRoom = where.scope === "sato" && (roomName === "Şömine odası" || roomName === "Büyük salon");
+  useEffect(() => {
+    if (!sound) return;
+    setMix({ rain: where.scope === "bahce" ? 1 : 0.4, fire: fireRoom ? 0.6 : 0, purr: 0 });
+  }, [sound, where.scope, fireRoom]);
+  useEffect(() => {
+    let want = false;
+    try { want = localStorage.getItem(SOUND_KEY) === "1"; } catch { /* tercih okunamadı */ }
+    if (!want) return;
+    // tarayıcı ilk dokunuşta izin verir: o ana kadar bekler
+    const go = () => { startAmbient(0.7).then(() => setSound(true), () => undefined); window.removeEventListener("pointerdown", go); window.removeEventListener("keydown", go); };
+    window.addEventListener("pointerdown", go); window.addEventListener("keydown", go);
+    return () => { window.removeEventListener("pointerdown", go); window.removeEventListener("keydown", go); };
+  }, []);
+  useEffect(() => () => stopAmbient(), []);
+  const toggleSound = async () => {
+    const next = !sound;
+    try { localStorage.setItem(SOUND_KEY, next ? "1" : "0"); } catch { /* kaydedilemedi */ }
+    if (next) { try { await startAmbient(0.7); setSound(true); } catch { setMsg("Ses başlatılamadı."); } }
+    else { stopAmbient(); setSound(false); }
+  };
+
   const countOf = (id: string) => placed.filter((p) => p.userId === me && p.itemId === id).length;
   const padBtn = (v: [number, number], label: string, cls: string, glyph: string) => (
     <button type="button" className={`gw-pad-btn ${cls}`} aria-label={label}
@@ -433,7 +486,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     <div className="gw">
       <div className="gw-bar">
         <span className="gw-where">
-          {where.scope === "bahce" ? "🌳 Ortak bahçe" : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
+          {where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
         </span>
         <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}</span>
         {canEditHere && (
@@ -454,14 +507,17 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         {!studyTimer && roomName === "Çalışma odası" && where.scope === "oda" && (
           <button type="button" className="btn btn-ghost" onClick={() => setStudy("masa")}>📚 Çalışma</button>
         )}
+        <button type="button" className={`btn ${sound ? "btn-primary" : "btn-ghost"}`} onClick={toggleSound} aria-pressed={sound} title="Yağmur ve gök gürültüsü">
+          {sound ? "🔊" : "🔇"} Fırtına
+        </button>
         <button type="button" className={`btn ${invOpen ? "btn-primary" : "btn-ghost"}`} onClick={() => setInvOpen((v) => !v)} aria-expanded={invOpen}>🎒 Envanter</button>
       </div>
 
       <div className={`gw-stage${mode.kind !== "walk" ? " is-editing" : ""}`} ref={stage} onPointerMove={pointer} onPointerDown={onDown} onPointerLeave={() => (hover.current = null)}>
-        <canvas ref={canvas} className="gw-canvas" role="img" aria-label={where.scope === "bahce" ? "Ortak bahçe" : "Ev"} />
-        {(["cengiz", "aysenur", "duldul", "parrot"] as const).map((k) => (
-          <span key={k} ref={(el) => { tagRefs.current[k] = el; }} className={`hall-tag is-${k}`} style={{ display: "none" }} aria-hidden="true">
-            {k === "cengiz" ? "Cengiz" : k === "aysenur" ? "Ayşenur" : k === "duldul" ? "Düldül" : "Papağan"}
+        <canvas ref={canvas} className="gw-canvas" role="img" aria-label={where.scope === "bahce" ? "Ortak bahçe" : where.scope === "sato" ? "Şato" : "Ev"} />
+        {(Object.entries(TAGS) as [string, string][]).map(([k, label]) => (
+          <span key={k} ref={(el) => { tagRefs.current[k] = el; }} className={`hall-tag is-${k}${k === "sato" ? " is-house" : ""}`} style={{ display: "none" }} aria-hidden="true">
+            {label}
           </span>
         ))}
         {houseNames.map((n, k) => (
