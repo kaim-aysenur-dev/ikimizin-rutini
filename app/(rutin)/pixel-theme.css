@@ -671,3 +671,70 @@ button.xp-badge:hover {
   --line: #c9b07c;
   color: var(--ink);
 }
+
+/* ilerleme halkası: köşeler düz olduğu için piksel çerçeveli kare */
+.shell .ring {
+  box-shadow: 0 0 0 2px var(--px-ink);
+}
+
+.shell .ring::before {
+  box-shadow: 0 0 0 2px var(--px-ink);
+}
+
+.user-btn {
+  border: 0;
+  box-shadow: 0 0 0 2px var(--px-ink);
+}
+
+/* telefon: üst barda logo + kısa rozet + yalnız avatar sığsın */
+@media (max-width: 899px) {
+  .topbar {
+    gap: 8px;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .topbar .brand-logo {
+    height: 26px;
+  }
+
+  .topbar .xp-badge {
+    gap: 6px;
+    padding: 5px 8px;
+    min-width: 0;
+    flex: 0 1 auto;
+  }
+
+  .topbar .xp-badge .xp-bar {
+    flex: 0 0 34px;
+    min-width: 34px;
+  }
+
+  .user-btn {
+    padding: 3px;
+  }
+
+  .user-btn > span:not(.avatar),
+  .user-btn .chev {
+    display: none;
+  }
+
+  .xp-journal {
+    padding: 16px;
+  }
+
+  .xpj-badges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 360px) {
+  .topbar .xp-badge .xp-bar {
+    display: none;
+  }
+}
+
+/* rozet penceresi ve kutlama üst barın içinde: telefonda alt menünün üstünde kalsınlar */
+.topbar {
+  z-index: 40;
+}

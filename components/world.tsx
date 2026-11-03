@@ -305,8 +305,8 @@ export function World() {
       ))}
 
       <div className={s.sound}>
-        <button onClick={() => setAuto((a) => !a)} aria-pressed={auto}>{auto ? "❚❚ Durdur" : "▶ Otomatik oynat"}</button>
-        <button onClick={toggleSound} aria-pressed={sound}>Ortam sesleri: {sound ? (audible ? "Açık" : "Açmak için dokun") : "Kapalı"}</button>
+        <button onClick={() => setAuto((a) => !a)} aria-pressed={auto}>{auto ? "❚❚ Durdur" : <>▶ <span className={s.wide}>Otomatik </span>oynat</>}</button>
+        <button onClick={toggleSound} aria-pressed={sound}>{sound ? "🔊" : "🔇"} <span className={s.wide}>Ortam sesleri: </span>{sound ? (audible ? "Açık" : "Açmak için dokun") : "Kapalı"}</button>
         {sound && (
           <label>
             <span className={s.srOnly}>Ses seviyesi</span>

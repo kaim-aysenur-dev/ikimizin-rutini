@@ -238,6 +238,10 @@
 
 @media (max-width: 640px) {
   .root { --pace: 0.85; }
+  /* telefonda alt butonlar tek satır: uzun etiketler kısalır, ses seviyesi telefondan ayarlanır */
+  .sound { left: 12px; justify-content: flex-end; }
+  .sound button { font-size: 12px; padding: 0 10px; white-space: nowrap; }
+  .sound label, .wide { display: none; }
   .logo { display: none; }
   .nav { justify-content: flex-end; }
   .sheetWrap { padding: 0 6px 6px; }
