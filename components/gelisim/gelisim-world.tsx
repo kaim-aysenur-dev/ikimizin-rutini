@@ -11,7 +11,10 @@ import { isDesk, isShelf } from "@/lib/study";
 import { CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
 import { ARMORY_STATIONS, CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
 import { type Equipment, NO_EQUIPMENT, sanitizeEquipment, toggleEquip } from "@/lib/equipment";
-import { armorStats } from "@/lib/combat-stats";
+import { FIST, armorStats, spellStats, weaponStats } from "@/lib/combat-stats";
+import { type Effect, type Fighter, type Target, attack, cast, newFighter, stepEffects, tick as tickFighter } from "@/lib/combat";
+import { CombatHud, type HudSpell } from "@/components/gelisim/combat-hud";
+import { TARGETS } from "@/lib/castle";
 import { type GearKind } from "@/lib/gear";
 import { ArmoryPanel } from "@/components/gelisim/armory-panel";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
@@ -23,7 +26,9 @@ import { tierOf } from "@/lib/xp";
 type Profile = { id: string; name: string; level: number };
 type Where = { scope: "oda"; owner: string } | { scope: "bahce" } | { scope: "sato"; floor: Floor };
 type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" } | { kind: "rotate" };
-type Remote = Hero & { userId: string; ti: number; tj: number };
+type Remote = Hero & { userId: string; ti: number; tj: number; swingAt?: number };
+type Action = { kind: "vurus" | "buyu"; id: string; at: number };
+const TARGET_HP = 300;
 
 const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
 const look = (level: number) => { const t = TIERS[tierOf(level)]; return { outfit: t.outfit, tint: t.tint }; };
@@ -121,6 +126,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const myEq = equipment[me] ?? NO_EQUIPMENT;
   const [armory, setArmory] = useState<GearKind | null>(null);
   const [equipBusy, setEquipBusy] = useState(false);
+  // dövüş: can, mana, efektler, talim hedefleri; gösterge saniyede 10 kez yenilenir
+  const fighter = useRef<Fighter>(newFighter(meP.level, initialEquipment[me] ?? NO_EQUIPMENT));
+  const effects = useRef<Effect[]>([]);
+  const targets = useRef<Target[]>(TARGETS.map((t) => ({ id: t.id, i: t.i, j: t.j, hp: TARGET_HP, maxHp: TARGET_HP, hitAt: -9 })));
+  const pendingAction = useRef<Action | null>(null);
+  const remoteSeen = useRef<Record<string, number>>({});
+  const eqRef = useRef(myEq);
+  eqRef.current = myEq;
+  const [hud, setHud] = useState({ hp: fighter.current.hp, maxHp: fighter.current.maxHp, mana: fighter.current.mana, maxMana: fighter.current.maxMana, shield: 0, spells: [] as HudSpell[] });
 
   const hero = useRef<Hero>({ who: whoOf(meP.name), i: startIn === "bahce" ? myDoor.i + 0.5 : 3, j: startIn === "bahce" ? myDoor.j + 1.4 : 2.5, dir: 1, dist: 0, moving: false, ...lookFor(meP.level, initialEquipment[me]) });
   const keys = useRef(new Set<string>());
@@ -140,6 +154,30 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   live.current = { where, placed, mode, rot, sound };
   const liveUnread = useRef(0);
   liveUnread.current = unread;
+
+  // J / sol tık / ⚔: silah vuruşu (yalnız 2. kattaki hedefler hasar alır)
+  const nowSec = () => performance.now() / 1000;
+  const doAttack = () => {
+    const h = hero.current, wh = live.current.where;
+    if (fade.current) return;
+    if (h.sit) standUp(h);
+    const eq = eqRef.current;
+    const fx = attack(fighter.current, eq, { i: h.i, j: h.j, dir: h.dir }, wh.scope === "sato" && wh.floor === 2 ? targets.current : [], nowSec());
+    if (!fx.length) return;
+    effects.current.push(...fx);
+    pendingAction.current = { kind: "vurus", id: eq.weapon ?? "yumruk", at: Date.now() };
+  };
+  // 1–4: kuşanılan büyüler
+  const doCast = (slot: number) => {
+    const h = hero.current, wh = live.current.where, eq = eqRef.current;
+    if (fade.current || !eq.spells[slot]) return;
+    if (h.sit) standUp(h);
+    const partnerNear = others.current.some((r) => Math.hypot(r.i - h.i, r.j - h.j) < 2.2);
+    const fx = cast(fighter.current, eq, slot, { i: h.i, j: h.j, dir: h.dir }, wh.scope === "sato" && wh.floor === 2 ? targets.current : [], nowSec(), partnerNear);
+    if (!fx.length) { const s = spellStats(eq.spells[slot]); if (s && fighter.current.mana < s.mana) setMsg("Mana yetmiyor."); return; }
+    effects.current.push(...fx);
+    pendingAction.current = { kind: "buyu", id: eq.spells[slot], at: Date.now() };
+  };
 
   // F / ✋: yakındaki şeyle etkileşim
   const interact = () => {
@@ -180,6 +218,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (k === "e") setInvOpen((v) => !v);
       if (k === "r") setRot((v) => (v ? 0 : 1));
       if (k === "f" || k === " ") { e.preventDefault(); interact(); }
+      if (k === "j") { e.preventDefault(); doAttack(); }
+      if (/^[1-4]$/.test(k)) { e.preventDefault(); doCast(Number(k) - 1); }
       if (KEYS[k]) { keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault(); }
     };
     const up = (e: KeyboardEvent) => keys.current.delete(e.key.toLowerCase());
@@ -195,13 +235,25 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const tick = async () => {
       const h = hero.current;
       try {
-        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving } });
+        const res = await api<{ others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null }[]; unread?: number }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: pendingAction.current ?? undefined } });
+        pendingAction.current = null;
         if (stop) return;
         setUnread(res.unread ?? 0);
         others.current = res.others.map((o) => {
           const prev = others.current.find((p) => p.userId === o.userId);
           const prof = profiles.find((p) => p.id === o.userId);
-          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving };
+          // karşının yeni saldırısı: savuruşu ya da büyüsü burada da oynar (hasar yalnız kendi ekranında)
+          let swingAt = prev?.swingAt;
+          const act = o.action, seen = remoteSeen.current[o.userId];
+          if (act && act.at !== seen) {
+            remoteSeen.current[o.userId] = act.at;
+            if (seen !== undefined) {
+              const now = nowSec(), dir: 1 | -1 = o.dir === -1 ? -1 : 1;
+              if (act.kind === "vurus") swingAt = now;
+              else { const s = spellStats(act.id); if (s) effects.current.push({ kind: s.shape, i: prev?.i ?? o.x, j: prev?.j ?? o.y, dir, at: now, until: now + 1.2, color: s.color, value: s.range }); }
+            }
+          }
+          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt };
         });
       } catch { /* bağlantı koparsa bir sonraki turda yeniden dener */ }
     };
@@ -392,11 +444,23 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         pick = here.find((p) => p.userId === me && inside(p, hv))?.id ?? null;
       }
 
+      // dövüş: can/mana dolar, mermiler uçar, savuruş ilerler
+      const fgt = fighter.current;
+      tickFighter(fgt, dt, t);
+      effects.current = stepEffects(effects.current, targets.current, t);
+      const wpn = (eqRef.current.weapon && weaponStats(eqRef.current.weapon)) || FIST, since = t - fgt.comboAt;
+      h.gear = { weapon: eqRef.current.weapon, swing: since >= 0 && since < wpn.cooldown ? since / wpn.cooldown : 0 };
+      h.shield = fgt.shield > 0;
+      for (const r of others.current) if (r.gear) r.gear = { ...r.gear, swing: r.swingAt !== undefined && t - r.swingAt < 0.35 ? (t - r.swingAt) / 0.35 : 0 };
+      const targetState = cur.scope === "sato" && cur.floor === 2
+        ? Object.fromEntries(targets.current.map((tg) => [tg.id, { hit: Math.max(0, 1 - (t - tg.hitAt) / 0.3), hp: tg.hp / tg.maxHp }])) : undefined;
+
       const anchors = drawScene(c, t, {
         scope: cur.scope, cam: o, theme: cur.scope === "oda" ? themeOf(cur.owner) : "cengiz",
         houseThemes: profiles.slice(0, HOUSES.length).map((p) => whoOf(p.name)),
         placed: scenePlaced(cur, all), heroes: [h, ...others.current], ghost, pick, cat: catState,
         night: night.current, music: music.current, floor: cur.scope === "sato" ? cur.floor : undefined,
+        targetState, effects: effects.current, now: t,
         mailHeart: liveUnread.current > 0 ? Math.max(0, profiles.findIndex((p) => p.id === me)) : null,
       });
       // gök gürültüsü: her şimşekten sonra bir kez, uzaklığa göre gecikmeli; içeride boğuk
@@ -437,6 +501,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const { where: wh, placed: all, mode: md } = live.current;
     const hv = toTile(camOrigin(), hover.current[0], hover.current[1]);
     const scope = wh.scope;
+    if (md.kind === "walk") { doAttack(); return; } // yürürken tık: silah vuruşu
     if (scope === "sato") return; // şatoya eşya konmaz
     if (md.kind === "place") {
       const it = itemById.get(md.itemId)!;
@@ -508,7 +573,23 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   };
 
   // kendi görünümün kuşandıklarına göre güncellenir
-  useEffect(() => { Object.assign(hero.current, lookFor(meP.level, myEq)); }, [myEq, meP.level]);
+  useEffect(() => {
+    Object.assign(hero.current, lookFor(meP.level, myEq));
+    // yeni zırh ek can verir: oranlar korunur
+    const old = fighter.current, f = newFighter(meP.level, myEq);
+    f.hp = Math.round(f.maxHp * (old.hp / old.maxHp)); f.mana = Math.min(f.maxMana, old.mana); f.spellReady = old.spellReady; f.shield = old.shield; f.shieldUntil = old.shieldUntil;
+    fighter.current = f;
+  }, [myEq, meP.level]);
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      const f = fighter.current, now = nowSec(), eq = eqRef.current;
+      setHud({
+        hp: f.hp, maxHp: f.maxHp, mana: f.mana, maxMana: f.maxMana, shield: f.shield,
+        spells: eq.spells.map((id2) => { const s = spellStats(id2); return { id: id2, mana: s?.mana ?? 0, cooldown: s?.cooldown ?? 1, readyIn: Math.max(0, (f.spellReady[id2] ?? 0) - now) }; }),
+      });
+    }, 100);
+    return () => window.clearInterval(id);
+  }, []);
   const onEquip = async (gearId: string) => {
     const before = myEq;
     setEquipment((all) => ({ ...all, [me]: sanitizeEquipment(toggleEquip(before, gearId), meP.level) })); // iyimser
@@ -538,7 +619,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         <span className="gw-where">
           {where.scope === "bahce" ? "🌳 Ortak bahçe" : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName} · misafirsin` : `🏠 Evin · ${roomName}`}
         </span>
-        <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D ile yürü · kapılardan geç · F: etkileşim · E: envanter"}</span>
+        <span className="gw-hint">{near ? <b className="gw-near">F: {near.label}</b> : "W A S D yürü · F etkileşim · J ya da tık saldır · 1–4 büyü · E envanter"}</span>
         {canEditHere && (
           <button type="button" className={`btn ${mode.kind === "rotate" ? "btn-primary" : "btn-ghost"}`} onClick={() => setMode(mode.kind === "rotate" ? { kind: "walk" } : { kind: "rotate" })}>
             {mode.kind === "rotate" ? "Bitir" : "↻ Döndür"}
@@ -564,6 +645,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       </div>
 
       <div className={`gw-stage${mode.kind !== "walk" ? " is-editing" : ""}`} ref={stage} onPointerMove={pointer} onPointerDown={onDown} onPointerLeave={() => (hover.current = null)}>
+        <CombatHud {...hud} onCast={doCast} />
         <canvas ref={canvas} className="gw-canvas" role="img" aria-label={where.scope === "bahce" ? "Ortak bahçe" : where.scope === "sato" ? "Şato" : "Ev"} />
         {(Object.entries(TAGS) as [string, string][]).map(([k, label]) => (
           <span key={k} ref={(el) => { tagRefs.current[k] = el; }} className={`hall-tag is-${k}${k === "sato" ? " is-house" : ""}`} style={{ display: "none" }} aria-hidden="true">
@@ -634,6 +716,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         {padBtn([1, -1], "Sağa", "right", "▶")}
         {padBtn([1, 1], "Aşağı", "down", "▼")}
         <button type="button" className="gw-pad-btn act" aria-label={near ? near.label : "Etkileşim"} onPointerDown={(e) => { e.preventDefault(); interact(); }}>✋</button>
+        <button type="button" className="gw-pad-btn atk" aria-label="Saldır" onPointerDown={(e) => { e.preventDefault(); doAttack(); }}>⚔</button>
       </div>
       {study && <StudyDesk me={me} profiles={profiles} tab={study} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
       {armory && <ArmoryPanel kind={armory} level={meP.level} equipment={myEq} busy={equipBusy} onToggle={onEquip} onClose={() => setArmory(null)} />}

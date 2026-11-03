@@ -8,13 +8,14 @@ import { type Area, CASTLE, type Floor, FRONT_DOOR, HOUSES, POND, type Placed, R
 import { isFlat, itemById } from "./room-items";
 import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
-import { drawHeld } from "./combat-draw";
+import { drawEffect, drawHeld } from "./combat-draw";
+import { type Effect, shotAt } from "./combat";
 import { STAND_F, walkFrame } from "./anim";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
 export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number] };
-  gear?: { weapon: string | null; swing?: number } }; // elde silah ve savuruş ilerlemesi (0..1)
+  gear?: { weapon: string | null; swing?: number }; shield?: boolean }; // elde silah, savuruş ilerlemesi (0..1), kalkan büyüsü
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
@@ -30,6 +31,8 @@ export type SceneState = {
   night: number; // 0 gündüz, 1 gece (İstanbul saatine göre)
   floor?: Floor; // şatoda hangi kat
   targetState?: Record<string, { hit: number; hp: number }>; // talim hedeflerinin sarsıntısı ve canı (0..1)
+  effects?: Effect[]; // vuruşlar, mermiler, büyüler, hasar sayıları
+  now?: number; // efektlerin zaman tabanı (sn)
   mailHeart: number | null; // okunmamış not: bu evin posta kutusunda kalp
   music: { i: number; j: number; t0: number } | null; // piyanodan yükselen notalar
 };
@@ -453,6 +456,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       const pose = h.sit ? SEAT : h.moving ? walkFrame(h.dist) : STAND;
       const a = drawCharacter(c, { who: h.who, x, y: y - lift, dir: h.dir, pose, outfit: h.outfit, tint: h.tint, blink: h.sit?.sleep || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
       if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
+      if (h.shield) for (let k = 0; k < 20; k++) { const ang = t * 2 + (k / 20) * Math.PI * 2; px(c, Math.round(x + Math.cos(ang) * 10), Math.round(y - 10 + Math.sin(ang) * 6), k % 2 ? "#f3d48a" : "rgba(255,255,255,0.5)"); }
       if (h.sit?.sleep) for (let k = 0; k < 3; k++) {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
         rect(c, zx, zy, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); px(c, zx + 1, zy + 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); rect(c, zx, zy + 2, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`);
@@ -467,6 +471,12 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       const a = duldul(c, x, y, k.dir, k.sleep ? "rest" : k.moving ? "walk" : "sit", k.dist, t, false);
       anchors.push({ key: "duldul", x: a.head[0], y: a.head[1] + 2 });
     } });
+  }
+  const now = s.now ?? t;
+  for (const e of s.effects ?? []) {
+    if (e.kind === "hasar" || e.kind === "sifa-sayi") continue;
+    const [ei, ej] = shotAt(e, now);
+    list.push({ key: ei + ej + 0.6, draw: () => drawEffect(c, o, e, now) });
   }
   list.sort((a, b) => a.key - b.key).forEach((d) => d.draw());
 
@@ -549,6 +559,8 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     c.closePath(); c.clip(); screenRain(c, W, Hc, t, 1); c.restore();
   }
   if (flashNow > 0) { c.fillStyle = `rgba(220,228,255,${(flashNow * (outside ? 0.5 : 0.16)).toFixed(3)})`; c.fillRect(0, 0, W, Hc); }
+  // hasar ve şifa sayıları her şeyin üstünde
+  for (const e of s.effects ?? []) drawEffect(c, o, e, now, true);
   return anchors;
 }
 

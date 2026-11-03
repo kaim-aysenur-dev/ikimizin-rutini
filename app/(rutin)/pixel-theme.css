@@ -1195,3 +1195,37 @@ button.xp-badge:hover {
 .gw-armory-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .gw-armory .gw-items { overflow-y: auto; padding-right: 4px; }
 .gw-item.is-locked .gw-item-icon { filter: grayscale(1) brightness(0.45); }
+
+/* ---------- Gelişim · dövüş göstergesi (sol üst) ---------- */
+.gw-hud {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  display: grid;
+  gap: 4px;
+  padding: 6px 8px;
+  background: rgb(14 12 24 / 0.72);
+  box-shadow: 0 0 0 2px var(--px-ink);
+  color: var(--px-cream);
+  font-size: 11px;
+  pointer-events: auto;
+}
+.gw-bar-row { display: grid; grid-template-columns: 12px 120px auto; align-items: center; gap: 6px; }
+.gw-bar-ico { text-align: center; }
+.gw-meter { position: relative; display: block; height: 9px; background: #2a2432; box-shadow: 0 0 0 1px var(--px-ink); overflow: hidden; }
+.gw-meter i, .gw-meter b { position: absolute; inset: 0 auto 0 0; transition: width 0.12s linear; }
+.gw-meter.is-hp i { background: linear-gradient(#e2557a, #b8344a); }
+.gw-meter.is-hp b { background: rgb(243 212 138 / 0.55); }
+.gw-meter.is-mana i { background: linear-gradient(#7fa8f0, #3a5ab0); }
+.gw-slots { display: flex; gap: 4px; margin-top: 2px; }
+.gw-slot { position: relative; width: 40px; height: 40px; padding: 2px; border: 0; background: #2b2833; box-shadow: 0 0 0 2px var(--px-ink); cursor: pointer; }
+.gw-slot:disabled { cursor: default; opacity: 0.5; }
+.gw-slot.is-dim canvas { filter: brightness(0.5); }
+.gw-slot kbd { position: absolute; right: 1px; bottom: 0; font: 700 10px/1 var(--body); color: var(--px-gold-light, #f3d48a); text-shadow: 1px 1px 0 #000; }
+.gw-cd { position: absolute; left: 0; right: 0; bottom: 0; background: rgb(0 0 0 / 0.6); }
+.gw-pad-btn.atk { grid-column: 1; grid-row: 1; background: #8a3a2a; }
+@media (max-width: 700px) {
+  .gw-bar-row { grid-template-columns: 12px 84px auto; }
+  .gw-slot { width: 34px; height: 34px; }
+}
