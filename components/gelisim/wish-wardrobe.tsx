@@ -316,7 +316,7 @@ function WishForm({ wish, draft, busy, onSave, onCancel, onDelete }: {
   return (
     <form className="stack st-form wd-form" onSubmit={(e) => {
       e.preventDefault();
-      onSave({ title: d.title, brand: d.brand, cat: d.cat, tier: d.tier, price: d.price, link: d.link, note: d.note, shared: d.shared, photo: d.photoId, goals });
+      onSave({ title: d.title, brand: d.brand, cat: d.cat, tier: d.tier, price: d.price.trim() === "" ? null : Math.round(Number(d.price)), link: d.link, note: d.note, shared: d.shared, photo: d.photoId, goals });
     }}>
       <h3 className="st-sub">{wish ? "Dileği düzenle" : "Yeni dilek"}</h3>
       <div className="st-two">

@@ -34,8 +34,10 @@ export function parseWish(b: Body, userId: string, keepPhoto: string | null = nu
   const tier = typeof b?.tier === "string" && b.tier in TIERS ? (b.tier as Tier) : null;
   if (!tier) return "Kademe seçilmedi.";
   const cat = CAT_ORDER.includes(b?.cat as WishCat) ? (b!.cat as WishCat) : "diger";
-  const price = b?.price == null || b.price === "" ? null : intIn(b.price, 0, 10_000_000);
-  if (price === null && b?.price != null && b.price !== "") return "Fiyat geçersiz.";
+  // fiyat sayı ya da "3000" / "3.000" / "3 000" gibi yazı olarak gelebilir
+  const rawPrice = typeof b?.price === "string" ? (b.price.trim() === "" ? "" : Number(b.price.replace(/[.\s]/g, ""))) : b?.price;
+  const price = rawPrice == null || rawPrice === "" ? null : intIn(rawPrice, 0, 10_000_000);
+  if (price === null && rawPrice != null && rawPrice !== "") return "Fiyat geçersiz: tam sayı olarak yaz (ör. 3000).";
   const link = text(b?.link, 500);
   if (link && !/^https?:\/\/\S+$/i.test(link)) return "Bağlantı http:// ya da https:// ile başlamalı.";
   const photo = b?.photo == null || b.photo === "" ? null : ownsPublicId(userId, "dilek", b.photo) || (keepPhoto !== null && b.photo === keepPhoto) ? (b.photo as string) : undefined;
