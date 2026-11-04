@@ -18,7 +18,7 @@ import { MATS } from "./gear";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number }; study?: { reading: boolean; focus: boolean };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number; seat?: number; stool?: boolean; tilt?: number }; study?: { reading: boolean; focus: boolean };
   gear?: { weapon: string | null; armor?: string | null; helmet?: string | null; shield?: string | null; cape?: string | null; trinket?: string | null; set?: string | null; swing?: number }; shield?: boolean; // elde silah, kuşanılan zırh (miğfer, kalkan görünür), savuruş (0..1), kalkan büyüsü
   emote?: { kind: Emote; at: number }; hold?: boolean }; // başın üstünde kısa emote; el ele tutuşma
 export type Emote = "kalp" | "el" | "gul" | "opucuk" | "sasir" | "uyku" | "dans" | "saril";
@@ -48,9 +48,20 @@ export type SceneState = {
 };
 
 // oturuş: kalça alçakta, dizler önde (yatak, koltuk, bank)
-const SEAT: Free = { ...STAND_F, hip: [-1, -6], neck: [0, -13], eB: [1, -9], hB: [3, -7], eF: [2, -9], hF: [4, -7], kB: [3, -6], fB: [4, 0], kF: [3, -6], fF: [4, 0] };
+// oturuş: kalça oturağın yüksekliğinde (h piksel), dizler önde, ayaklar yerde; eller kucakta
+const seatPose = (h: number): Free => ({ ...STAND_F, hip: [-1, -h], neck: [0, -h - 7], eB: [1, -h - 3], hB: [3, -h - 1], eF: [2, -h - 3], hF: [4, -h - 1], kB: [3, -h], fB: [5, 0], kF: [3, -h], fF: [5, 0] });
 // uzanış: sırt üstü, baş yastıkta (yön başın tarafı: dir 1 iken baş solda), bacaklar düz, kollar yanda
-const LIE: Free = { hip: [1, -3], neck: [-6, -3], eB: [-3, -2], hB: [0, -2], eF: [-3, -4], hF: [1, -4], kB: [5, -3], fB: [9, -3], kF: [5, -4], fF: [9, -4], rot: -1 };
+// Yatak izometrik çaprazda durur: beden yatağın eğimine göre eğilir (tilt 1: baş arkada, yukarıda; -1: baş önde),
+// boyu da yatağa sığacak kadar kısa (baş yastıkta, ayaklar ayak ucunda). breath: nefeste göğüs bir piksel kalkar.
+const LIE: Free = { hip: [1, -3], neck: [-5, -3], eB: [-2, -2], hB: [1, -2], eF: [-2, -4], hF: [1, -4], kB: [4, -3], fB: [7, -3], kF: [4, -4], fF: [7, -4], rot: -1 };
+function liePose(tilt: number, breath: boolean): Free {
+  const out = { ...LIE };
+  for (const k of ["hip", "neck", "eB", "hB", "eF", "hF", "kB", "fB", "kF", "fF"] as const) {
+    const [x, y] = LIE[k];
+    out[k] = [x, y + x * 0.5 * tilt - (breath && (k === "neck" || k === "eF" || k === "hF") ? 1 : 0)];
+  }
+  return out;
+}
 const ease = (k: number) => (k <= 0 ? 0 : k >= 1 ? 1 : k * k * (3 - 2 * k));
 const SMALL_HEART = [".o.o.", "oxoxo", "oxxxo", ".oxo.", "..o.."];
 let nightNow = 0; // pencerelerin gökyüzü rengi için (drawScene başında ayarlanır)
@@ -518,19 +529,25 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       const dance = h.emote?.kind === "dans" && !h.sit && t - h.emote.at < emoteLife("dans") ? t - h.emote.at : -1;
       let pose: CharState["pose"] = h.moving ? walkFrame(h.dist) : dance >= 0 ? walkFrame(dance * 14) : STAND;
       if (h.sit) {
-        let target = h.sit.sleep ? LIE : SEAT;
-        if (h.sit.sleep && k >= 1 && Math.sin(t * 1.6) > 0.55) target = { ...LIE, neck: [LIE.neck[0], LIE.neck[1] - 1], eF: [LIE.eF[0], LIE.eF[1] - 1], hF: [LIE.hF[0], LIE.hF[1] - 1] }; // nefes
+        const target = h.sit.sleep ? liePose(h.sit.tilt ?? 1, k >= 1 && Math.sin(t * 1.6) > 0.55) : seatPose(h.sit.seat ?? 6);
         pose = k >= 1 ? target : lerpFree(STAND_F, target, k);
       }
       const hop = dance >= 0 ? Math.round(Math.abs(Math.sin(dance * 7)) * 3) : 0, ddir = dance >= 0 && Math.floor(dance * 2.4) % 2 ? (-h.dir as 1 | -1) : h.dir;
+      // masada sandalye yoksa altında küçük bir tabure
+      if (h.sit?.stool && k > 0.5) {
+        const sh = h.sit.seat ?? 7, sx = x - h.dir - 3;
+        rect(c, sx - 1, y - sh - 1, 9, 3, P.ink); rect(c, sx, y - sh, 7, 1, "#a87a50");
+        rect(c, sx, y - sh + 1, 1, sh - 1, "#6b4a35"); rect(c, sx + 6, y - sh + 1, 1, sh - 1, "#6b4a35"); rect(c, sx + 1, y - 3, 5, 1, "#6b4a35");
+      }
       const a = drawCharacter(c, { who: h.who, x, y: y - lift - hop, dir: ddir, pose, outfit: h.outfit, tint: h.tint, blink: (h.sit?.sleep && k >= 1) || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
       if (h.sit?.sleep && k >= 1) {
         // battaniye: kalçadan ayaklara
-        const d = h.dir, bx = d > 0 ? a.hip[0] - 2 : a.hip[0] - 11;
-        rect(c, bx - 1, a.hip[1] - 5, 15, 7, P.ink);
-        rect(c, bx, a.hip[1] - 4, 13, 5, h.sit.blanket ?? "#b56b7a");
-        rect(c, d > 0 ? bx : bx + 11, a.hip[1] - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
-        for (let q = 0; q < 3; q++) px(c, bx + 3 + q * 4, a.hip[1] - 3 + (q % 2), "rgba(255,255,255,0.35)");
+        // eğik yatakta battaniye bacaklarla birlikte biraz aşağı (ya da yukarı) kayar
+        const d = h.dir, bx = d > 0 ? a.hip[0] - 2 : a.hip[0] - 9, hy = a.hip[1] + Math.round(1.5 * (h.sit.tilt ?? 1));
+        rect(c, bx - 1, hy - 5, 13, 7, P.ink);
+        rect(c, bx, hy - 4, 11, 5, h.sit.blanket ?? "#b56b7a");
+        rect(c, d > 0 ? bx : bx + 9, hy - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
+        for (let q = 0; q < 3; q++) px(c, bx + 2 + q * 3, hy - 3 + (q % 2), "rgba(255,255,255,0.35)");
       }
       wornGear(c, a, h.who, h.dir, h.gear, h.sit, t, h.dist);
       if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
@@ -540,7 +557,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
         rect(c, zx, zy, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); px(c, zx + 1, zy + 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`); rect(c, zx, zy + 2, 3, 1, `rgba(243,212,138,${(1 - q).toFixed(2)})`);
       }
-      if (h.study) studyProps(c, x, y - lift, h.dir, h.study, t);
+      if (h.study) studyProps(c, x, y - lift - ((h.sit?.seat ?? 6) - 6), h.dir, h.study, t);
       anchors.push({ key: h.who, x: a.head[0], y: a.head[1] - 2 });
     } });
   }

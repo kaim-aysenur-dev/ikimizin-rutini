@@ -81,18 +81,21 @@ function nightNow(): number {
 
 // oturulabilen eşyalar: oturuş yüksekliği (piksel), eşyanın kendi alanındaki yerler ve oturanın baktığı yön
 // (yataklarda ayakların yönü; baş karşı tarafta). Yataklarda uzanılır; çift kişilik yatakta ve koltukta iki kişi yan yana.
-type Seat = { lift: number; sleep?: boolean; slots: [number, number][]; face: [number, number] };
+// h: oturağın üst yüzü (piksel; eşyanın çiziminden) ya da yatağın şilte yüksekliği. Oturanın ayakları yerde, kalçası
+// tam bu yükseklikte durur; yer minderin ön kısmıdır (ayaklar önden sarkar, oturan sırtlığa değil mindere oturur).
+type Seat = { h: number; sleep?: boolean; slots: [number, number][]; face: [number, number] };
 const seatOf = (id: string): Seat | null =>
-  id === "yatak" ? { lift: 8, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
-  : id.startsWith("tek-yatak-") ? { lift: 7, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
-  : id.startsWith("cift-yatak-") ? { lift: 8, sleep: true, slots: [[1.08, 0.52], [1.08, 1.48]], face: [1, 0] }
-  : id.startsWith("kose-koltuk-") ? { lift: 6, slots: [[0.6, 0.6], [1.5, 0.6], [2.4, 0.6]], face: [0, 1] }
-  : id.startsWith("koltuk-") ? { lift: 6, slots: [[0.6, 0.6], [1.4, 0.6]], face: [0, 1] }
-  : id.startsWith("berjer-") ? { lift: 6, slots: [[0.5, 0.6]], face: [0, 1] }
-  : id.startsWith("sandalye-") || id.startsWith("calisma-sandalyesi-") ? { lift: 7, slots: [[0.5, 0.55]], face: [0, 1] }
-  : id === "taht" ? { lift: 7, slots: [[0.55, 0.5]], face: [1, 0] }
-  : id === "bank" || id.startsWith("bahce-banki-") ? { lift: 6, slots: [[0.6, 0.55], [1.4, 0.55]], face: [0, 1] }
+  id === "yatak" ? { h: 8, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
+  : id.startsWith("tek-yatak-") ? { h: 7, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
+  : id.startsWith("cift-yatak-") ? { h: 8, sleep: true, slots: [[1.08, 0.52], [1.08, 1.48]], face: [1, 0] }
+  : id.startsWith("kose-koltuk-") ? { h: 8, slots: [[0.6, 0.72], [1.5, 0.72], [2.4, 0.72]], face: [0, 1] }
+  : id.startsWith("koltuk-") ? { h: 8, slots: [[0.62, 0.72], [1.38, 0.72]], face: [0, 1] }
+  : id.startsWith("berjer-") ? { h: 6, slots: [[0.5, 0.7]], face: [0, 1] }
+  : id.startsWith("sandalye-") || id.startsWith("calisma-sandalyesi-") ? { h: 8, slots: [[0.5, 0.62]], face: [0, 1] }
+  : id === "taht" ? { h: 9, slots: [[0.7, 0.5]], face: [1, 0] }
+  : id === "bank" || id.startsWith("bahce-banki-") ? { h: 8, slots: [[0.6, 0.66], [1.4, 0.66]], face: [0, 1] }
   : null;
+const DESK_SEAT = 7; // masada sandalye yoksa taburenin yüksekliği
 type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station" | "hold" | "wardrobe"; label: string; i: number; j: number; itemId?: string; to?: Floor; gearKind?: GearKind; p?: Placed };
 const STATION_LABEL: Record<GearKind, string> = { Zırh: "Zırh askısı", Silah: "Silah rafı", Büyü: "Büyü kürsüsü" };
 // masada oturulan yer (önü) ve oturanın baktığı yön (masaya doğru)
@@ -106,6 +109,12 @@ function placeLocal(p: Placed, x: number, y: number): [number, number] {
   if (r & 2) { x = W - x; y = D - y; }
   return r & 1 ? [p.tx + y, p.ty + x] : [p.tx + x, p.ty + y];
 }
+/** yatakta başın yönü: ayaklar öne (ekranda aşağı) bakıyorsa baş arkada, yukarıda (1), tersi -1 */
+function lieTilt(p: Placed, [a, b]: [number, number]): 1 | -1 {
+  const r = (p.rot ?? 0) & 3;
+  if (r & 2) { a = -a; b = -b; }
+  return a + b > 0 ? 1 : -1;
+}
 function faceDir(p: Placed, [a, b]: [number, number]): 1 | -1 {
   const r = (p.rot ?? 0) & 3;
   if (r & 2) { a = -a; b = -b; }
@@ -115,7 +124,7 @@ function faceDir(p: Placed, [a, b]: [number, number]): 1 | -1 {
 const depthOfPlaced = (p: Placed) => { const [w, d] = sizeOf(p.itemId, p.rot); return p.tx + w - 0.5 + p.ty + d - 0.5; };
 /** Canlı konumda gönderilen duruş */
 const poseOf = (h: Hero, desk: StudyTab | null) =>
-  !h.sit ? null : `${desk ? (desk === "kitaplik" ? "read" : "desk") : h.sit.sleep ? "lie" : "sit"}:${Math.round(h.sit.lift)}`;
+  !h.sit ? null : `${desk ? (desk === "kitaplik" ? "read" : "desk") : h.sit.sleep ? "lie" : "sit"}:${Math.round(h.sit.sleep ? h.sit.lift : h.sit.seat ?? DESK_SEAT)}${h.sit.sleep && h.sit.tilt === -1 ? ":-1" : ""}`;
 
 /** Kalkış: oturmadan önce durulan boş kareye dönülür */
 function standUp(h: Hero) {
@@ -338,7 +347,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         .filter(([a, b]) => !others.current.some((r) => r.sit && Math.hypot(r.ti - a, r.tj - b) < 0.45))
         .sort((u, v) => Math.hypot(u[0] - h.i, u[1] - h.j) - Math.hypot(v[0] - h.i, v[1] - h.j));
       if (!spots.length) { setMsg(seat.sleep ? "Yatakta yer kalmadı." : "Burası dolu."); return; }
-      h.sit = { lift: seat.lift, sleep: seat.sleep, from: [h.i, h.j], at: performance.now() / 1000, depth: depthOfPlaced(nb.p) + 0.02 };
+      h.sit = seat.sleep ? { lift: seat.h, sleep: true, tilt: lieTilt(nb.p, seat.face), from: [h.i, h.j], at: performance.now() / 1000, depth: depthOfPlaced(nb.p) + 0.02 }
+        : { lift: 0, seat: seat.h, from: [h.i, h.j], at: performance.now() / 1000, depth: depthOfPlaced(nb.p) + 0.02 };
       [h.i, h.j] = spots[0]; h.dir = faceDir(nb.p, seat.face); h.moving = false;
     }
     else if (nb.kind === "hold") setHold(!holdRef.current);
@@ -364,7 +374,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       } else {
         const sx = (nb.i - h.i) - (nb.j - h.j); if (sx !== 0) h.dir = sx > 0 ? 1 : -1;
       }
-      h.moving = false; h.sit = { lift: 4, from, at: performance.now() / 1000 };
+      h.moving = false; h.sit = { lift: 0, seat: DESK_SEAT, stool: true, from, at: performance.now() / 1000 };
       deskSit.current = tab; setAtDesk(tab); setStudy(tab);
     }
   };
@@ -473,9 +483,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           const prev = others.current.find((p) => p.userId === o.userId);
           const prof = profiles.find((p) => p.id === o.userId);
           // duruş: "lie:8" uzanıyor, "sit:6" oturuyor, "desk:4" masada, "read:4" kitaplıkta
-          const [kind, lift] = (o.pose ?? "").split(":");
+          const [kind, lift, tilt] = (o.pose ?? "").split(":");
           const seated = !o.moving && ["sit", "lie", "desk", "read"].includes(kind);
-          const sit = seated ? { lift: Number(lift) || 0, sleep: kind === "lie", at: prev?.sit ? prev.sit.at : performance.now() / 1000, depth: seatDepth(o.x, o.y) } : undefined;
+          const n = Number(lift) || 0, since = prev?.sit ? prev.sit.at : performance.now() / 1000, depth = seatDepth(o.x, o.y);
+          const sit = !seated ? undefined : kind === "lie" ? { lift: n, sleep: true, tilt: tilt === "-1" ? -1 : 1, at: since, depth }
+            : { lift: 0, seat: n || DESK_SEAT, stool: kind === "desk" || kind === "read" ? !depth : undefined, at: since, depth };
           const study = seated && (kind === "desk" || kind === "read") ? { reading: kind === "read", focus: !!o.focus } : undefined;
           // karşının yeni saldırısı: savuruşu ya da büyüsü burada da oynar (hasar yalnız kendi ekranında)
           let swingAt = prev?.swingAt, emote = prev?.emote, hold = prev?.hold;

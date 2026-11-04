@@ -7,7 +7,7 @@ import { parseActionHistory } from "@/lib/combat-sync";
 import { UUID_RE } from "@/lib/skin";
 
 // duruş: oturuyor / uzanıyor / masada / kitaplıkta ve yüksekliği (ör. "lie:8")
-const POSE_RE = /^(sit|lie|desk|read):\d{1,2}$/;
+const POSE_RE = /^(sit|lie|desk|read):\d{1,2}(:-1)?$/;
 
 // Canlı konum: bahçede, şatoda ya da bir evde. Kendi konumunu yaz, aynı yerdeki diğerini al. here: false ise ayrıldın.
 export const POST = withUser(async (req, user) => {
