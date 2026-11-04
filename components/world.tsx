@@ -10,17 +10,20 @@ import type { SceneOut } from "@/lib/scenes/types";
 import { CalendarPanel, CarePanel, DayPanel, NutritionPanel, ProgressPanel, SportPanel } from "./panels";
 import s from "./world.module.css";
 import Link from "next/link";
-import { useProfile } from "@/lib/profile";
 
-// aktif profil rozeti: dokununca profil seçimine gider (Cengiz ⇄ Ayşenur)
-function ProfileChip() {
-  const who = useProfile();
+type Entry = { href: string; label: string };
+
+// aktif profil rozeti: dokununca profil seçimine gider (Cengiz ⇄ Ayşenur); seçince rutine geçilir
+function ProfileChip({ name }: { name: string }) {
+  const who = /ay[sş]enur/i.test(name) ? "aysenur" : "cengiz";
   return (
-    <Link href="/profil-sec" className={`${s.chip} ${who ? s[who] : ""}`}>
-      {who ? (who === "cengiz" ? "Cengiz" : "Ayşenur") : "Profil seç"}<span aria-hidden="true"> ⇄</span>
+    <Link href="/profil-sec" className={`${s.chip} ${s[who]}`} aria-label={`Profil: ${name.split(" ")[0]}. Profil değiştir`}>
+      {name.split(" ")[0]}<span aria-hidden="true"> ⇄</span>
     </Link>
   );
 }
+
+const toTop = () => window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
 
 const NAMES = { cengiz: "Cengiz", aysenur: "Ayşenur", duldul: "Düldül", gandalf: "Gandalf", gimli: "Gimli", legolas: "Legolas", jon: "Jon Snow", daenerys: "Daenerys Targaryen" } as const;
 type Tagged = keyof typeof NAMES;
@@ -53,7 +56,7 @@ function Sheet({ id, onClose }: { id: SheetId; onClose: () => void }) {
   );
 }
 
-export function World() {
+export function World({ entry, profileName }: { entry: Entry; profileName: string | null }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const tags = useRef<Record<string, HTMLDivElement | null>>({});
   const bubbles = useRef<Record<string, HTMLDivElement | null>>({});
@@ -62,6 +65,7 @@ export function World() {
   const caption = useRef<HTMLDivElement>(null);
   const lastShown = useRef<{ tags: Tag[]; scale: number }>({ tags: [], scale: 1 });
   const [calm, setCalm] = useState(false);
+  const [far, setFar] = useState(false); // ilk ekranın altına inildi: "Başa dön" görünür
   const [sheet, setSheet] = useState<SheetId | null>(null);
   // ortam sesleri: başlangıçta kapalı
   const [sound, setSound] = useState(true);
@@ -100,7 +104,7 @@ export function World() {
     };
 
     let raf = 0;
-    let lastCalm = false;
+    let lastCalm = false, lastFar = false;
     let frameNo = 0, lastThunder = -99;
     const loop = () => {
       const t = performance.now() / 1000;
@@ -208,6 +212,8 @@ export function World() {
       // finale yaklaşırken arayüz sadeleşir
       const nowCalm = index >= SCENES.length - 2;
       if (nowCalm !== lastCalm) { lastCalm = nowCalm; setCalm(nowCalm); }
+      const nowFar = y > vh * 0.8;
+      if (nowFar !== lastFar) { lastFar = nowFar; setFar(nowFar); }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
@@ -287,9 +293,14 @@ export function World() {
       ))}
 
       <div ref={caption} className={s.caption} aria-live="polite" />
-      <nav className={`${s.nav} ${calm && !sheet ? s.calm : ""}`} aria-label="Profil">
-        <img className={s.logo} src="/logo.png" alt="İkimizin Rutini" width={1200} height={305} />
-        <ProfileChip />
+      <nav className={s.nav} aria-label="Hesap">
+        <button type="button" className={`${s.logoBtn} ${calm && !sheet ? s.calm : ""}`} onClick={toTop} aria-label="Başa dön">
+          <img className={s.logo} src="/logo.png" alt="" width={1200} height={305} />
+        </button>
+        <span className={s.navRight}>
+          {profileName && <ProfileChip name={profileName} />}
+          <Link href={entry.href} className={s.cta}>{entry.label} <span aria-hidden="true">→</span></Link>
+        </span>
       </nav>
 
       {SCENES.map((scene, i) => (
@@ -299,12 +310,25 @@ export function World() {
               <h1><img className={s.logoBig} src="/logo.png" alt="İkimizin Rutini" width={1200} height={305} /></h1>
               <p>Cengiz ve Ayşenur&apos;un büyülü bir günü</p>
               <span className={s.hint}>Aşağı kaydır <i aria-hidden="true">▼</i></span>
+              <Link href={entry.href} className={s.skip}>Hikâyeyi atla: {entry.label.toLocaleLowerCase("tr")}</Link>
+            </div>
+          )}
+          {i === SCENES.length - 1 && (
+            <div className={s.end}>
+              <p className={s.endKicker}>Hikâyenin sonu</p>
+              <p className={s.endTitle}>Şimdi sıra sizde: bugünün rutini sizi bekliyor.</p>
+              <div className={s.endActions}>
+                <Link href={entry.href} className={s.cta}>{entry.label} <span aria-hidden="true">→</span></Link>
+                {profileName && <Link href="/profil-sec" className={s.ghost}>Profil değiştir ⇄</Link>}
+                <button type="button" className={s.ghost} onClick={() => { setAuto(false); toTop(); }}>↑ Başa dön</button>
+              </div>
             </div>
           )}
         </section>
       ))}
 
       <div className={s.sound}>
+        {far && <button onClick={() => { setAuto(false); toTop(); }} aria-label="Başa dön">↑<span className={s.wide}> Başa dön</span></button>}
         <button onClick={() => setAuto((a) => !a)} aria-pressed={auto}>{auto ? "❚❚ Durdur" : <>▶ <span className={s.wide}>Otomatik </span>oynat</>}</button>
         <button onClick={toggleSound} aria-pressed={sound}>{sound ? "🔊" : "🔇"} <span className={s.wide}>Ortam sesleri: </span>{sound ? (audible ? "Açık" : "Açmak için dokun") : "Kapalı"}</button>
         {sound && (

@@ -66,6 +66,13 @@
 .check input { width: 18px; height: 18px; accent-color: var(--rose); }
 .error { margin: 0; font-size: 13px; color: #8a2b2b; background: #f6d8d0; padding: 6px 8px; box-shadow: inset 0 0 0 2px #8a2b2b; }
 .errorLight { margin: 0; font-size: 13px; color: #fff; background: #8a2b2b; padding: 6px 10px; box-shadow: 0 0 0 2px var(--ink); }
+.back { position: relative; z-index: 1; margin-top: 14px; font-size: 13px; color: var(--goldLt); text-shadow: 2px 2px 0 var(--ink); min-height: 40px; display: inline-flex; align-items: center; }
+.back:hover, .back:focus-visible { color: #fff; }
+.pickNav { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 18px; }
+.pickNav .link { display: inline-flex; align-items: center; }
 .linkDark { font: inherit; font-size: 13px; background: none; border: 0; text-decoration: underline; cursor: pointer; min-height: 36px; color: var(--ink); }
 .primary:disabled { opacity: 0.6; cursor: default; }
 .logo { display: block; width: 100%; height: auto; image-rendering: pixelated; }
+
+/* form ve altındaki "Hikâyeye dön" ortada birlikte durur */
+.page { align-content: center; }

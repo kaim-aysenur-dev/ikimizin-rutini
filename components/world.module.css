@@ -90,6 +90,49 @@
 
 .calm { opacity: 0; pointer-events: none; transition: opacity 0.8s; }
 .nav { transition: opacity 0.8s; }
+.logoBtn { padding: 0; border: 0; background: none; cursor: pointer; transition: opacity 0.8s; }
+.navRight { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+
+/* bir sonraki adım: giriş / profil seçimi / rutine geçiş (her zaman görünür) */
+.cta, .ghost {
+  font: inherit;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 0 14px;
+  border: 0;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cta { color: var(--ink); background: #f3d48a; box-shadow: 0 0 0 2px var(--ink), inset 0 -3px 0 #c89a3e; }
+.cta:hover, .cta:focus-visible { background: #ffe3a3; outline: none; box-shadow: 0 0 0 2px var(--ink), 0 0 0 4px #f3d48a; }
+.ghost { color: var(--cream); background: rgb(26 20 38 / 0.85); box-shadow: 0 0 0 2px var(--ink); }
+.ghost:hover, .ghost:focus-visible { background: var(--rose); outline: none; }
+
+.skip { display: inline-block; margin-top: 14px; font-size: 13px; color: var(--cream); text-shadow: 2px 2px 0 var(--ink); }
+.skip:hover { color: #f3d48a; }
+
+/* hikâyenin sonu: devam etme ve başa dönme */
+.end {
+  position: absolute;
+  left: 50%;
+  bottom: 22svh;
+  transform: translateX(-50%);
+  width: min(92vw, 520px);
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 18px 18px 16px;
+  text-align: center;
+  background: rgb(26 20 38 / 0.88);
+  box-shadow: 0 0 0 3px var(--ink), inset 0 0 0 2px #6b4a35;
+}
+.endKicker { margin: 0; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #f3d48a; }
+.endTitle { margin: 0; font-size: clamp(16px, 2.6vw, 20px); color: var(--cream); }
+.endActions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 4px; }
 
 .bubble {
   position: fixed;
@@ -244,6 +287,7 @@
   .sound label, .wide { display: none; }
   .logo { display: none; }
   .nav { justify-content: flex-end; }
+  .cta { padding: 0 12px; font-size: 13px; }
   .sheetWrap { padding: 0 6px 6px; }
   .sheet { max-height: 72svh; }
   .bubble { font-size: 14px; }

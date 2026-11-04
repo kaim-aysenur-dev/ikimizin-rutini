@@ -1,6 +1,6 @@
 import { Brand } from "@/components/brand";
 import { PanelBackdrop } from "@/components/panel-backdrop";
-import { SideNav, TabBar } from "@/components/shell/nav";
+import { SideExtras, SideNav, TabBar } from "@/components/shell/nav";
 import { UserMenu } from "@/components/shell/user-menu";
 import { TimerProvider } from "@/components/timers";
 import { XpBadge } from "@/components/xp-badge";
@@ -25,6 +25,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       <aside className="sidebar">
         <Brand />
         <SideNav />
+        <SideExtras />
         <p className="sidebar-foot">{SITE_NAME}</p>
       </aside>
       <div>

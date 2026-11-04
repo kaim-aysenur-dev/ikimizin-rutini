@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { gateScene, portraitScene } from "@/lib/scenes/gate";
 import { setProfile } from "@/lib/profile";
 import { api } from "@/lib/api-client";
@@ -55,6 +56,7 @@ export function LoginScreen({ next }: { next?: string }) {
         <button className={s.primary} type="submit" disabled={busy || !identifier || !password}>{busy ? "Kapı açılıyor…" : "Kapıyı aç"}</button>
         <p className={s.foot}>Yalnızca Cengiz ve Ayşenur&apos;a özel.</p>
       </form>
+      <Link href="/" className={s.back}>← Hikâyeye dön</Link>
     </div>
   );
 }
@@ -113,7 +115,11 @@ export function ProfilePicker({ profiles, currentId, next }: { profiles: Profile
           </form>
         )}
         {error && <p className={s.errorLight} role="alert">{error}</p>}
-        <button className={s.link} onClick={() => void logout()}>Çıkış yap</button>
+        <nav className={s.pickNav} aria-label="Diğer seçenekler">
+          {currentId && <a className={s.link} href={next}>← {profiles.find((p) => p.id === currentId)?.name.split(" ")[0]} olarak devam et</a>}
+          <Link className={s.link} href="/">Hikâyeye dön</Link>
+          <button className={s.link} onClick={() => void logout()}>Çıkış yap</button>
+        </nav>
       </div>
     </div>
   );

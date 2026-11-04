@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarCheck, Droplet, Dumbbell, Salad, Settings, Sprout, Swords, type LucideIcon } from "lucide-react";
+import { BookOpen, CalendarCheck, Droplet, Dumbbell, Salad, Settings, Sprout, Swords, Users, type LucideIcon } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -35,6 +35,17 @@ export function SideNav() {
           {label}
         </Link>
       ))}
+    </nav>
+  );
+}
+
+/** Kenar çubuğunun altında: profil değiştir (aynı sayfaya döner) ve hikâye ana sayfası */
+export function SideExtras() {
+  const pathname = usePathname();
+  return (
+    <nav className="sidebar-extra" aria-label="Hesap">
+      <Link href={`/profil-sec?sonra=${encodeURIComponent(pathname)}`}><Users size={20} aria-hidden="true" />Profil değiştir</Link>
+      <Link href="/"><BookOpen size={20} aria-hidden="true" />Hikâye</Link>
     </nav>
   );
 }

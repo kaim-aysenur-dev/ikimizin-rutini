@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Settings, Users } from "lucide-react";
+import { BookOpen, ChevronDown, Settings, Users } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -54,8 +54,11 @@ export function UserMenu({ name, account, avatarUrl }: Props) {
             <strong>{name}</strong>
             <span>Ortak hesap: {account}</span>
           </div>
-          <Link href="/profil-sec" role="menuitem">
+          <Link href={`/profil-sec?sonra=${encodeURIComponent(pathname)}`} role="menuitem">
             <Users size={18} /> Profil değiştir
+          </Link>
+          <Link href="/" role="menuitem">
+            <BookOpen size={18} /> Hikâye (ana sayfa)
           </Link>
           <Link href="/ayarlar" role="menuitem">
             <Settings size={18} /> Ayarlar
