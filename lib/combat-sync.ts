@@ -1,7 +1,7 @@
 // Dövüşün görsel olayları: kısa geçmiş, tek seferlik oynatma ve hasarsız uzak efektler.
 import { type Effect } from "./combat";
 
-export type Action = { kind: "vurus" | "buyu"; id: string; at: number; effects?: Effect[]; recent?: Action[] };
+export type Action = { kind: "vurus" | "buyu" | "emote"; id: string; at: number; effects?: Effect[]; recent?: Action[] };
 export const ACTION_TTL = 6000;
 const MAX_ACTIONS = 32;
 const KINDS = new Set(["vurus", "kivilcim", "ok", "kalkani", "muhru", "yagmuru", "patlamasi", "sifa", "ejder", "iki-kalp", "hasar", "sifa-sayi"]);
@@ -9,7 +9,7 @@ const bounded = (v: unknown, limit: number): v is number => typeof v === "number
 
 /** Süreler göndericinin performance.now saatinden bağımsız taşınır. */
 export function captureAction(kind: Action["kind"], id: string, at: number, fx: Effect[]): Action {
-  const start = fx[0].at;
+  const start = fx[0]?.at ?? 0; // emote'un efekti yok
   return { kind, id, at, effects: fx.map((e) => ({ ...e, at: 0, until: e.until - start })) };
 }
 
@@ -17,7 +17,7 @@ export function captureAction(kind: Action["kind"], id: string, at: number, fx: 
 export function parseAction(input: unknown): Action | null {
   if (!input || typeof input !== "object") return null;
   const a = input as Record<string, unknown>;
-  if ((a.kind !== "vurus" && a.kind !== "buyu") || typeof a.id !== "string" || a.id.length > 60 || !bounded(a.at, Number.MAX_SAFE_INTEGER)) return null;
+  if ((a.kind !== "vurus" && a.kind !== "buyu" && a.kind !== "emote") || typeof a.id !== "string" || a.id.length > 60 || !bounded(a.at, Number.MAX_SAFE_INTEGER)) return null;
   const result: Action = { kind: a.kind, id: a.id, at: a.at };
   if (Array.isArray(a.effects)) {
     result.effects = a.effects.slice(0, 64).flatMap((raw): Effect[] => {

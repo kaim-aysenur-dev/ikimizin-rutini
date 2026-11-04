@@ -217,23 +217,37 @@ export const CASTLE_DECOR: Decor[] = [
 
 CASTLE_DECOR.push(D("merdiven-yukari", 12, 1));
 
-// 2. kat: talim katı (hedefler TARGETS'ta)
+// 2. kat: talim katı (hedefler TARGETS'ta). Arena mankenlerin ekseni i = 6, büyü odası i = 28, balkon i = 9.
 const TRAINING_DECOR: Decor[] = [
   D("merdiven-yukari", 12, 1), D("merdiven-asagi", 14, 1),
-  D("silah-rafi", 2, 0), D("silah-rafi", 4, 0), D("zirh-askisi", 6, 0), D("kum-torbasi", 11, 9), D("agirlik", 13, 11), D("sovalye", 0, 12),
-  D("minder", 9, 6), D("minder", 9, 8),
-  D("silah-rafi", 20, 0), D("silah-rafi", 22, 0), D("sandik", 25, 0), D("samdan-altın", 19, 8),
-  D("run-cemberi", 23, 15), D("kursu", 22, 12), D("kristal-kure-mavi", 20, 22), D("iksir-rafi-çam", 35, 11), D("iksir-rafi-ceviz", 35, 12), D("samdan-gümüş", 26, 22),
-  D("bank", 3, 22), D("bank", 10, 22), D("fener", 0, 15), D("fener", 0, 23), D("fener", 16, 23),
+  // arena: arka duvarda karşılıklı raflar, mankenlerin arasında minder, yanlarda kum torbaları, sol duvarda şövalyeler
+  D("silah-rafi", 2, 0), D("zirh-askisi", 4, 0), D("zirh-askisi", 7, 0), D("silah-rafi", 9, 0),
+  D("minder", 5, 7), D("minder", 5, 8), D("kum-torbasi", 11, 5), D("kum-torbasi", 11, 9), D("sovalye", 0, 4, 1), D("sovalye", 0, 10, 1), D("agirlik", 13, 11),
+  // okçuluk: atış hattının arkasında raflar ve sandık
+  D("silah-rafi", 19, 0), D("silah-rafi", 21, 0), D("sandik", 23, 0), D("samdan-altın", 19, 9),
+  // büyü odası: ortada rün çemberi, önünde kürsü, iki yanda kristal küre, arka duvarda iksir rafları
+  D("run-cemberi", 25, 16), D("kursu", 23, 17), D("kristal-kure-mavi", 20, 14), D("kristal-kure-mavi", 20, 21),
+  D("iksir-rafi-çam", 22, 10), D("iksir-rafi-ceviz", 33, 10), D("samdan-gümüş", 24, 23), D("samdan-gümüş", 31, 23),
+  // balkon: iki bank ve dört köşede fener
+  D("bank", 3, 22), D("bank", 13, 22), D("fener", 0, 15), D("fener", 17, 15), D("fener", 0, 23), D("fener", 17, 23),
 ];
-// 3. kat: iki zırh odası (istasyonlar ARMORY_STATIONS'ta) ve kule koridoru
+// 3. kat: Ayşenur'un odası Cengiz'inkinin aynası (i = 18 ekseni), renkler lacivert yerine pembe
+const CENGIZ_ROOM: Decor[] = [
+  D("zirh-standi", 2, 3), D("silah-duvari", 4, 0), D("buyu-kursusu", 2, 10), D("zirh-askisi", 8, 0), D("sandik", 10, 0),
+  D("hali-lacivert", 5, 5), D("buyuk-hali-lacivert", 5, 12, 1), D("ayna", 0, 6, 1), D("sovalye", 0, 20, 1), D("samdan-gümüş", 10, 22),
+];
+const AYSENUR_ID: Record<string, string> = { "hali-lacivert": "hali-pembe", "buyuk-hali-lacivert": "buyuk-hali-pembe", sovalye: "vazo-pembe", "samdan-gümüş": "kedi-yatagi-pembe" };
+const mirrored = (d: Decor): Decor => {
+  const r = d.rot ?? 0, [w] = decorSize(d);
+  // aynada sağa bakan sola, sola bakan sağa döner; şatoya özel dekor yalnız aynalanabildiği için düz kalır
+  const rot = PROPS[d.id] ? 0 : r === 1 ? 3 : r === 3 ? 1 : r;
+  return D(AYSENUR_ID[d.id] ?? d.id, 36 - d.tx - w, d.ty, rot);
+};
 const ARMORY_DECOR: Decor[] = [
   D("merdiven-asagi", 14, 1),
-  D("zirh-standi", 2, 3), D("silah-duvari", 4, 0), D("buyu-kursusu", 2, 10),
-  D("buyuk-hali-lacivert", 4, 12), D("hali-lacivert", 5, 5), D("sandik", 9, 1), D("ayna", 0, 6), D("samdan-gümüş", 10, 22), D("sovalye", 0, 20), D("zirh-askisi", 7, 0),
-  D("buyuk-hali-kırmızı", 16, 10), D("sovalye", 13, 22), D("sovalye", 22, 22), D("saat-ceviz", 20, 0), D("samdan-altın", 13, 12), D("samdan-altın", 22, 12),
-  D("zirh-standi", 33, 3), D("silah-duvari", 29, 0), D("buyu-kursusu", 33, 10),
-  D("buyuk-hali-pembe", 29, 12), D("hali-pembe", 30, 5), D("sandik", 26, 1), D("ayna", 35, 6), D("vazo-pembe", 35, 22), D("kedi-yatagi-pembe", 26, 22), D("samdan-gümüş", 34, 22),
+  ...CENGIZ_ROOM, ...CENGIZ_ROOM.map(mirrored),
+  // koridor (eksen i = 18): ortada halı, iki yanda şamdan ve şövalye
+  D("buyuk-hali-kırmızı", 17, 9, 1), D("samdan-altın", 13, 12), D("samdan-altın", 22, 12), D("sovalye", 13, 22, 1), D("sovalye", 22, 22), D("saat-ceviz", 20, 0),
 ];
 export const castleDecor = (floor: Floor): Decor[] => (floor === 1 ? CASTLE_DECOR : floor === 2 ? TRAINING_DECOR : ARMORY_DECOR);
 

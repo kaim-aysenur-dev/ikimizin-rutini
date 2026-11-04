@@ -11,11 +11,14 @@ import { screenRain, stormFlash } from "./gelisim-storm";
 import { drawEffect, drawHeld } from "./combat-draw";
 import { type Effect, shotAt } from "./combat";
 import { STAND_F, walkFrame } from "./anim";
+import { MATS } from "./gear";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
 export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number }; study?: { reading: boolean; focus: boolean };
-  gear?: { weapon: string | null; swing?: number }; shield?: boolean }; // elde silah, savuruş ilerlemesi (0..1), kalkan büyüsü
+  gear?: { weapon: string | null; armor?: string | null; swing?: number }; shield?: boolean; // elde silah, kuşanılan zırh (miğfer, kalkan görünür), savuruş (0..1), kalkan büyüsü
+  emote?: { kind: Emote; at: number } }; // başın üstünde kısa bir kalp ya da el sallama
+export type Emote = "kalp" | "el";
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
@@ -545,7 +548,9 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         rect(c, d > 0 ? bx : bx + 11, a.hip[1] - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
         for (let q = 0; q < 3; q++) px(c, bx + 3 + q * 4, a.hip[1] - 3 + (q % 2), "rgba(255,255,255,0.35)");
       }
+      wornGear(c, a, h.dir, h.gear?.armor, !!h.sit);
       if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
+      if (h.emote && t - h.emote.at < 2.2) emoteAbove(c, a.head, h.emote.kind, t - h.emote.at);
       if (h.shield) for (let k = 0; k < 20; k++) { const ang = t * 2 + (k / 20) * Math.PI * 2; px(c, Math.round(x + Math.cos(ang) * 10), Math.round(y - 10 + Math.sin(ang) * 6), k % 2 ? "#f3d48a" : "rgba(255,255,255,0.5)"); }
       if (h.sit?.sleep && k >= 1) for (let k = 0; k < 3; k++) {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
@@ -626,6 +631,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     const g = s.ghost;
     for (const [a, b] of footprint(g.itemId, g.tx, g.ty, g.rot)) tile(c, o, a, b, g.ok ? "rgba(120,220,140,0.45)" : "rgba(232,96,96,0.45)");
     c.save(); c.globalAlpha = 0.7; drawItem(c, o, g, t); c.restore();
+    facingArrow(c, o, g, g.ok ? "#9fe8ae" : "#f09090");
   }
 
   // ışıklar: meşale, mum, pencere, ateş böceği
@@ -683,4 +689,59 @@ function studyProps(c: Ctx, x: number, y: number, dir: 1 | -1, st: { reading: bo
   }
   const g = 0.5 + 0.5 * Math.sin(t * 2);
   rect(c, x - 1, y - 33, 3, 1, `rgba(255,236,170,${(0.45 + 0.4 * g).toFixed(2)})`);
+}
+
+// ------------------------------- kuşanılanlar ve emote -------------------------------
+
+const INK_C = "#1a1420";
+/** Kuşanılan miğfer başın üstünde, kalkan arka kolda; renkler zırhın malzemesinden */
+function wornGear(c: Ctx, a: { head: V; hip: V }, dir: 1 | -1, armor: string | null | undefined, seated: boolean) {
+  if (!armor) return;
+  const m = MATS.find((x) => armor.endsWith(`-${x.id}`));
+  if (!m) return;
+  if (armor.startsWith("migfer-")) {
+    const [hx, hy] = a.head;
+    rect(c, hx - 4, hy, 9, 1, INK_C); rect(c, hx - 5, hy + 1, 11, 4, INK_C);
+    rect(c, hx - 3, hy + 1, 7, 1, m.base); rect(c, hx - 4, hy + 2, 9, 1, m.base);
+    rect(c, hx - 3, hy + 2, 2, 1, m.lt); rect(c, hx - 4, hy + 3, 9, 1, m.dk);
+    rect(c, hx + (dir > 0 ? 1 : -2), hy + 4, 1, 2, m.dk); // burun koruması
+    rect(c, hx, hy - 3, 1, 3, m.gem); rect(c, hx - 1, hy - 4, 3, 1, m.gem); // sorguç
+  } else if (armor.startsWith("kalkan-") && !seated) {
+    // kalkan gövdenin arka yanında, kolda taşınır gibi
+    const x = a.hip[0] - dir * 5 - 3, y = a.hip[1] - 9;
+    rect(c, x - 1, y - 1, 8, 7, INK_C); rect(c, x, y + 6, 6, 1, INK_C); rect(c, x + 1, y + 7, 4, 1, INK_C); rect(c, x + 2, y + 8, 2, 1, INK_C);
+    rect(c, x, y, 6, 6, m.base); rect(c, x + 1, y + 6, 4, 1, m.base); rect(c, x + 2, y + 7, 2, 1, m.dk);
+    rect(c, x + 2, y, 2, 7, m.dk); px(c, x + 2, y + 2, m.gem); px(c, x + 3, y + 2, m.gem); px(c, x, y, m.lt);
+  }
+}
+
+/** Başın üstünde: yükselen kalpler ya da sallanan el */
+function emoteAbove(c: Ctx, [hx, hy]: V, kind: Emote, age: number) {
+  const fade = age > 1.7 ? Math.max(0, (2.2 - age) / 0.5) : 1;
+  c.save(); c.globalAlpha = fade;
+  if (kind === "kalp") {
+    for (let k = 0; k < 3; k++) {
+      const q = (age * 0.8 + k / 3) % 1;
+      sprite(c, SMALL_HEART, Math.round(hx - 2 + Math.sin(q * 6 + k) * 4), Math.round(hy - 6 - q * 16), { o: P.ink, x: k % 2 ? "#e48aa0" : "#d8485a" });
+    }
+  } else {
+    const sw = Math.round(Math.sin(age * 14) * 2), x = hx + 6 + sw, y = hy - 8;
+    rect(c, x - 1, y - 1, 6, 7, INK_C); rect(c, x, y, 4, 5, "#f0c8a0"); // avuç
+    for (let f = 0; f < 3; f++) { rect(c, x + f + (f > 0 ? f - 1 : 0), y - 3, 1, 3, INK_C); }
+    rect(c, x, y - 2, 1, 2, "#f0c8a0"); rect(c, x + 2, y - 3, 1, 3, "#f0c8a0"); rect(c, x + 4, y - 2, 1, 2, INK_C);
+    rect(c, x - 2, y + 2, 1, 2, "#f0c8a0"); // başparmak
+  }
+  c.restore();
+}
+
+/** Yerleştirme önizlemesi: eşyanın önünün baktığı yöne zeminde bir ok (0 +j, 1 +i, 2 -j, 3 -i) */
+function facingArrow(c: Ctx, o: Origin, g: { itemId: string; tx: number; ty: number; rot?: number }, color: string) {
+  const r = (g.rot ?? 0) & 3, [w, d] = sizeOf(g.itemId, r);
+  const [di, dj] = ([[0, 1], [1, 0], [0, -1], [-1, 0]] as const)[r];
+  const ci = g.tx + w / 2, cj = g.ty + d / 2, reach = (di ? w : d) / 2 + 0.7;
+  const p0 = at(o, ci + di * (reach - 0.6), cj + dj * (reach - 0.6)), p1 = at(o, ci + di * reach, cj + dj * reach);
+  const vx = p1[0] - p0[0], vy = p1[1] - p0[1], l = Math.hypot(vx, vy) || 1, ux = vx / l, uy = vy / l;
+  const tip: V = [p1[0] + ux * 3, p1[1] + uy * 3], back: V = [p1[0] - ux * 3, p1[1] - uy * 3];
+  line(c, p0, back, 2, color);
+  poly(c, [tip, [back[0] - uy * 4, back[1] + ux * 4], [back[0] + uy * 4, back[1] - ux * 4]], color);
 }

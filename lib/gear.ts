@@ -207,7 +207,7 @@ const HANDMADE: Gear[] = [
 // Her biri kendi adını, açıklamasını ve seviyesini alır; çizim malzemenin renkleriyle yapılır.
 
 type Mat = { id: string; name: string; base: string; lt: string; dk: string; gem: string; desc: string };
-const MATS: Mat[] = [
+export const MATS: Mat[] = [
   { id: "tahta", name: "Tahta", base: "#b88a5c", lt: "#d8b080", dk: "#8c6448", gem: "#5fae6e", desc: "Atölyede yontulmuş; ilk adımlar için." },
   { id: "bakir", name: "Bakır", base: "#c8784a", lt: "#e8a070", dk: "#8a4a2a", gem: "#5fae6e", desc: "Sıcak bir parıltısı var, yumuşak ama sevimli." },
   { id: "demir", name: "Demir", base: "#8e95a3", lt: "#c8ccd8", dk: "#5e6470", gem: "#c8463a", desc: "Köy demircisinden; sağlam ve güvenilir." },

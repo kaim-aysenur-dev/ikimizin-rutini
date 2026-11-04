@@ -1,6 +1,6 @@
 // Gelişim dövüşü: Hazine eşyalarının oyundaki değerleri. Seviye arttıkça eşya güçlenir.
 // Dengelemek için bütün sayılar bu dosyada.
-import { GEAR } from "./gear";
+import { GEAR, MATS } from "./gear";
 
 export type WeaponStyle = "kilic" | "hancer" | "yay" | "mizrak" | "agir" | "asa" | "iki-elli";
 export type WeaponStats = { style: WeaponStyle; damage: number; cooldown: number; range: number; combo: number; trail?: string };
@@ -57,6 +57,21 @@ export function armorStats(id: string): ArmorStats | null {
   return { tier, defense: Math.round(lv * 0.8), bonusHp: lv * 2 };
 }
 
+// kuşanılan zırhın karakterdeki görünümü: her zırh kendi malzemesinin rengini giydirir
+type Tint = { top: string; topDk: string; bottom?: string; skirt?: string };
+const HAND_LOOK: Record<string, Tint> = {
+  tunik: { top: "#c8b48a", topDk: "#9a8a64" }, "deri-zirh": { top: "#8a5a36", topDk: "#6a4226" }, "celik-zirh": { top: "#9aa0ae", topDk: "#6e7482" },
+  "altin-zirh": { top: "#d8a840", topDk: "#a87a24" }, "efsane-zirhi": { top: "#6a5aa8", topDk: "#4a3a80" },
+};
+/** Zırh yoksa ev kıyafeti; tunik kumaş giysi, diğerleri malzeme renginde zırh */
+export function armorLook(id: string | null | undefined): { outfit: "home" | "armor"; tint?: Tint } {
+  if (!id || !armorStats(id)) return { outfit: "home" };
+  if (id === "tunik") return { outfit: "home", tint: HAND_LOOK.tunik };
+  const m = MATS.find((x) => id.endsWith(`-${x.id}`));
+  const t = HAND_LOOK[id] ?? (m ? { top: m.base, topDk: m.dk } : undefined);
+  return { outfit: "armor", tint: t && { ...t, bottom: t.topDk, skirt: t.top } }; // bacaklar ve etek de zırh renginde
+}
+
 /* ---------------------------------- büyüler --------------------------------- */
 
 const ELEMENT: Record<string, [string, string]> = {
@@ -94,6 +109,8 @@ if (process.env.NODE_ENV !== "production") {
   console.assert((w("kalp-kilici")?.damage ?? 0) > (w("ejder-kilici")?.damage ?? 0) && (w("ejder-kilici")?.damage ?? 0) > (w("tahta-kilic")?.damage ?? 0), "yüksek seviyeli kılıç daha güçlü");
   console.assert(w("avci-yayi")?.style === "yay" && (w("avci-yayi")?.range ?? 0) >= 6, "yay uzaktan vurur");
   console.assert((a("efsane-zirhi")?.defense ?? 0) > (a("tunik")?.defense ?? 0) && a("tunik")?.tier === "cloth", "zırh savunması");
+  console.assert(armorLook(null).outfit === "home" && armorLook("altin-zirh").outfit === "armor" && armorLook("gogusluk-bakir").tint?.top === "#c8784a"
+    && armorLook("gogusluk-bakir").tint?.top !== armorLook("gogusluk-demir").tint?.top, "her zırh kendi renginde");
   console.assert(s("alev-topu")?.shape === "kivilcim" && (s("sifa")?.heal ?? 0) > 0 && s("buyu-buz-muhru")?.shape === "muhru", "büyü şekilleri");
   console.assert(w("yok") === null, "bilinmeyen eşya");
   console.assert(GEAR.filter((g) => g.kind === "Silah").every((g) => w(g.id)), "her silahın değeri var");

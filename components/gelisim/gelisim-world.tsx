@@ -4,14 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { PixelIcon } from "@/components/pixel-icon";
 import { StudyDesk, type StudyTab } from "@/components/gelisim/study-desk";
 import { api } from "@/lib/api-client";
-import { type Anchor, type Cat, type Hero, type Theme, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
+import { type Anchor, type Cat, type Emote, type Hero, type Theme, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
 import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
 import { CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, footprint, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
 import { ARMORY_STATIONS, CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
 import { type Equipment, NO_EQUIPMENT, sanitizeEquipment, toggleEquip } from "@/lib/equipment";
-import { FIST, armorStats, spellStats, weaponStats } from "@/lib/combat-stats";
+import { FIST, armorLook, spellStats, weaponStats } from "@/lib/combat-stats";
 import { type Effect, type Fighter, type Target, attack, cast, newFighter, stepEffects, tick as tickFighter } from "@/lib/combat";
 import { type Action, ACTION_TTL, actionHistory, captureAction, replayEffects, unseenActions } from "@/lib/combat-sync";
 import { CombatHud, type HudSpell } from "@/components/gelisim/combat-hud";
@@ -21,8 +21,7 @@ import { ArmoryPanel } from "@/components/gelisim/armory-panel";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
 import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, isFlat, itemById } from "@/lib/room-items";
-import { TIERS } from "@/lib/scenes/hall";
-import { levelOf, tierOf, xpToLevel } from "@/lib/xp";
+import { levelOf, xpToLevel } from "@/lib/xp";
 import { XP_EVENT } from "@/components/xp-badge";
 
 type Profile = { id: string; name: string; level: number; xp?: number };
@@ -33,13 +32,8 @@ type Remote = Hero & { userId: string; ti: number; tj: number; swingAt?: number 
 const TARGET_HP = 300;
 
 const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
-const look = (level: number) => { const t = TIERS[tierOf(level)]; return { outfit: t.outfit, tint: t.tint }; };
-/** Görünüm: kuşanılmış zırh varsa onun kademesi, yoksa seviyenin kademesi; elde kuşanılmış silah */
-const lookFor = (level: number, eq: Equipment | undefined) => {
-  const a = eq?.armor ? armorStats(eq.armor) : null;
-  const base = a ? { outfit: TIERS[a.tier].outfit, tint: TIERS[a.tier].tint } : look(level);
-  return { ...base, gear: { weapon: eq?.weapon ?? null } };
-};
+/** Görünüm: kuşanılmış zırh kıyafeti değiştirir (yoksa ev kıyafeti); elde kuşanılmış silah */
+const lookFor = (_level: number, eq: Equipment | undefined) => ({ ...armorLook(eq?.armor), gear: { weapon: eq?.weapon ?? null, armor: eq?.armor ?? null } });
 const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope === "sato" && w.floor > 1 ? `sato:${w.floor}` : w.scope);
 const floorOf = (w: Where): Floor => (w.scope === "sato" ? w.floor : 1);
 const SATO_SEATS: Record<Floor, Placed[]> = { 1: castleInteractive(1), 2: castleInteractive(2), 3: castleInteractive(3) };
@@ -270,6 +264,13 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     shareAction("buyu", eq.spells[slot], fx);
   };
 
+  // Q / G: başın üstünde kalp ya da el sallama (karşının ekranında da görünür)
+  const doEmote = (kind: Emote) => {
+    if (fade.current || modalRef.current) return;
+    hero.current.emote = { kind, at: nowSec() };
+    shareAction("emote", kind, []);
+  };
+
   // F / ✋: yakındaki şeyle etkileşim
   const interact = () => {
     const h = hero.current, nb = nearRef.current;
@@ -346,6 +347,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       }
       if (k === "f" || k === " ") { e.preventDefault(); if (!e.repeat) interact(); }
       if (k === "j") { e.preventDefault(); doAttack(); }
+      if ((k === "q" || k === "g") && !e.repeat) { e.preventDefault(); doEmote(k === "q" ? "kalp" : "el"); }
       if (/^[1-4]$/.test(k)) { e.preventDefault(); doCast(Number(k) - 1); }
       if (KEYS[k]) {
         keys.current.add(k); if (k.startsWith("arrow")) e.preventDefault();
@@ -418,14 +420,23 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           const sit = seated ? { lift: Number(lift) || 0, sleep: kind === "lie", at: prev?.sit ? prev.sit.at : performance.now() / 1000, depth: seatDepth(o.x, o.y) } : undefined;
           const study = seated && (kind === "desk" || kind === "read") ? { reading: kind === "read", focus: !!o.focus } : undefined;
           // karşının yeni saldırısı: savuruşu ya da büyüsü burada da oynar (hasar yalnız kendi ekranında)
-          let swingAt = prev?.swingAt;
+          let swingAt = prev?.swingAt, emote = prev?.emote;
           const seen = remoteSeen.current[o.userId] ??= new Set<number>();
           for (const act of unseenActions(o.action, seen, joinedAt)) {
             const now = nowSec();
+            if (act.kind === "emote") { if (act.id === "kalp" || act.id === "el") emote = { kind: act.id, at: now }; continue; }
             if (act.kind === "vurus") swingAt = now;
             remoteEffects.current.push(...replayEffects(act, now));
+            // talim hedefleri ortak: karşının verdiği hasar buradaki hedefin canından da düşer
+            for (const e of act.effects ?? []) {
+              if (e.kind !== "hasar" || !e.value) continue;
+              const tg = targets.current.find((x) => Math.abs(x.i - e.i) < 0.01 && Math.abs(x.j - e.j) < 0.01);
+              if (!tg || tg.hp <= 0) continue;
+              tg.hp = Math.max(0, tg.hp - e.value); tg.hitAt = now;
+              if (tg.hp === 0) tg.downAt = now;
+            }
           }
-          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt, sit, study };
+          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt, emote, sit, study };
         });
       } catch { /* bağlantı koparsa kısa olay geçmişiyle yeniden dener */ }
       finally { inFlight = false; if (again) { again = false; void tick(); } }
@@ -600,11 +611,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (cushion) catState = { i: cushion.tx + 0.5, j: cushion.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
       if (cur.scope === "sato" && cur.floor === 1 && SATO_CUSHION) catState = { i: SATO_CUSHION.tx + 0.5, j: SATO_CUSHION.ty + 0.6, dir: -1, dist: 0, moving: false, sleep: true };
       if (cur.scope === "bahce") {
-        const k = cat.current;
+        const k = cat.current, mate = others.current[0];
+        // partner bahçedeyse Düldül onun bir adım arkasına koşar
+        const follow = mate && Math.hypot(mate.i - k.i, mate.j - k.j) > 1.6;
+        if (follow) { const a = Math.floor(mate.i - mate.dir * 0.8), b = Math.floor(mate.j + 0.8); if (!gardenSolid(a, b) && !blocked.has(`${a},${b}`)) { k.goal = [a, b]; k.wait = 1.5; } }
         const gi = k.goal[0] + 0.5 - k.i, gj = k.goal[1] + 0.5 - k.j, gl = Math.hypot(gi, gj);
         if (gl < 0.1) {
           k.moving = false; k.wait -= dt;
-          if (k.wait <= 0) {
+          if (k.wait <= 0 && !mate) {
             for (let tries = 0; tries < 10; tries++) {
               const a = Math.floor(k.i) - 4 + Math.floor(Math.random() * 9), b = Math.floor(k.j) - 4 + Math.floor(Math.random() * 9);
               if (a > 0 && b > CASTLE.j1 + 1 && a < SIZE.bahce.w - 1 && b < SIZE.bahce.d - 1 && !gardenSolid(a, b) && !blocked.has(`${a},${b}`)) { k.goal = [a, b]; break; }
@@ -612,7 +626,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             k.wait = 2 + Math.random() * 4;
           }
         } else {
-          const st = Math.min(gl, 1.6 * dt);
+          const st = Math.min(gl, (gl > 2.5 ? 3.6 : 1.6) * dt);
           k.i += (gi / gl) * st; k.j += (gj / gl) * st; k.dist += st * 8; k.moving = true;
           if (gi - gj !== 0) k.dir = gi - gj > 0 ? 1 : -1;
         }
@@ -639,10 +653,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       // dövüş: can/mana dolar, mermiler uçar, savuruş ilerler
       const fgt = fighter.current;
       tickFighter(fgt, dt, t);
-      effects.current = stepEffects(effects.current, cur.scope === "sato" && cur.floor === 2 ? targets.current : [], t);
+      const flying = effects.current;
+      effects.current = stepEffects(flying, cur.scope === "sato" && cur.floor === 2 ? targets.current : [], t);
+      // ok ve büyü mermisi sonradan çarpar: isabet ayrıca gönderilir ki hedefin canı karşıda da düşsün
+      const hits = effects.current.filter((e) => e.kind === "hasar" && !flying.includes(e));
+      if (hits.length) shareAction("buyu", "isabet", hits);
       remoteEffects.current = stepEffects(remoteEffects.current, cur.scope === "sato" && cur.floor === 2 ? targets.current : [], t);
       const wpn = (eqRef.current.weapon && weaponStats(eqRef.current.weapon)) || FIST, since = t - fgt.comboAt;
-      h.gear = { weapon: eqRef.current.weapon, swing: since >= 0 && since < wpn.cooldown ? since / wpn.cooldown : 0 };
+      h.gear = { weapon: eqRef.current.weapon, armor: eqRef.current.armor, swing: since >= 0 && since < wpn.cooldown ? since / wpn.cooldown : 0 };
       h.shield = fgt.shield > 0;
       for (const r of others.current) if (r.gear) r.gear = { ...r.gear, swing: r.swingAt !== undefined && t - r.swingAt < 0.35 ? (t - r.swingAt) / 0.35 : 0 };
       const targetState = cur.scope === "sato" && cur.floor === 2
@@ -869,8 +887,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
               <button type="button" onClick={() => changeZoom(1)} aria-label="Yakınlaştırmayı sıfırla" title="Normal görünüme dön (0)">{Math.round(zoom * 100)}%</button>
               <button type="button" onClick={() => changeZoom(zoom + 0.05)} disabled={zoom >= 1.3} aria-label="Yakınlaştır" title="Yakınlaştır (+)">+</button>
             </div>
+            <button type="button" className="btn btn-ghost gw-tool" aria-keyshortcuts="Q" onClick={() => doEmote("kalp")} title="Başının üstünde kalp (Q)"><span>💗 Kalp</span><kbd>Q</kbd></button>
+            <button type="button" className="btn btn-ghost gw-tool" aria-keyshortcuts="G" onClick={() => doEmote("el")} title="El salla (G)"><span>👋 El salla</span><kbd>G</kbd></button>
             <button type="button" className="btn btn-ghost gw-tool" aria-expanded={helpOpen} aria-keyshortcuts="H" onClick={() => setHelpOpen((v) => !v)}><span>Kısayollar</span><kbd>H</kbd></button>
-            {helpOpen && <p className="gw-tool-help">WASD / oklar: yürü<br />F: etkileşim · J / tık: saldırı<br />1–4: büyü · tekerlek: yakınlaştır<br />Esc: pencereyi / işlemi kapat</p>}
+            {helpOpen && <p className="gw-tool-help">WASD / oklar: yürü<br />F: etkileşim · J / tık: saldırı<br />1–4: büyü · tekerlek: yakınlaştır<br />Q: kalp · G: el salla<br />Esc: pencereyi / işlemi kapat</p>}
           </div>
         </nav>
         {(locked || atDesk || near) && <p className="gw-interaction" role="status">{locked ? "🔒 Çalışıyorsun · F: paneli aç" : atDesk ? "F: çalışma panelini aç · yürüyünce kalkarsın" : `F: ${near?.label}`}</p>}
