@@ -5,8 +5,8 @@ import { sql } from "./db";
 import { streakAndDays } from "./overview";
 import { type Goal, MAX_ACTIVE, type Metric, type Progress, TIERS, type Tier, type Wish, type WishCat, type WishStatus, goalsMet } from "./wishes";
 
-// Dilek Dolabı. Görünürlük: herkes yalnız kendi dileklerini ve ikinizin ortak dileklerini görür.
-// Düzenleme ve eylemler yalnız sahibinde.
+// Dilek Dolabı. Her evin gardırobu o evin sahibinin dolabıdır: sahibinin dilekleri ve ikinizin ortak dilekleri.
+// Dolaba dilek ikiniz de ekleyebilirsiniz; düzenleme ve eylemler (başlat, aldım...) yalnız sahibinde.
 
 type U = { id: string; accountId: string };
 
@@ -42,13 +42,19 @@ async function metricsOf(userId: string, from: string, to: string, today: string
 type Row = Record<string, unknown> & { id: string; user_id: string; goals: Goal[]; days: number; status: WishStatus; start_day: string | null; shared: boolean };
 
 /** Hesaptaki bütün dilekler; görevdekilerin ilerlemesi hesaplanır, tamamlananlar burada "kazanıldı"ya geçer */
-export async function wishOverview(user: U, today: string): Promise<{ wishes: Wish[] }> {
+/** Aynı hesaptaki kişi mi (başkasının dolabı açılamaz) */
+export async function isMember(user: U, id: string): Promise<boolean> {
+  const [r] = await sql()`select 1 from users where id = ${id} and account_id = ${user.accountId}`;
+  return !!r;
+}
+
+export async function wishOverview(user: U, today: string, owner: string = user.id): Promise<{ wishes: Wish[] }> {
   const [rows, members] = await Promise.all([
     sql()`
       select w.id, w.user_id, w.title, w.brand, w.category, w.tier, w.price, w.link, w.note, w.photo, w.shared, w.goals, w.days, w.status,
         to_char(w.start_day, 'YYYY-MM-DD') as start_day, w.attempts, w.earned_at, w.claimed_at
       from wishes w join users u on u.id = w.user_id
-      where u.account_id = ${user.accountId} and (w.user_id = ${user.id} or w.shared) order by w.created_at`,
+      where u.account_id = ${user.accountId} and (w.user_id = ${owner} or w.shared) order by w.created_at`,
     sql()`select id from users where account_id = ${user.accountId} order by created_at`,
   ]) as unknown as [Row[], { id: string }[]];
 
@@ -88,14 +94,20 @@ export type WishInput = {
   photo: string | null; shared: boolean; goals: Goal[];
 };
 
-export async function createWish(user: U, w: WishInput): Promise<string | { error: string }> {
-  const [{ n }] = await sql()`select count(*)::int as n from wishes where user_id = ${user.id}`;
+export async function createWish(owner: string, w: WishInput): Promise<string | { error: string }> {
+  const [{ n }] = await sql()`select count(*)::int as n from wishes where user_id = ${owner}`;
   if (n >= 60) return { error: "Dolap dolu: en fazla 60 dilek." };
   const [r] = await sql()`
     insert into wishes (user_id, title, brand, category, tier, price, link, note, photo, shared, goals, days)
-    values (${user.id}, ${w.title}, ${w.brand}, ${w.cat}, ${w.tier}, ${w.price}, ${w.link}, ${w.note}, ${w.photo}, ${w.shared}, ${JSON.stringify(w.goals)}::jsonb, ${TIERS[w.tier].days})
+    values (${owner}, ${w.title}, ${w.brand}, ${w.cat}, ${w.tier}, ${w.price}, ${w.link}, ${w.note}, ${w.photo}, ${w.shared}, ${JSON.stringify(w.goals)}::jsonb, ${TIERS[w.tier].days})
     returning id`;
   return r.id;
+}
+
+/** Kendi dileğinin şu anki fotoğrafı (düzenlemede korunması için) */
+export async function photoOf(user: U, id: string): Promise<string | null> {
+  const [r] = await sql()`select photo from wishes where id = ${id} and user_id = ${user.id}`;
+  return r?.photo ?? null;
 }
 
 /** Görevdeyken yalnız görünüş (ad, marka, bağlantı, not, fotoğraf, fiyat) değişir; koşullar kilitli */

@@ -93,6 +93,9 @@ export const CAT_ORDER = Object.keys(WISH_CATS) as WishCat[];
 // Fikir vermek için: dokununca form dolar, fiyatı ve bağlantıyı siz eklersiniz.
 
 export type Suggestion = { title: string; brand: string; cat: WishCat; tier: Tier; metrics: Metric[]; note?: string };
+/** Öneri için alışveriş araması (fiyat ve stok değiştiği için tek ürün sayfası yerine arama sonuçları) */
+export const shopLink = (s: Pick<Suggestion, "title" | "brand">) =>
+  `https://www.google.com/search?tbm=shop&q=${encodeURIComponent([s.brand, s.title.replace(/\s*\(.*?\)\s*/g, " ")].filter(Boolean).join(" ").trim())}`;
 
 export const SUGGESTIONS: Record<"aysenur" | "cengiz" | "ortak", Suggestion[]> = {
   aysenur: [

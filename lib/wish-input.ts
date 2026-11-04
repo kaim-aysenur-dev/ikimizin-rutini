@@ -27,7 +27,8 @@ function parseGoals(raw: unknown, tier: Tier): Goal[] | string {
   return goals;
 }
 
-export function parseWish(b: Body, userId: string): WishInput | string {
+/** keepPhoto: dileğin şu anki fotoğrafı (başkası yüklediyse de olduğu gibi kalabilir) */
+export function parseWish(b: Body, userId: string, keepPhoto: string | null = null): WishInput | string {
   const title = text(b?.title, 80);
   if (!title) return "Dileğin adı boş olamaz.";
   const tier = typeof b?.tier === "string" && b.tier in TIERS ? (b.tier as Tier) : null;
@@ -37,7 +38,7 @@ export function parseWish(b: Body, userId: string): WishInput | string {
   if (price === null && b?.price != null && b.price !== "") return "Fiyat geçersiz.";
   const link = text(b?.link, 500);
   if (link && !/^https?:\/\/\S+$/i.test(link)) return "Bağlantı http:// ya da https:// ile başlamalı.";
-  const photo = b?.photo == null || b.photo === "" ? null : ownsPublicId(userId, "dilek", b.photo) ? b.photo : undefined;
+  const photo = b?.photo == null || b.photo === "" ? null : ownsPublicId(userId, "dilek", b.photo) || (keepPhoto !== null && b.photo === keepPhoto) ? (b.photo as string) : undefined;
   if (photo === undefined) return "Fotoğraf geçersiz.";
   const goals = parseGoals(b?.goals, tier);
   if (typeof goals === "string") return goals;
