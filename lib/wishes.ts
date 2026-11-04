@@ -64,7 +64,7 @@ export const fmtMetric = (m: Metric, v: number) =>
 
 export type WishCat =
   | "parfum" | "makyaj" | "cilt" | "taki" | "canta" | "kiyafet" | "ayakkabi" | "aksesuar"
-  | "klavye" | "mouse" | "monitor" | "kulaklik" | "donanim" | "kitap" | "ortacag" | "tablo" | "deneyim" | "diger";
+  | "klavye" | "mouse" | "monitor" | "kulaklik" | "donanim" | "kitap" | "ortacag" | "tablo" | "aydinlatma" | "deneyim" | "diger";
 
 export const WISH_CATS: Record<WishCat, { label: string; emoji: string; color: string }> = {
   parfum: { label: "Parfüm", emoji: "🌸", color: "#e48aa0" },
@@ -83,6 +83,7 @@ export const WISH_CATS: Record<WishCat, { label: string; emoji: string; color: s
   kitap: { label: "Kitap", emoji: "📚", color: "#8a3a4a" },
   ortacag: { label: "Ortaçağ", emoji: "⚔️", color: "#c8ccd8" },
   tablo: { label: "Tablo", emoji: "🖼️", color: "#c89a3e" },
+  aydinlatma: { label: "Aydınlatma", emoji: "🕯️", color: "#f0a24a" },
   deneyim: { label: "Deneyim", emoji: "🎟️", color: "#f0a24a" },
   diger: { label: "Diğer", emoji: "🎁", color: "#b56b7a" },
 };
@@ -116,11 +117,18 @@ export const SUGGESTIONS: Record<"aysenur" | "cengiz" | "ortak", Suggestion[]> =
     { title: "Mekanik klavye (75%, hot-swap)", brand: "", cat: "klavye", tier: "nadir", metrics: ["calisma_dk", "spor_seans", "sayfa"] },
     { title: "Raspberry Pi 5 ev laboratuvarı", brand: "Raspberry Pi", cat: "donanim", tier: "nadir", metrics: ["calisma_dk", "sayfa"], note: "ağ ve güvenlik denemeleri için" },
     { title: "Sauvage EDP", brand: "Dior", cat: "parfum", tier: "nadir", metrics: ["spor_seans", "calisma_dk", "tam_gun"] },
+    { title: "Dior Homme Intense", brand: "Dior", cat: "parfum", tier: "nadir", metrics: ["spor_seans", "calisma_dk", "tam_gun"] },
+    { title: "La Nuit de L'Homme", brand: "YSL", cat: "parfum", tier: "nadir", metrics: ["spor_seans", "calisma_dk", "tam_gun"] },
+    { title: "Bleu de Chanel EDP", brand: "Chanel", cat: "parfum", tier: "destansi", metrics: ["spor_seans", "calisma_dk", "tam_gun"] },
+    { title: "Ortaçağ abajuru (dövme demir, mum ışığı)", brand: "", cat: "aydinlatma", tier: "nadir", metrics: ["calisma_dk", "sayfa", "spor_seans"], note: "çalışma masasına" },
+    { title: "Jon Snow tablosu (çerçeveli)", brand: "", cat: "tablo", tier: "nadir", metrics: ["calisma_dk", "spor_seans", "sayfa"], note: "odanın duvarına" },
+    { title: "Kuzey kalesi ve kurt tablosu", brand: "", cat: "tablo", tier: "destansi", metrics: ["calisma_dk", "spor_seans", "tam_gun"] },
     { title: "Y EDP", brand: "YSL", cat: "parfum", tier: "nadir", metrics: ["spor_seans", "calisma_dk", "tam_gun"] },
     { title: "Çerçeveli ortaçağ gravürü", brand: "", cat: "tablo", tier: "nadir", metrics: ["calisma_dk", "sayfa", "spor_seans"], note: "odanın duvarına" },
     { title: "27\" 1440p 165 Hz monitör", brand: "", cat: "monitor", tier: "destansi", metrics: ["calisma_dk", "spor_seans", "tam_gun"] },
     { title: "Gürültü engelleyici kulaklık", brand: "", cat: "kulaklik", tier: "destansi", metrics: ["calisma_dk", "birlikte_dk", "spor_seans"] },
     { title: "Flipper Zero", brand: "", cat: "donanim", tier: "destansi", metrics: ["calisma_dk", "sayfa", "spor_seans"], note: "kendi cihazlarında güvenlik araştırması için" },
+    { title: "34\" ultra geniş monitör", brand: "", cat: "monitor", tier: "efsanevi", metrics: ["calisma_dk", "spor_seans", "tam_gun", "sayfa"] },
     { title: "Duvar askılı şövalye kılıcı replikası", brand: "", cat: "ortacag", tier: "efsanevi", metrics: ["calisma_dk", "spor_seans", "tam_gun", "sayfa"] },
   ],
   ortak: [

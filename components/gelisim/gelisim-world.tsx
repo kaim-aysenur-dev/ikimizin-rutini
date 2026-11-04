@@ -764,7 +764,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const targetState = cur.scope === "sato" && cur.floor === 2
         ? Object.fromEntries(targets.current.map((tg) => [tg.id, { hit: Math.max(0, 1 - (t - tg.hitAt) / 0.3), hp: tg.hp / tg.maxHp }])) : undefined;
 
-      vitrine.cats = cur.scope === "oda" && cur.owner === me ? liveTrophies.current[me] ?? [] : []; // ödüller kişiye özel
+      vitrine.cats = cur.scope === "oda" ? liveTrophies.current[cur.owner] ?? [] : []; // vitrin evin sahibinin ödüllerini gösterir
       const anchors = drawScene(c, t, {
         scope: cur.scope, cam: o, theme: cur.scope === "oda" ? themeOf(cur.owner) : "cengiz",
         houseThemes: profiles.slice(0, HOUSES.length).map((p) => whoOf(p.name)),
@@ -957,9 +957,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   // dolap kapanınca vitrin yeni kazanılanlarla tazelenir
   const closeWardrobe = () => {
     setWardrobe(null);
-    void api<{ wishes: Wish[] }>("/api/gelisim/dilek").then((d) => setTrophies({
-      [me]: d.wishes.filter((w) => w.status === "kazanildi" || w.status === "alindi").reverse().map((w) => w.cat),
-    }), () => {});
+    void api<{ wishes: Wish[] }>("/api/gelisim/dilek").then((d) => setTrophies((cur) => ({
+      ...cur, [me]: d.wishes.filter((w) => w.status === "kazanildi" || w.status === "alindi").reverse().map((w) => w.cat),
+    })), () => {});
   };
   shortcutRef.current = (key) => {
     if (key === "escape") {

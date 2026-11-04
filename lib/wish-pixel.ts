@@ -72,6 +72,13 @@ export function drawWishIcon(c: Ctx, x: number, y: number, cat: WishCat, t = 0) 
       line(c, [x + 2, y + 10], [x + 6, y + 14], 2, P.gold); rect(c, x + 1, y + 13, 2, 2, "#6b4a35");
       if (glint) px(c, x + 10, y + 5, "#ffffff");
       break;
+    case "aydinlatma": { // dövme demir abajur, içinde titrek mum
+      const f = Math.floor(t * 8) % 2;
+      rect(c, x + 7, y, 2, 2, P.ink); rect(c, x + 4, y + 2, 8, 2, P.ink); rect(c, x + 4, y + 4, 1, 7, P.ink); rect(c, x + 11, y + 4, 1, 7, P.ink);
+      rect(c, x + 5, y + 4, 6, 7, "rgba(255,206,120,0.55)"); rect(c, x + 7, y + 7, 2, 4, "#f4ead2"); rect(c, x + 7, y + 5 - f, 2, 2, col); px(c, x + 7, y + 4 - f, P.goldLt);
+      rect(c, x + 3, y + 11, 10, 2, P.ink); rect(c, x + 7, y + 13, 2, 2, P.ink); rect(c, x + 5, y + 15, 6, 1, P.ink);
+      break;
+    }
     case "tablo":
       rect(c, x + 1, y + 2, 14, 12, P.gold); rect(c, x + 2, y + 3, 12, 10, P.ink); rect(c, x + 3, y + 4, 10, 8, "#2f3b6b");
       rect(c, x + 3, y + 9, 10, 3, "#3f6a44"); rect(c, x + 8, y + 5, 2, 4, "#7d7884"); px(c, x + 8, y + 4, "#7d7884"); disc(c, x + 5, y + 6, 1, P.goldLt);
@@ -95,6 +102,7 @@ export function miniWish(c: Ctx, x: number, y: number, cat: WishCat) {
     case "taki": px(c, x, y + 1, P.gold); px(c, x + 4, y + 1, P.gold); px(c, x + 1, y + 3, P.gold); px(c, x + 3, y + 3, P.gold); rect(c, x + 2, y + 4, 1, 2, "#9fd0e8"); break;
     case "kitap": rect(c, x, y + 1, 4, 5, col); rect(c, x + 4, y + 2, 1, 4, "#f4ead2"); break;
     case "ortacag": line(c, [x, y + 5], [x + 4, y], 1, "#e8ecf4"); px(c, x + 1, y + 3, P.gold); break;
+    case "aydinlatma": rect(c, x + 1, y, 3, 1, P.ink); rect(c, x + 1, y + 1, 3, 3, "#f3c87a"); px(c, x + 2, y + 2, "#ffffff"); rect(c, x + 2, y + 4, 1, 2, P.ink); break;
     case "tablo": rect(c, x, y, 5, 5, P.gold); rect(c, x + 1, y + 1, 3, 3, "#2f3b6b"); break;
     case "monitor": rect(c, x, y, 5, 4, "#1e2a3a"); px(c, x + 1, y + 1, "#7fd1b9"); rect(c, x + 2, y + 4, 1, 2, P.ink); break;
     case "klavye": rect(c, x, y + 3, 5, 3, "#3a3346"); px(c, x + 1, y + 4, col); px(c, x + 3, y + 4, "#c8ccd8"); break;
