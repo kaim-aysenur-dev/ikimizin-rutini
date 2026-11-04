@@ -30,7 +30,7 @@ async function downscale(file: File, maxSide: number): Promise<Blob> {
   }
 }
 
-export async function uploadImage(file: File, kind: "avatar" | "urun" | "cilt", maxSide = 1600): Promise<string> {
+export async function uploadImage(file: File, kind: "avatar" | "urun" | "cilt" | "dilek", maxSide = 1600): Promise<string> {
   if (!file.type.startsWith("image/")) throw new Error("Lütfen bir fotoğraf seç.");
   const [blob, sig] = await Promise.all([downscale(file, maxSide), api<Signature>("/api/uploads/sign", { body: { kind } })]);
   if (blob.size > 10 * 1024 * 1024) throw new Error("Fotoğraf çok büyük (en fazla 10 MB).");

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { TodayView } from "@/components/today/today-view";
+import { WishQuests } from "@/components/today/wish-quests";
 import { requireUser } from "@/lib/auth/session";
 import { formatDayLong, todayIstanbul, weekDays, weekStart, weekdayIndex } from "@/lib/dates";
 import type { Meal } from "@/lib/meals";
@@ -7,6 +8,7 @@ import { getMealChecks, getNutritionDays, getPlanForWeekday, getWaterSettings, w
 import { getOverallStreak } from "@/lib/overview";
 import { getCheckKeys, getRoutine } from "@/lib/skin";
 import { getActivity, getWorkoutPlan } from "@/lib/sport";
+import { wishOverview } from "@/lib/wishes-server";
 
 export const metadata: Metadata = { title: "Bugün" };
 
@@ -25,7 +27,7 @@ export default async function TodayPage() {
   const today = todayIstanbul();
   const wd = weekdayIndex(today);
   const week = weekDays(weekStart(today));
-  const [items, checks, meals, mealChecks, nutritionDay, water, waterFrom, workoutPlan, activity, streak] = await Promise.all([
+  const [items, checks, meals, mealChecks, nutritionDay, water, waterFrom, workoutPlan, activity, streak, { wishes }] = await Promise.all([
     getRoutine(user.id),
     getCheckKeys(user.id, week[0]!, week[6]!),
     getPlanForWeekday(user.id, wd),
@@ -36,6 +38,7 @@ export default async function TodayPage() {
     getWorkoutPlan(user.id),
     getActivity(user.id, today, today),
     getOverallStreak(user.id, today),
+    wishOverview(user, today),
   ]);
   const workoutToday = workoutPlan.items.filter((i) => i.weekday === wd);
   const sportDay = workoutToday.length > 0;
@@ -48,6 +51,7 @@ export default async function TodayPage() {
         </p>
         <h1>{formatDayLong(today)}</h1>
       </header>
+      <WishQuests me={user.id} wishes={wishes} />
       <TodayView
         key={today}
         today={today}

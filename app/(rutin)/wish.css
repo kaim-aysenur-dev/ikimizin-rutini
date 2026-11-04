@@ -1,0 +1,517 @@
+/* ==========================================================================
+   Dilek Dolabı: gerçek hayatta alınacak ödüller, görevleri ve kazanılanların dolabı.
+   --tier: kademenin rengi (Yaygın gri, Nadir mavi, Destansı mor, Efsanevi altın)
+   ========================================================================== */
+
+.modal.wd {
+  width: min(820px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  outline: none;
+}
+
+.wd-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.wd-head h2 {
+  margin: 0;
+}
+
+.wd-intro,
+.wd-hint,
+.wd-locked {
+  margin: 0;
+  font-size: 13px;
+}
+
+.wd-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  font-size: 14px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line);
+}
+
+.wd-empty p {
+  margin: 0;
+}
+
+.wd-tier {
+  flex: none;
+  padding: 1px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--px-ink, #1a1426);
+  background: var(--tier);
+}
+
+.wd-icon {
+  flex: none;
+}
+
+.wd-photo {
+  flex: none;
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  background: #fff;
+  box-shadow: 0 0 0 2px var(--line-strong);
+}
+
+.wd-photo.is-big {
+  width: 80px;
+  height: 80px;
+}
+
+/* ---------- ilerleme çubukları ---------- */
+
+.wd-bar {
+  display: block;
+  flex: 1;
+  min-width: 60px;
+  height: 8px;
+  background: var(--idle-soft);
+  overflow: hidden;
+}
+
+.wd-bar.is-big {
+  height: 12px;
+}
+
+.wd-bar i {
+  display: block;
+  height: 100%;
+  background: var(--tier, var(--week));
+  transition: width 0.6s ease;
+}
+
+.wd-bar.is-full i {
+  background: var(--ok, #4f9a6a);
+}
+
+/* ---------- görevler ---------- */
+
+.wd-quests {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.wd-quest {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line), inset 4px 0 0 var(--tier);
+}
+
+.wd-quest.is-expired {
+  opacity: 0.85;
+  box-shadow: inset 0 0 0 2px var(--bad, #a8454e), inset 4px 0 0 var(--bad, #a8454e);
+}
+
+.wd-quest-top,
+.wd-card-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wd-quest-top .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.wd-quest-top b {
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.wd-pct {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wd-time {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wd-goals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.wd-goals li {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) 2fr;
+  align-items: start;
+  gap: 4px 10px;
+  font-size: 13px;
+}
+
+@media (max-width: 560px) {
+  .wd-goals li {
+    grid-template-columns: 1fr;
+  }
+}
+
+.wd-goal-name {
+  font-weight: 600;
+}
+
+.wd-goal-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px 8px;
+  grid-column: 2;
+}
+
+@media (max-width: 560px) {
+  .wd-goal-row {
+    grid-column: 1;
+  }
+}
+
+.wd-who {
+  min-width: 52px;
+  font-weight: 700;
+}
+
+.wd-pace {
+  flex-basis: 100%;
+  color: var(--muted);
+}
+
+.wd-pace.is-late {
+  color: var(--bad, #a8454e);
+  font-weight: 700;
+}
+
+/* ---------- dilek kartları ---------- */
+
+.wd-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+@media (min-width: 640px) {
+  .wd-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wd-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line), inset 0 4px 0 var(--tier);
+}
+
+.wd-card-top {
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.wd-card b {
+  overflow-wrap: anywhere;
+}
+
+.wd-req {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+/* ---------- dolap: ahşap raflı gardırop ---------- */
+
+.wd-closet {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 0;
+  padding: 10px;
+  background: #4a3224;
+  box-shadow: inset 0 0 0 3px #2e1f16, inset 0 0 0 6px #6b4a35;
+}
+
+.wd-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 150px;
+  padding: 12px 8px 10px;
+  text-align: center;
+  background: linear-gradient(#2a1d15, #3a281c);
+  box-shadow: inset 0 -6px 0 #8c6448, inset 0 -8px 0 #2e1f16;
+  color: #f4ead2;
+}
+
+.wd-slot b {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.wd-slot .muted {
+  color: #cdb89a;
+  font-size: 12px;
+}
+
+.wd-slot .wd-icon,
+.wd-slot .wd-photo {
+  filter: drop-shadow(0 0 0 transparent);
+}
+
+.wd-slot.is-new .wd-icon,
+.wd-slot.is-new .wd-photo {
+  animation: wd-glow 1.8s ease-in-out infinite;
+}
+
+@keyframes wd-glow {
+  50% { filter: drop-shadow(0 0 6px var(--tier)); }
+}
+
+.wd-gift {
+  color: #f2a7b8;
+  font-weight: 700;
+}
+
+/* ---------- kazanma kutlaması ---------- */
+
+.wd-party {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  overflow: hidden;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 3px var(--tier, var(--px-gold, #f3d48a)), inset 0 0 0 3px #f3d48a;
+}
+
+.wd-party p {
+  margin: 4px 0 8px;
+  font-size: 14px;
+}
+
+.wd-confetti {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.wd-confetti i {
+  position: absolute;
+  top: -8px;
+  left: calc(var(--k) * 5.5%);
+  width: 5px;
+  height: 8px;
+  background: hsl(calc(var(--k) * 47deg) 70% 65%);
+  animation: wd-fall calc(1.6s + var(--k) * 0.07s) linear infinite;
+  animation-delay: calc(var(--k) * -0.13s);
+}
+
+@keyframes wd-fall {
+  to { transform: translateY(160px) rotate(540deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wd-confetti i,
+  .wd-slot.is-new .wd-icon {
+    animation: none;
+  }
+}
+
+/* ---------- fikirler ---------- */
+
+.wd-ideas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+@media (min-width: 640px) {
+  .wd-ideas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wd-idea {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 2px var(--line), inset 4px 0 0 var(--tier);
+  cursor: pointer;
+}
+
+.wd-idea:hover {
+  background: var(--surface-2);
+}
+
+.wd-idea .grow {
+  display: flex;
+  flex-direction: column;
+}
+
+.wd-idea small {
+  font-size: 12px;
+}
+
+/* ---------- form ---------- */
+
+.wd-cats .chip,
+.wd-metrics .chip {
+  font-size: 13px;
+}
+
+.wd-tiers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+@media (max-width: 620px) {
+  .wd-tiers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.wd-tier-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line), inset 0 4px 0 var(--tier);
+  cursor: pointer;
+}
+
+.wd-tier-card small {
+  font-size: 12px;
+}
+
+.wd-tier-card[aria-checked="true"] {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 3px var(--tier), inset 0 6px 0 var(--tier);
+}
+
+.wd-tier-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.wd-targets {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.wd-targets li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  font-size: 14px;
+  background: var(--surface-2);
+}
+
+.wd-target-in {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wd-target-in .input {
+  width: 96px;
+}
+
+.wd-suggest {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.wd-photo-row {
+  align-items: center;
+  gap: 8px;
+}
+
+/* ---------- Bugün kartı ---------- */
+
+.wq {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.wq:hover {
+  box-shadow: inset 0 0 0 2px var(--px-gold, #f3d48a);
+}
+
+.wq-row,
+.wq-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wq-row > span:first-child,
+.wq-empty > span:first-child {
+  font-size: 24px;
+}
+
+.wq-row .grow,
+.wq-empty > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.wq small {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.wq-row.is-won b {
+  color: var(--px-gold, #c89a3e);
+}

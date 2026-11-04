@@ -6,7 +6,7 @@ import { v2 as cloudinary } from "cloudinary";
 // imzalı adresleri yalnızca sunucu üretir ve sadece fotoğrafın sahibine verir.
 // Dosya yolu: users/<user_id>/<tür>/<rastgele>
 
-export const UPLOAD_KINDS = ["avatar", "urun", "cilt"] as const;
+export const UPLOAD_KINDS = ["avatar", "urun", "cilt", "dilek"] as const;
 export type UploadKind = (typeof UPLOAD_KINDS)[number];
 
 let configured = false;

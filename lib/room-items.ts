@@ -3,6 +3,11 @@
 import { type Origin, at, box, shade, tile } from "./iso";
 import { lights } from "./env";
 import { type Ctx, P, disc, line, poly, px, rect } from "./pixel";
+import { miniWish } from "./wish-pixel";
+import type { WishCat } from "./wishes";
+
+/** Ödül vitrini: o an bakılan evin sahibinin kazandığı ödüller (dünya her karede ayarlar) */
+export const vitrine: { cats: WishCat[] } = { cats: [] };
 
 export type Scope = "oda" | "bahce";
 export type Cat = "Salon" | "Yatak odası" | "Mutfak" | "Banyo" | "Çalışma" | "Dekor" | "Bitki" | "Halı" | "Bahçe";
@@ -169,6 +174,23 @@ const HANDMADE: RoomItem[] = [
     if (Math.floor(t * 1.5) % 2) px(c, cx, cy - 18, "rgba(255,255,255,0.55)");
     const [bx, by] = at(o, i + 0.2, j + 0.25); // kitap yığını
     rect(c, bx - 3, by - 14, 6, 2, "#2f3b6b"); rect(c, bx - 2, by - 16, 6, 2, "#8a3a4a"); rect(c, bx - 3, by - 18, 5, 2, "#4f7a4f");
+  } },
+
+  // ödül vitrini: Dilek Dolabı'nda kazanılan ödüller camın ardında, raflarda (en fazla 6, en yeniler)
+  { id: "odul-vitrini", level: 1, name: "Ödül vitrini", scope: "oda", size: [1, 1], draw: (c, o, i, j, t) => {
+    box(c, o, i + 0.12, j + 0.12, 0.76, 0.76, 30, WOOD_DK);
+    const A = at(o, i + 0.16, j + 0.88), B = at(o, i + 0.84, j + 0.88);
+    poly(c, [[A[0], A[1] - 3], [B[0], B[1] - 3], [B[0], B[1] - 28], [A[0], A[1] - 28]], "#1a1426"); // iç
+    for (const z of [11, 20]) line(c, [A[0], A[1] - z], [B[0], B[1] - z], 1, "#6b4a35"); // raflar
+    vitrine.cats.slice(0, 6).forEach((cat, k) => {
+      const row = Math.floor(k / 2), q = k % 2 ? 0.7 : 0.3;
+      const x = Math.round(A[0] + (B[0] - A[0]) * q), y = Math.round(A[1] + (B[1] - A[1]) * q) - 9 - row * 9;
+      miniWish(c, x - 2, y - 1, cat);
+    });
+    if (!vitrine.cats.length) { const [x, y] = at(o, i + 0.5, j + 0.88); px(c, x, y - 15, "rgba(243,212,138,0.4)"); }
+    const g = (Math.sin(t * 1.3) + 1) / 2; // camda gezinen parıltı
+    line(c, [Math.round(A[0] + (B[0] - A[0]) * g), Math.round(A[1] + (B[1] - A[1]) * g) - 26], [Math.round(A[0] + (B[0] - A[0]) * g) + 2, Math.round(A[1] + (B[1] - A[1]) * g) - 22], 1, "rgba(255,255,255,0.35)");
+    const [cx, cy] = at(o, i + 0.5, j + 0.5); rect(c, cx - 2, cy - 33, 5, 2, P.gold); px(c, cx, cy - 35, P.gold); px(c, cx - 2, cy - 34, P.gold); px(c, cx + 2, cy - 34, P.gold); // taç
   } },
 
   /* --------------------------------- bahçe --------------------------------- */
@@ -602,7 +624,7 @@ const GENERATED: RoomItem[] = order.map(({ tp, p }, k) => ({
 }));
 
 const HANDMADE_CAT: Record<string, Cat> = {
-  "bilgisayar-masasi": "Çalışma", yatak: "Yatak odası", komodin: "Yatak odası", ayna: "Yatak odası", hali: "Halı", kitaplik: "Çalışma", masa: "Çalışma", saksi: "Bitki",
+  "bilgisayar-masasi": "Çalışma", "odul-vitrini": "Dekor", yatak: "Yatak odası", komodin: "Yatak odası", ayna: "Yatak odası", hali: "Halı", kitaplik: "Çalışma", masa: "Çalışma", saksi: "Bitki",
   sandik: "Dekor", "zirh-askisi": "Dekor", "silah-rafi": "Dekor", "kedi-minderi": "Dekor", kazan: "Dekor", yumurta: "Dekor", somine: "Salon", taht: "Salon",
 };
 for (const it of HANDMADE) it.cat = it.scope === "bahce" ? "Bahçe" : HANDMADE_CAT[it.id] ?? "Dekor";
