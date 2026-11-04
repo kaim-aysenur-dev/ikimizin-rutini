@@ -9,6 +9,7 @@ import "./sections-4.css";
 import "./pixel-theme.css";
 import "./study.css";
 import "./wish.css";
+import "./music.css";
 
 // Başlıklar: yumuşak serif (SOFT ekseni açık). Metin ve sayılar: DM Sans (tabular rakamlar CSS'te).
 const display = Fraunces({

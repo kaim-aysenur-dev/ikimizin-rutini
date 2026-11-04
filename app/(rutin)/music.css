@@ -1,0 +1,245 @@
+/* ==========================================================================
+   Arka plan müziği: üst çubuktaki düğme, açılır pencere ve YouTube küçük oynatıcısı
+   ========================================================================== */
+
+.music {
+  position: relative;
+}
+
+.music-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  max-width: 180px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.music-btn.is-on {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 -3px 0 var(--px-gold, #f3d48a);
+}
+
+.music-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+  .music-label {
+    display: none;
+  }
+}
+
+/* çalarken zıplayan üç çubuk */
+.music-eq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 14px;
+}
+
+.music-eq i {
+  width: 3px;
+  height: 100%;
+  background: currentColor;
+  animation: music-eq 0.9s ease-in-out infinite;
+}
+
+.music-eq i:nth-child(2) { animation-delay: -0.3s; }
+.music-eq i:nth-child(3) { animation-delay: -0.6s; }
+
+@keyframes music-eq {
+  0%, 100% { transform: scaleY(0.3); transform-origin: bottom; }
+  50% { transform: scaleY(1); transform-origin: bottom; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .music-eq i { animation: none; }
+}
+
+.menu.music-pop {
+  width: min(360px, calc(100vw - 24px));
+  max-height: min(78svh, 640px);
+  overflow-y: auto;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.music-head {
+  margin: 4px 2px 0;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.music-stations {
+  display: grid;
+  gap: 6px;
+}
+
+.music-station {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  font: inherit;
+  text-align: left;
+  color: var(--ink);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 2px var(--line);
+  cursor: pointer;
+}
+
+.music-station > span:first-child {
+  font-size: 22px;
+}
+
+.music-station > span:last-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.music-station small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.music-station:hover {
+  background: var(--surface);
+}
+
+.music-station.is-on {
+  background: var(--surface);
+  box-shadow: inset 0 0 0 3px var(--px-gold, #c89a3e);
+}
+
+.music-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.music-vol {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.music-vol input {
+  width: 110px;
+  accent-color: var(--px-gold, #c89a3e);
+}
+
+.music-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.music-idea {
+  display: inline-block;
+  margin: 0 6px 0 0;
+  color: var(--ink-2);
+}
+
+.music-add {
+  display: grid;
+  gap: 6px;
+}
+
+.music-songs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.music-songs li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.music-songs li.is-on .music-song {
+  font-weight: 700;
+}
+
+.music-song {
+  flex: 1;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.music-song:hover {
+  background: var(--surface-2);
+}
+
+/* YouTube küçük oynatıcısı: sağ altta, telefonda alt menünün üstünde */
+.music-dock {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 45;
+  width: 252px;
+  padding: 6px;
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--line-strong), var(--shadow);
+}
+
+@media (max-width: 899px) {
+  .music-dock {
+    right: 12px;
+    bottom: calc(env(safe-area-inset-bottom) + var(--tabbar-h, 64px) + var(--tabbar-gap, 8px) + 8px);
+  }
+}
+
+.music-dock-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.music-dock-bar b {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.music-dock iframe {
+  display: block;
+  width: 240px;
+  height: 135px;
+  border: 0;
+}

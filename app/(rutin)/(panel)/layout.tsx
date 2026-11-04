@@ -2,6 +2,7 @@ import { Brand } from "@/components/brand";
 import { PanelBackdrop } from "@/components/panel-backdrop";
 import { SideExtras, SideNav, TabBar } from "@/components/shell/nav";
 import { UserMenu } from "@/components/shell/user-menu";
+import { MusicPlayer } from "@/components/music-player";
 import { TimerProvider } from "@/components/timers";
 import { XpBadge } from "@/components/xp-badge";
 import { requireUser } from "@/lib/auth/session";
@@ -32,6 +33,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         <header className="topbar">
           <Brand />
           <div className="topbar-spacer" />
+          <MusicPlayer />
           <XpBadge initialXp={adv.xp} stats={adv.stats} meToday={adv.meToday} partnerToday={adv.partnerToday} partnerName={adv.partnerName} />
           <UserMenu name={user.displayName} account={user.accountUsername} avatarUrl={avatarUrl} />
         </header>
