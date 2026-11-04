@@ -817,14 +817,13 @@ function wornGear(c: Ctx, a: { head: V; hip: V; shoulder: V }, who: Theme, dir: 
   const hp = g.helmet ? palOf(g.helmet) : null;
   if (hp) {
     const [kx, ky] = a.head;
-    rect(c, kx - 3, ky - 1, 7, 1, INK_C); rect(c, kx - 5, ky, 11, 1, INK_C); rect(c, kx - 6, ky + 1, 13, 10, INK_C);
-    rect(c, kx - 3, ky, 7, 1, hp.base); rect(c, kx - 5, ky + 1, 11, 9, hp.base); // kubbe ve yanaklar
-    rect(c, kx - 5, ky + 4, 11, 1, hp.dk); rect(c, kx - 5, ky + 9, 11, 1, hp.dk); // bantlar
-    rect(c, kx - 3, ky + 1, 2, 2, hp.lt); px(c, kx - 4, ky + 3, hp.lt); // parlama
-    const fx = kx + dir * 2; // yüzün baktığı yanda T siperlik
-    rect(c, fx - 2, ky + 6, 5, 1, INK_C); rect(c, fx, ky + 7, 1, 2, INK_C);
-    px(c, kx - dir * 3, ky + 6, hp.dk); px(c, kx - dir * 3, ky + 8, hp.dk); // perçinler
-    rect(c, kx - dir * 6 - (dir > 0 ? 0 : 1), ky + 8, 2, 4, INK_C); px(c, kx - dir * 5 - (dir > 0 ? 1 : 0), ky + 9, hp.base); // ense koruması
+    // açık yüzlü miğfer: kubbe ve alın bandı başı örter, yanak/ense koruması yalnız arka yanda; yüz açık kalır
+    rect(c, kx - 3, ky - 1, 7, 1, INK_C); rect(c, kx - 5, ky, 11, 1, INK_C); rect(c, kx - 6, ky + 1, 13, 5, INK_C);
+    rect(c, kx - 3, ky, 7, 1, hp.base); rect(c, kx - 5, ky + 1, 11, 3, hp.base); rect(c, kx - 5, ky + 4, 11, 1, hp.dk); // kubbe, alın bandı
+    rect(c, kx - 3, ky + 1, 2, 1, hp.lt); px(c, kx - 4, ky + 2, hp.lt); // parlama
+    const bx = dir > 0 ? kx - 6 : kx + 2; // arka yan: kulak ve ense koruması
+    rect(c, bx, ky + 5, 5, 6, INK_C); rect(c, bx + 1, ky + 5, 3, 5, hp.base); rect(c, bx + 1, ky + 9, 3, 1, hp.dk); px(c, bx + 2, ky + 6, hp.dk);
+    px(c, kx + dir * 4, ky + 5, INK_C); // alın siperinin ucu
     for (let q = 0; q < 5; q++) px(c, kx - dir * 2 + dir * q, ky - 2 - (q === 2 ? 1 : 0), hp.gem); // sorguç
     rect(c, kx, ky - 4, 1, 2, hp.gem);
   } else if (armor) setHelm(c, a.head, who, dir, armor, t);
