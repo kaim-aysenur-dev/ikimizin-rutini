@@ -857,7 +857,7 @@ button.xp-badge:hover {
   flex-direction: column;
   gap: 8px;
   box-shadow: 0 0 0 3px var(--px-ink), 4px 4px 0 3px rgb(26 20 38 / 0.45) !important;
-  z-index: 3;
+  z-index: 7; /* araç menüsünün (5) ve emote çarkının (6) üstünde */
 }
 
 .gw-inv.is-open {
