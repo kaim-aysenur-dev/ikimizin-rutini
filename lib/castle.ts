@@ -4,7 +4,7 @@
 import { lights } from "./env";
 import { type Origin, at, box, shade, tile } from "./iso";
 import { type Ctx, type V, P, disc, line, poly, px, rect, rnd } from "./pixel";
-import { ARMORY_HALLS, CASTLE, CASTLE_ENTRY, type Floor, HALLS, type Placed, SIZE, STAIRS, TRAINING_HALLS, castlePlan, stairsTarget, stepIn, wallsOf } from "./room";
+import { ARMORY_HALLS, CASTLE, CASTLE_ENTRY, type Floor, HALLS, type Placed, SIZE, STAIRS, TRAINING_HALLS, castlePlan, roomIn, stairsTarget, stepIn, wallsOf } from "./room";
 import { isFlat, itemById } from "./room-items";
 
 /* ---------------------------------- dekor ---------------------------------- */
@@ -187,31 +187,32 @@ export function drawTarget(c: Ctx, o: Origin, tg: TargetSpot, t: number, hit = 0
 export type Decor = { id: string; tx: number; ty: number; rot?: number };
 const D = (id: string, tx: number, ty: number, rot = 0): Decor => ({ id, tx, ty, rot });
 
+// Her salon kendi orta eksenine göre simetrik dizilir; eşyalar duvarlara yaslı, kapı ve yürüme yolları boş.
 export const CASTLE_DECOR: Decor[] = [
-  // büyük salon: taht, şenlik ateşi, halılar, zırhlar, misafirler
-  D("buyuk-hali-kırmızı", 1, 5), D("buyuk-hali-kırmızı", 4, 5), D("buyuk-hali-kırmızı", 6, 1),
-  D("taht", 7, 1), D("senlik-atesi", 6, 7), D("koltuk-kırmızı", 3, 9), D("koltuk-kırmızı", 9, 9),
-  D("zirh-askisi", 2, 0), D("silah-rafi", 4, 0), D("silah-rafi", 10, 0), D("zirh-askisi", 12, 0),
-  D("sovalye", 0, 1), D("sovalye", 0, 9), D("tunek", 12, 3), D("samdan-altın", 1, 11), D("samdan-altın", 12, 11),
-  // kütüphane: kitap duvarları, yazı masası, küre, teleskop, okuma köşesi
-  D("kitap-duvari", 15, 0), D("kitap-duvari", 18, 0), D("kitap-duvari", 21, 0), D("kitaplik-abanoz", 24, 0), D("kitaplik-abanoz", 25, 0),
-  D("kitaplik-abanoz", 25, 2), D("kitaplik-abanoz", 25, 3), D("kitaplik-ceviz", 25, 8), D("kitaplik-ceviz", 25, 9),
-  D("yazi-masasi-ceviz", 19, 5), D("kursu", 16, 4), D("kure-antika", 16, 7), D("teleskop-pirinç", 23, 3),
-  D("kristal-kure-mor", 23, 9), D("iksir-rafi-ceviz", 14, 10), D("hali-mor", 17, 8), D("berjer-mor", 17, 10), D("berjer-lacivert", 19, 10),
-  D("samdan-gümüş", 21, 8),
-  // şömine odası: şömine, halı, kanepe, piyano, arp, Düldül'ün minderi
-  D("somine", 30, 0), D("buyuk-hali-kırmızı", 29, 3), D("koltuk-kırmızı", 30, 6), D("berjer-kırmızı", 27, 3), D("berjer-kırmızı", 34, 3),
-  D("kedi-minderi", 32, 4), D("piyano-siyah", 33, 9), D("arp-altın", 27, 0), D("saat-ceviz", 35, 0), D("samdan-gümüş", 27, 10),
-  D("satranc-ceviz", 28, 8),
-  // yemek salonu: ziyafet masası ve abanoz sandalyeler
-  D("ziyafet", 3, 16), ...[3, 4, 5, 6, 7, 8].flatMap((i) => [D("sandalye-abanoz", i, 15), D("sandalye-abanoz", i, 18)]),
-  D("dresuar-abanoz", 1, 12), D("samdan-altın", 10, 13), D("kazan", 10, 22), D("vazo-kırmızı", 1, 22), D("dresuar-abanoz", 0, 20, 1),
-  // spor salonu: kum torbası, manken, ağırlıklar, minderler, silah rafı
-  D("kum-torbasi", 15, 14), D("kum-torbasi", 18, 14), D("manken", 21, 15), D("agirlik", 14, 21), D("minder", 18, 19), D("minder", 18, 21),
-  D("silah-rafi", 13, 12), D("zirh-askisi", 22, 12), D("sovalye", 23, 22),
-  // hamam: göbek taşı, kurnalar, küvetler, duş
-  D("gobek-tasi", 29, 18), D("kurna", 25, 13), D("kurna", 27, 13), D("kurna", 33, 13), D("kuvet-gri", 26, 21), D("kuvet-gri", 32, 21),
-  D("dus-gri", 35, 13), D("havluluk-lacivert", 35, 17), D("ayna", 24, 20), D("saksi-agaci-fikus", 35, 23), D("lavabo-gri", 24, 15),
+  // büyük salon (eksen i = 7): iki taht, tahtlardan şenlik ateşine kızıl yol, girişten gelen halı, iki yanda zırhlar
+  D("buyuk-hali-kırmızı", 0, 5), D("buyuk-hali-kırmızı", 3, 5), D("buyuk-hali-kırmızı", 6, 1, 1), D("buyuk-hali-kırmızı", 6, 4, 1),
+  D("taht", 6, 0, 1), D("taht", 7, 0, 1), D("senlik-atesi", 6, 8), D("koltuk-kırmızı", 4, 8, 1), D("koltuk-kırmızı", 9, 8, 3),
+  D("zirh-askisi", 2, 0), D("silah-rafi", 4, 0), D("silah-rafi", 9, 0), D("zirh-askisi", 11, 0),
+  D("sovalye", 0, 2, 1), D("sovalye", 0, 9, 1), D("tunek", 12, 3), D("samdan-altın", 1, 11), D("samdan-altın", 12, 11),
+  // kütüphane (eksen i = 20): arka duvar baştan sona kitap, ortada yazı masası, önde okuma köşesi
+  D("kitap-duvari", 14, 0), D("kitap-duvari", 17, 0), D("kitap-duvari", 20, 0), D("kitap-duvari", 23, 0),
+  D("kitaplik-abanoz", 25, 2, 3), D("kitaplik-abanoz", 25, 3, 3), D("kitaplik-abanoz", 25, 8, 3), D("kitaplik-abanoz", 25, 9, 3),
+  D("yazi-masasi-ceviz", 19, 4), D("kure-antika", 16, 4), D("teleskop-pirinç", 23, 4),
+  D("hali-mor", 19, 7), D("berjer-mor", 18, 8, 1), D("berjer-lacivert", 21, 8, 3), D("kursu", 16, 7),
+  D("iksir-rafi-ceviz", 15, 10), D("kristal-kure-mor", 24, 10), D("samdan-gümüş", 17, 10), D("samdan-gümüş", 22, 10),
+  // şömine odası (eksen i = 31): şömine, önünde halı ve kanepe, iki yanda berjer; Düldül'ün minderi ateşin yanında
+  D("somine", 30, 0), D("buyuk-hali-kırmızı", 30, 2, 1), D("berjer-kırmızı", 28, 3, 1), D("berjer-kırmızı", 33, 3, 3), D("koltuk-kırmızı", 30, 6, 2),
+  D("arp-altın", 27, 0), D("saat-ceviz", 34, 0), D("samdan-gümüş", 29, 1), D("kedi-minderi", 32, 1),
+  D("piyano-siyah", 33, 10), D("satranc-ceviz", 28, 10),
+  // yemek salonu (eksen i = 6): ortada ziyafet masası ve on iki sandalye, duvarlarda dresuar ve şamdan
+  D("ziyafet", 3, 17), ...[3, 4, 5, 6, 7, 8].flatMap((i) => [D("sandalye-abanoz", i, 16), D("sandalye-abanoz", i, 19, 2)]),
+  D("dresuar-abanoz", 1, 12), D("dresuar-abanoz", 9, 12), D("samdan-altın", 0, 15), D("samdan-altın", 0, 20), D("kazan", 1, 23), D("vazo-kırmızı", 10, 23),
+  // spor salonu (eksen i = 18): ortada minderler, iki yanda kum torbası, manken ve ağırlık
+  D("kum-torbasi", 14, 15), D("kum-torbasi", 21, 15), D("manken", 16, 15), D("manken", 19, 15), D("minder", 17, 19), D("minder", 17, 20),
+  D("agirlik", 13, 22), D("agirlik", 21, 22), D("silah-rafi", 13, 12), D("zirh-askisi", 22, 12), D("sovalye", 12, 23), D("sovalye", 23, 23),
+  // hamam (eksen i = 31): ortada göbek taşı, arkada kurnalar, önde küvetler, köşelerde fikus
+  D("gobek-tasi", 29, 17), D("kurna", 26, 12), D("kurna", 28, 12), D("kurna", 33, 12), D("kurna", 35, 12), D("kuvet-gri", 27, 21), D("kuvet-gri", 33, 21),
+  D("dus-gri", 35, 16), D("havluluk-lacivert", 35, 19), D("ayna", 24, 14, 1), D("lavabo-gri", 24, 15, 1), D("saksi-agaci-fikus", 24, 23), D("saksi-agaci-fikus", 35, 23),
 ];
 
 CASTLE_DECOR.push(D("merdiven-yukari", 12, 1));
@@ -246,7 +247,7 @@ export const ARMORY_STATIONS: Station[] = [
 /** Dekorun boyutu (döndürmeye göre) */
 export function decorSize(d: Decor): [number, number] {
   const s = PROPS[d.id]?.size ?? itemById.get(d.id)?.size ?? [1, 1];
-  return d.rot ? [s[1], s[0]] : s;
+  return (d.rot ?? 0) & 1 ? [s[1], s[0]] : s;
 }
 const decorFlat = (d: Decor) => PROPS[d.id]?.flat ?? isFlat(d.id);
 
@@ -278,7 +279,7 @@ export type Guest = { key: "gandalf" | "gimli" | "legolas" | "jon"; who: "wizard
 function GUESTS_AT(): Guest[] {
   return [
     { key: "gandalf", who: "wizard", i: 22.5, j: 6.5, dir: -1 },
-    { key: "gimli", who: "dwarf", i: 10.5, j: 4.5, dir: -1 },
+    { key: "gimli", who: "dwarf", i: 10.5, j: 3.5, dir: -1 },
     { key: "legolas", who: "elf", i: 3.5, j: 3.5, dir: 1 },
   ];
 }
@@ -432,7 +433,11 @@ export const BALCONY = TRAINING_HALLS.find((r) => r.id === "balkon")!;
 /** Dekoru (eşya ya da şatoya özel) çizer */
 export function drawDecor(c: Ctx, o: Origin, d: Decor, t: number, drawItem: (p: { itemId: string; tx: number; ty: number; rot?: number }) => void) {
   const pr = PROPS[d.id];
-  if (pr) pr.draw(c, o, d.tx, d.ty, t);
+  if (pr && (d.rot ?? 0) & 1) {
+    const n = lights.length;
+    c.save(); c.translate(2 * o.ox, 0); c.scale(-1, 1); pr.draw(c, o, d.ty, d.tx, t); c.restore();
+    for (let k = n; k < lights.length; k++) lights[k] = { ...lights[k], x: 2 * o.ox - lights[k].x };
+  } else if (pr) pr.draw(c, o, d.tx, d.ty, t);
   else drawItem({ itemId: d.id, tx: d.tx, ty: d.ty, rot: d.rot });
 }
 export const decorIsFlat = decorFlat;
@@ -533,6 +538,15 @@ if (process.env.NODE_ENV !== "production") {
     }
     console.assert(plan.rooms.every((r) => [...seen].some((k) => { const [i, j] = k.split(",").map(Number); return i >= r.i0 && i < r.i1 && j >= r.j0 && j < r.j1; })), `kat ${floor}: her salona ulaşılır`);
     console.assert(plan.doors.flat().every(([a, b]) => !blocked.has(`${a},${b}`)), `kat ${floor}: kapılar açık`);
+    const used = new Map<string, string>();
+    for (const d of castleDecor(floor)) {
+      const [w, dd] = decorSize(d), cells: string[] = [];
+      for (let a = 0; a < w; a++) for (let b = 0; b < dd; b++) cells.push(`${d.tx + a},${d.ty + b}`);
+      const halls = new Set(cells.map((k) => { const [i, j] = k.split(",").map(Number); return roomIn(plan, i, j)?.id; }));
+      console.assert(halls.size === 1 && !halls.has(undefined), `kat ${floor}: ${d.id} (${d.tx},${d.ty}) tek salonda`);
+      const layer = decorFlat(d) ? "zemin" : "eşya";
+      for (const k of cells) { console.assert(!used.has(`${layer}:${k}`), `kat ${floor}: ${d.id} ${used.get(`${layer}:${k}`)} ile çakışıyor`); used.set(`${layer}:${k}`, d.id); }
+    }
     console.assert(stairs.every((s) => !blocked.has(s.spawn.map(Math.floor).join(","))), `kat ${floor}: bütün merdivenlerin önü boş`);
   }
   console.assert(stairsTarget(1, "up") === 2 && stairsTarget(2, "up") === 3 && stairsTarget(3, "up") === null && stairsTarget(1, "down") === null && stairsTarget(3, "down") === 2, "merdiven hedefleri");

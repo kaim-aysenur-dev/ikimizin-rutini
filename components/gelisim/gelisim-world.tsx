@@ -49,6 +49,7 @@ const SOUND_KEY = "gelisim-firtina-sesi";
 const TAGS = { cengiz: "Cengiz", aysenur: "Ayşenur", duldul: "Düldül", parrot: "Papağan", gandalf: "Gandalf", gimli: "Gimli", legolas: "Legolas", jon: "Jon Snow", sato: "Şato" };
 const leave = (place: string) => { void fetch("/api/gelisim/konum", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ here: false, place }), keepalive: true }); };
 const SPEED = 3.2; // kare / saniye
+const RESUME_KEY = "gelisim-yer"; // sayfa yenilenince kalınan yer ve konum
 
 // İstanbul saatine göre gece: 21-05 tam gece, akşam ve sabah geçişli
 function nightNow(): number {
@@ -202,10 +203,12 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const lastActionAt = useRef(0);
   const remoteSeen = useRef<Record<string, Set<number>>>({});
   const remoteEffects = useRef<Effect[]>([]);
+  const kick = useRef<() => void>(() => {}); // konumu beklemeden gönder
   const shareAction = (kind: Action["kind"], id: string, fx: Effect[]) => {
     const at = Math.max(Date.now(), lastActionAt.current + 1);
     lastActionAt.current = at;
     recentActions.current = [...recentActions.current.filter((a) => at - a.at < ACTION_TTL), captureAction(kind, id, at, fx)].slice(-32);
+    kick.current();
   };
   const eqRef = useRef(myEq);
   eqRef.current = myEq;
@@ -355,23 +358,54 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); };
   }, []);
 
-  // canlı konum: yarım saniyede bir; aynı yerdeki (bahçe ya da aynı ev) diğerini getirir
+  useEffect(() => {
+    try {
+      const v = JSON.parse(localStorage.getItem(RESUME_KEY) ?? "null");
+      if (!v || typeof v.place !== "string" || typeof v.i !== "number" || typeof v.j !== "number") return;
+      const pl: string = v.place;
+      const w: Where | null = pl === "bahce" ? { scope: "bahce" }
+        : pl.startsWith("ev:") && profiles.some((p) => p.id === pl.slice(3)) ? { scope: "oda", owner: pl.slice(3) }
+        : pl === "sato" ? { scope: "sato", floor: 1 } : /^sato:[23]$/.test(pl) ? { scope: "sato", floor: Number(pl.slice(5)) as Floor } : null;
+      if (!w) return;
+      const { w: W, d } = SIZE[w.scope], ci = Math.floor(v.i), cj = Math.floor(v.j);
+      const blocked = w.scope === "sato" ? castleBlocked(w.floor) : blockedSet(w.scope, scenePlaced(w, initialPlaced));
+      if (!(v.i > 0.3 && v.j > 0.3 && v.i < W - 0.3 && v.j < d - 0.3) || blocked.has(`${ci},${cj}`) || (w.scope === "bahce" && gardenSolid(ci, cj))) return;
+      const h = hero.current;
+      h.i = v.i; h.j = v.j; if (v.dir === 1 || v.dir === -1) h.dir = v.dir;
+      live.current.where = w; setWhere(w); cam.current.snap = true;
+    } catch { /* kayıt yoksa ya da bozuksa evde başlanır */ }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // canlı konum: üçte bir saniyede bir; aynı yerdeki (bahçe ya da aynı ev) diğerini getirir.
+  // Birkaç saniyede bir yerleştirilmiş eşyalar da gelir: diğerinin koyduğu, kaldırdığı ya da döndürdüğü görünür.
   useEffect(() => {
     const place = placeOf(where);
-    let stop = false, inFlight = false;
+    let stop = false, inFlight = false, again = false, n = 0;
     const joinedAt = Date.now();
     remoteSeen.current = {};
     const tick = async () => {
-      if (stop || inFlight) return;
+      if (stop) return;
+      if (inFlight) { again = true; return; }
       inFlight = true;
       const h = hero.current;
       const sent = actionHistory(recentActions.current, Date.now());
+      const withPlaced = n++ % 8 === 0;
+      // yer değişmek üzereyken (ör. kayıttan dönülürken) eski yer yazılmaz
+      if (placeOf(live.current.where) === place) try { const [si, sj] = h.sit?.from ?? [h.i, h.j]; localStorage.setItem(RESUME_KEY, JSON.stringify({ place, i: si, j: sj, dir: h.dir })); } catch { /* gizli sekme */ }
       try {
         const res = await api<{
           others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null; pose?: string | null; focus?: boolean }[];
-          unread?: number; timers?: { userId: string; label: string; startedAt: string; reading: boolean }[];
-        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined, pose: poseOf(h, deskSit.current) } });
+          unread?: number; timers?: { userId: string; label: string; startedAt: string; reading: boolean }[]; placed?: Placed[];
+        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined, pose: poseOf(h, deskSit.current), withPlaced } });
         if (stop) return;
+        // kendi eşyaların burada değişir (yolda olan isteği ezmesin); diğerininkiler sunucudan
+        if (res.placed) {
+          const theirs = res.placed.filter((p) => p.userId !== me);
+          setPlaced((cur) => {
+            const old = cur.filter((p) => p.userId !== me);
+            return JSON.stringify(old) === JSON.stringify(theirs) ? cur : [...cur.filter((p) => p.userId === me), ...theirs];
+          });
+        }
         setUnread(res.unread ?? 0);
         const pt = res.timers?.[0];
         setPartnerStudy((cur) => (pt ? (cur?.startedAt === pt.startedAt && cur.label === pt.label ? cur : { label: pt.label, startedAt: pt.startedAt, reading: pt.reading }) : null));
@@ -394,13 +428,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt, sit, study };
         });
       } catch { /* bağlantı koparsa kısa olay geçmişiyle yeniden dener */ }
-      finally { inFlight = false; }
+      finally { inFlight = false; if (again) { again = false; void tick(); } }
     };
+    kick.current = () => void tick();
     tick();
-    const id = window.setInterval(tick, 500);
+    const id = window.setInterval(tick, 350);
     const onHide = () => leave(place);
     window.addEventListener("pagehide", onHide);
-    return () => { stop = true; window.clearInterval(id); window.removeEventListener("pagehide", onHide); others.current = []; remoteEffects.current = []; };
+    return () => { stop = true; kick.current = () => {}; window.clearInterval(id); window.removeEventListener("pagehide", onHide); others.current = []; remoteEffects.current = []; };
   }, [where, profiles]);
   useEffect(() => () => leave(placeOf(live.current.where)), []);
 

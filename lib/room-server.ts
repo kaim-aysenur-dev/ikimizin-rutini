@@ -20,7 +20,7 @@ export async function placedOf(accountId: string): Promise<Placed[]> {
   const rows = await sql()`
     select p.id, p.user_id, p.item_id, p.scope, p.tx, p.ty, p.rot
     from placed_items p join users u on u.id = p.user_id
-    where u.account_id = ${accountId}`;
+    where u.account_id = ${accountId} order by p.id`;
   return rows.map((r) => ({ id: r.id, userId: r.user_id, itemId: r.item_id, scope: r.scope, tx: r.tx, ty: r.ty, rot: r.rot }));
 }
 
@@ -74,7 +74,9 @@ export async function syncPresence(user: { id: string; accountId: string }, plac
   const rows = await sql()`
     select g.user_id, g.x, g.y, g.dir, g.moving, g.action, g.pose, e.armor, e.weapon, e.spells
     from garden_presence g join users u on u.id = g.user_id left join equipment e on e.user_id = g.user_id
-    where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place} and g.updated_at > now() - interval '6 seconds'`;
+    where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place}
+      and g.updated_at > now() - case when g.moving then interval '6 seconds' else interval '90 seconds' end`;
+  // duran kişi uzun süre görünür kalır: sekme arka plandayken tarayıcı zamanlayıcıyı dakikada bire düşürebilir
   return rows.map((r) => ({
     userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving, action: r.action ?? null, pose: r.pose ?? null,
     equipment: { armor: r.armor ?? null, weapon: r.weapon ?? null, spells: r.spells ?? [] },

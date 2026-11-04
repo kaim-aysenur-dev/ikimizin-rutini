@@ -407,6 +407,37 @@ const depthOf = (p: { itemId: string; tx: number; ty: number; rot?: number }) =>
 
 const flat = isFlat;
 
+type D = { key: number; draw: () => void; box?: Part };
+// kutular: eşya alanı, karakter ve efekt noktası, duvar (kalınlıksız çizgi); z ile üstte oturan öne geçer
+const area = (i: number, j: number, w: number, d: number, z0 = 0, z1 = 1): Part => ({ i0: i, i1: i + w, j0: j, j1: j + d, z0, z1 });
+const dot = (i: number, j: number, z0 = 0, z1 = 1): Part => area(i, j, 0, 0, z0, z1);
+const wallBox = (wl: { i: number; j: number; axis: "i" | "j" }): Part => (wl.axis === "j" ? area(wl.i, wl.j, 0, 1) : area(wl.i, wl.j, 1, 0));
+
+/**
+ * Çizim sırası. Tek sayılık derinlik çok kareli eşyada yetmez (duvarın arkasındaki uzun eşya duvarın önüne taşar);
+ * kutusu olan sahnede ekranda yan yana gelen her çift kutudan hangisinin arkada olduğuna bakılıp sıralanır.
+ */
+function depthOrder(list: D[]): D[] {
+  if (list.some((d) => !d.box)) return list.sort((a, b) => a.key - b.key);
+  const n = list.length, todo = list.map((_, k) => k).sort((a, b) => list[a].key - list[b].key);
+  const xs = list.map(({ box: b }) => [(b!.i0 - b!.j1) * 8 - 12, (b!.i1 - b!.j0) * 8 + 12]);
+  const next: number[][] = list.map(() => []), need = new Array<number>(n).fill(0);
+  for (let a = 0; a < n; a++) for (let b = a + 1; b < n; b++) {
+    if (xs[a][1] <= xs[b][0] || xs[b][1] <= xs[a][0]) continue; // ekranda örtüşmüyor
+    const A = list[a].box!, B = list[b].box!;
+    if (behind(A, B)) { next[a].push(b); need[b]++; } else if (behind(B, A)) { next[b].push(a); need[a]++; }
+  }
+  const out: D[] = [];
+  while (todo.length) {
+    let k = todo.findIndex((q) => need[q] === 0);
+    if (k < 0) k = 0; // döngü olursa derinliği en küçük olan
+    const q = todo.splice(k, 1)[0];
+    out.push(list[q]);
+    for (const x of next[q]) need[x]--;
+  }
+  return out;
+}
+
 /** Bütün sahne. Dönen değer: isim etiketlerinin ekran noktaları (dünya pikseli). */
 export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   lights.length = 0;
@@ -414,11 +445,10 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   flashNow = stormFlash(t);
   const o = s.cam;
   const W = c.canvas.width, Hc = c.canvas.height;
-  type D = { key: number; draw: () => void };
   const list: D[] = [];
   const anchors: Anchor[] = [];
   const person = (key: string, who: "wizard" | "dwarf" | "elf" | "jon", i: number, j: number, dir: 1 | -1) =>
-    list.push({ key: i + j, draw: () => {
+    list.push({ key: i + j, box: dot(i, j), draw: () => {
       const [x, y] = at(o, i, j);
       rect(c, x - 5, y - 1, 10, 2, "rgba(0,0,0,0.3)");
       const a = drawCharacter(c, { who, x, y, dir, pose: STAND, outfit: "home", blink: (t + i) % 5 < 0.12 });
@@ -430,10 +460,10 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     for (const p of s.placed) if (flat(p.itemId)) drawItem(c, o, p, t);
     const th = THEME[s.theme];
     const faces = { top: th.wallHi, left: th.wall[0], right: th.wall[1] };
-    for (const wl of innerWalls()) list.push({ key: wl.i + wl.j + 0.5, draw: () => innerWall(c, o, wl, faces) });
+    for (const wl of innerWalls()) list.push({ key: wl.i + wl.j + 0.5, box: wallBox(wl), draw: () => innerWall(c, o, wl, faces) });
     const { w, d } = SIZE.oda;
-    for (let j = 0; j < d; j++) list.push({ key: w + j + 0.55, draw: () => box(c, o, w - 0.1, j, 0.2, 1, 6, faces, 0, false) });
-    for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, draw: () => box(c, o, i, d - 0.1, 1, 0.2, 6, faces, 0, false) });
+    for (let j = 0; j < d; j++) list.push({ key: w + j + 0.55, box: area(w, j, 0, 1), draw: () => box(c, o, w - 0.1, j, 0.2, 1, 6, faces, 0, false) });
+    for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, box: area(i, d, 1, 0), draw: () => box(c, o, i, d - 0.1, 1, 0.2, 6, faces, 0, false) });
   } else if (s.scope === "sato") {
     c.fillStyle = "#0a0a14"; c.fillRect(0, 0, W, Hc);
     const floor = s.floor ?? 1;
@@ -444,18 +474,18 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     for (const d of decor) {
       if (decorIsFlat(d)) continue;
       const [w, dd] = decorSize(d);
-      list.push({ key: d.tx + w - 0.5 + d.ty + dd - 0.5, draw: () => drawDecor(c, o, d, t, di) });
+      list.push({ key: d.tx + w - 0.5 + d.ty + dd - 0.5, box: area(d.tx, d.ty, w, dd), draw: () => drawDecor(c, o, d, t, di) });
     }
-    for (const wl of castleWalls(floor)) list.push({ key: wl.i + wl.j + 0.5, draw: () => innerWall(c, o, wl, castleWallFaces(wl.hall), 18) });
+    for (const wl of castleWalls(floor)) list.push({ key: wl.i + wl.j + 0.5, box: wallBox(wl), draw: () => innerWall(c, o, wl, castleWallFaces(wl.hall), 18) });
     if (floor === 2) for (const tg of TARGETS) {
       const st = s.targetState?.[tg.id];
-      list.push({ key: tg.i + tg.j, draw: () => drawTarget(c, o, tg, t, st?.hit ?? 0, st?.hp ?? 1) });
+      list.push({ key: tg.i + tg.j, box: dot(tg.i, tg.j), draw: () => drawTarget(c, o, tg, t, st?.hit ?? 0, st?.hp ?? 1) });
     }
     const { w, d } = SIZE.sato, fr = castleWallFaces("buyuk-salon");
-    for (let j = 0; j < d; j++) list.push({ key: w + j + 0.55, draw: () => box(c, o, w - 0.1, j, 0.2, 1, 8, fr, 0, false) });
-    for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, draw: () => box(c, o, i, d - 0.1, 1, 0.2, 8, fr, 0, false) });
+    for (let j = 0; j < d; j++) list.push({ key: w + j + 0.55, box: area(w, j, 0, 1), draw: () => box(c, o, w - 0.1, j, 0.2, 1, 8, fr, 0, false) });
+    for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, box: area(i, d, 1, 0), draw: () => box(c, o, i, d - 0.1, 1, 0.2, 8, fr, 0, false) });
     for (const g of castleGuests(floor)) person(g.key, g.who, g.i, g.j, g.dir);
-    if (floor === 1) list.push({ key: 12.5 + 3.5 + 0.1, draw: () => {
+    if (floor === 1) list.push({ key: 12.5 + 3.5 + 0.1, box: dot(12.5, 3.5, 1, 2), draw: () => {
       const [x, y] = at(o, 12.5, 3.5);
       const a = parrot(c, [x + 1, y - 21], -1, "perch", t, false);
       anchors.push({ key: "parrot", x: a.head[0], y: a.head[1] });
@@ -489,11 +519,12 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   }
   for (const p of s.placed) {
     if (flat(p.itemId) || !itemById.get(p.itemId)) continue;
-    list.push({ key: depthOf(p), draw: () => drawItem(c, o, p, t) });
+    const [w, d] = sizeOf(p.itemId, p.rot);
+    list.push({ key: depthOf(p), box: area(p.tx, p.ty, w, d), draw: () => drawItem(c, o, p, t) });
   }
   for (const h of s.heroes) {
     // oturan, oturduğu eşyanın hemen önünde çizilir (yoksa koltuk ya da yatak üstünü örter)
-    list.push({ key: Math.max(h.i + h.j, h.sit?.depth ?? 0), draw: () => {
+    list.push({ key: Math.max(h.i + h.j, h.sit?.depth ?? 0), box: h.sit ? dot(h.i, h.j, 1, 2) : dot(h.i, h.j), draw: () => {
       const [x, y] = at(o, h.i, h.j);
       if (!h.sit) rect(c, x - 5, y - 1, 10, 2, "rgba(0,0,0,0.3)");
       // oturur ve uzanırken ayaktan pozuna yumuşakça geçer
@@ -526,7 +557,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   }
   if (s.cat) {
     const k = s.cat;
-    list.push({ key: k.i + k.j, draw: () => {
+    list.push({ key: k.i + k.j, box: dot(k.i, k.j, k.sleep ? 1 : 0, k.sleep ? 2 : 1), draw: () => {
       const [x, y] = at(o, k.i, k.j);
       const a = duldul(c, x, y, k.dir, k.sleep ? "rest" : k.moving ? "walk" : "sit", k.dist, t, false);
       anchors.push({ key: "duldul", x: a.head[0], y: a.head[1] + 2 });
@@ -536,9 +567,9 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   for (const e of s.effects ?? []) {
     if (e.kind === "hasar" || e.kind === "sifa-sayi") continue;
     const [ei, ej] = shotAt(e, now);
-    list.push({ key: ei + ej + 0.6, draw: () => drawEffect(c, o, e, now) });
+    list.push({ key: ei + ej + 0.6, box: dot(ei, ej, 1, 2), draw: () => drawEffect(c, o, e, now) });
   }
-  list.sort((a, b) => a.key - b.key).forEach((d) => d.draw());
+  depthOrder(list).forEach((d) => d.draw());
 
   // yan yana gelince aranızdan kalpler yükselir
   if (s.heroes.length >= 2) {
