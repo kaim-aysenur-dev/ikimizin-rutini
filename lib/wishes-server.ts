@@ -5,8 +5,8 @@ import { sql } from "./db";
 import { streakAndDays } from "./overview";
 import { type Goal, MAX_ACTIVE, type Metric, type Progress, TIERS, type Tier, type Wish, type WishCat, type WishStatus, goalsMet } from "./wishes";
 
-// Dilek Dolabı. Görünürlük: aynı hesaptaki iki kişi birbirinin dileklerini görür (hediye fikri için).
-// Düzenleme ve eylemler yalnız sahibinde; "ben alacağım" işaretini yalnız diğeri koyar ve sahibine gösterilmez.
+// Dilek Dolabı. Görünürlük: herkes yalnız kendi dileklerini ve ikinizin ortak dileklerini görür.
+// Düzenleme ve eylemler yalnız sahibinde.
 
 type U = { id: string; accountId: string };
 
@@ -46,9 +46,9 @@ export async function wishOverview(user: U, today: string): Promise<{ wishes: Wi
   const [rows, members] = await Promise.all([
     sql()`
       select w.id, w.user_id, w.title, w.brand, w.category, w.tier, w.price, w.link, w.note, w.photo, w.shared, w.goals, w.days, w.status,
-        to_char(w.start_day, 'YYYY-MM-DD') as start_day, w.attempts, w.earned_at, w.claimed_at, w.gift_by
+        to_char(w.start_day, 'YYYY-MM-DD') as start_day, w.attempts, w.earned_at, w.claimed_at
       from wishes w join users u on u.id = w.user_id
-      where u.account_id = ${user.accountId} order by w.created_at`,
+      where u.account_id = ${user.accountId} and (w.user_id = ${user.id} or w.shared) order by w.created_at`,
     sql()`select id from users where account_id = ${user.accountId} order by created_at`,
   ]) as unknown as [Row[], { id: string }[]];
 
@@ -75,7 +75,7 @@ export async function wishOverview(user: U, today: string): Promise<{ wishes: Wi
       daysLeft: end && status === "gorevde" ? Math.max(0, diffDays(end, today) + 1) : null,
       expired: status === "gorevde" && !!end && today > end, attempts: r.attempts as number,
       earnedAt, claimedAt: r.claimed_at ? new Date(r.claimed_at as string).toISOString() : null,
-      giftByMe: r.gift_by === user.id && r.user_id !== user.id, progress,
+      progress,
     };
   }));
   return { wishes };
@@ -122,20 +122,15 @@ export async function deleteWish(user: U, id: string): Promise<{ photo: string |
 
 /* --------------------------------- eylemler -------------------------------- */
 
-export type WishAction = "baslat" | "yeniden" | "birak" | "aldim" | "almadim" | "hediye";
+export type WishAction = "baslat" | "yeniden" | "birak" | "aldim" | "almadim";
 
 export async function wishAction(user: U, id: string, action: WishAction, today: string): Promise<{ ok: true } | { error: string; status: number }> {
   const [w] = await sql()`
-    select w.user_id, w.status, w.shared, w.gift_by from wishes w join users u on u.id = w.user_id
-    where w.id = ${id} and u.account_id = ${user.accountId}`;
+    select w.user_id, w.status, w.shared from wishes w join users u on u.id = w.user_id
+    where w.id = ${id} and u.account_id = ${user.accountId} and (w.user_id = ${user.id} or w.shared)`;
   if (!w) return { error: "Dilek bulunamadı.", status: 404 };
   const mine = w.user_id === user.id;
 
-  if (action === "hediye") {
-    if (mine || w.shared) return { error: "Kendi dileğine hediye işareti konmaz.", status: 400 };
-    await sql()`update wishes set gift_by = ${w.gift_by === user.id ? null : user.id} where id = ${id}`;
-    return { ok: true };
-  }
   if (!mine) return { error: "Bu dilek senin değil.", status: 403 };
 
   if (action === "baslat" || action === "yeniden") {

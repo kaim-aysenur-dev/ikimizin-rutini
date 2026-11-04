@@ -21,8 +21,8 @@ export default async function Page({ searchParams }: PageProps<"/gelisim">) {
   const withLevel = await Promise.all(profiles.map(async (p) => { const xp = (await adventure(p.id, user.accountId, today)).xp; return { ...p, xp, level: levelOf(xp).level }; }));
   // kuşanılanlar: seviyesi yetmeyen ya da artık olmayan eşyalar düşer
   const initialEquipment = Object.fromEntries(withLevel.map((p) => [p.id, sanitizeEquipment(equipped[p.id], p.level)]));
-  // odadaki ödül vitrini: kazanılan ödüllerin kategorileri
-  const initialTrophies = Object.fromEntries(await Promise.all(profiles.map(async (p) => [p.id, await trophiesOf(p.id)] as const)));
+  // odadaki ödül vitrini: yalnız kendi kazandıkların (ödüller kişiye özel)
+  const initialTrophies = { [user.id]: await trophiesOf(user.id) };
   return (
     <main className="main gw-main">
       <h1 className="sr-only">Gelişim</h1>

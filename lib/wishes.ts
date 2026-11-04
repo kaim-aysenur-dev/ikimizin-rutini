@@ -138,7 +138,7 @@ export type Wish = {
   id: string; userId: string; title: string; brand: string; cat: WishCat; tier: Tier; price: number | null; link: string; note: string;
   photo: string | null; photoId: string | null; shared: boolean; goals: Goal[]; days: number; status: WishStatus;
   startDay: string | null; endDay: string | null; daysLeft: number | null; expired: boolean; attempts: number;
-  earnedAt: string | null; claimedAt: string | null; giftByMe: boolean; progress: Progress[];
+  earnedAt: string | null; claimedAt: string | null; progress: Progress[];
 };
 
 /** Görevin ilerlemesi (0-1): her koşulun oranının ortalaması, ortakta en geride olanınki */

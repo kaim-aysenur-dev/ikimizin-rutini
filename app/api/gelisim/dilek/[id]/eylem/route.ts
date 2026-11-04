@@ -5,9 +5,9 @@ import { UUID_RE } from "@/lib/skin";
 import { type WishAction, wishAction } from "@/lib/wishes-server";
 
 type Ctx = RouteContext<"/api/gelisim/dilek/[id]/eylem">;
-const ACTIONS: WishAction[] = ["baslat", "yeniden", "birak", "aldim", "almadim", "hediye"];
+const ACTIONS: WishAction[] = ["baslat", "yeniden", "birak", "aldim", "almadim"];
 
-// Görevi başlat / yeniden başlat / bırak, gerçekte aldım, diğerinin dileğine "ben alacağım"
+// Görevi başlat / yeniden başlat / bırak, gerçekte aldım
 export const POST = withUser<Ctx>(async (req, user, ctx) => {
   const { id } = await ctx.params;
   const action = (await readJson(req))?.action;

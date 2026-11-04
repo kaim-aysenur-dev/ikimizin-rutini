@@ -292,11 +292,6 @@
   50% { filter: drop-shadow(0 0 6px var(--tier)); }
 }
 
-.wd-gift {
-  color: #f2a7b8;
-  font-weight: 700;
-}
-
 /* ---------- kazanma kutlaması ---------- */
 
 .wd-party {

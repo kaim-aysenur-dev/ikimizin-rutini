@@ -344,7 +344,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     else if (nb.kind === "hold") setHold(!holdRef.current);
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
-    else if (nb.kind === "wardrobe") { const w = live.current.where; setWardrobe(w.scope === "oda" ? w.owner : me); }
+    else if (nb.kind === "wardrobe") setWardrobe(me); // kimin evinde olursan ol, yalnız kendi dolabın açılır
     else if (nb.kind === "station" && nb.gearKind) setArmory(nb.gearKind);
     else if (nb.kind === "stairs" && nb.to && !fade.current) {
       const from = floorOf(live.current.where);
@@ -764,7 +764,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const targetState = cur.scope === "sato" && cur.floor === 2
         ? Object.fromEntries(targets.current.map((tg) => [tg.id, { hit: Math.max(0, 1 - (t - tg.hitAt) / 0.3), hp: tg.hp / tg.maxHp }])) : undefined;
 
-      vitrine.cats = cur.scope === "oda" ? liveTrophies.current[cur.owner] ?? [] : [];
+      vitrine.cats = cur.scope === "oda" && cur.owner === me ? liveTrophies.current[me] ?? [] : []; // ödüller kişiye özel
       const anchors = drawScene(c, t, {
         scope: cur.scope, cam: o, theme: cur.scope === "oda" ? themeOf(cur.owner) : "cengiz",
         houseThemes: profiles.slice(0, HOUSES.length).map((p) => whoOf(p.name)),
@@ -957,8 +957,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   // dolap kapanınca vitrin yeni kazanılanlarla tazelenir
   const closeWardrobe = () => {
     setWardrobe(null);
-    void api<{ wishes: Wish[] }>("/api/gelisim/dilek").then((d) => setTrophies(Object.fromEntries(profiles.map((p) => [p.id,
-      d.wishes.filter((w) => (w.userId === p.id || w.shared) && (w.status === "kazanildi" || w.status === "alindi")).reverse().map((w) => w.cat)]))), () => {});
+    void api<{ wishes: Wish[] }>("/api/gelisim/dilek").then((d) => setTrophies({
+      [me]: d.wishes.filter((w) => w.status === "kazanildi" || w.status === "alindi").reverse().map((w) => w.cat),
+    }), () => {});
   };
   shortcutRef.current = (key) => {
     if (key === "escape") {
@@ -1120,7 +1121,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         </div>
       </div>
       {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
-      {wardrobe && <WishWardrobe me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} />}
+      {wardrobe && <WishWardrobe me={me} profiles={profiles} onClose={closeWardrobe} />}
       {armory && <ArmoryPanel kind={armory} level={playerLevel} equipment={myEq} busy={equipBusy} onToggle={onEquip} onClose={() => setArmory(null)} />}
       {mailOpen && <Mailbox onClose={() => { setMailOpen(false); setUnread(0); }} partner={profiles.find((p) => p.id !== me)?.name.split(" ")[0] ?? "Sevgilin"} />}
     </div>

@@ -36,9 +36,8 @@ const draftFromIdea = (s: Suggestion, shared: boolean): Draft => ({ ...blankDraf
  * Dilek Dolabı: gerçek hayatta almak istediğiniz ödüller. Her dileğin bir görevi var (kademe = süre + tempo);
  * başlatınca süre işler, koşullar tamamlanınca ödül kazanılır ve dolaba girer; gerçekte alınınca "alındı" olur.
  */
-export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; profiles: Profile[]; owner: string; onClose: () => void }) {
+export function WishWardrobe({ me, profiles, onClose }: { me: string; profiles: Profile[]; onClose: () => void }) {
   const [wishes, setWishes] = useState<Wish[] | null>(null);
-  const [person, setPerson] = useState(owner);
   const [tab, setTab] = useState<Tab>("gorev");
   const [view, setView] = useState<View>({ kind: "list" });
   const [busy, setBusy] = useState(false);
@@ -53,8 +52,7 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
   useEffect(() => { if (!msg) return; const id = window.setTimeout(() => setMsg(null), 3500); return () => window.clearTimeout(id); }, [msg]);
 
   const nameOf = (id: string) => first(profiles.find((p) => p.id === id)?.name ?? "");
-  const personName = profiles.find((p) => p.id === person)?.name ?? "";
-  const mineView = person === me;
+  const myName = profiles.find((p) => p.id === me)?.name ?? "";
 
   const load = useCallback(async () => {
     try {
@@ -90,8 +88,8 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
     if (e.key === "Escape") { if (party) setParty(null); else if (view.kind !== "list") setView({ kind: "list" }); else onClose(); }
   };
 
-  // bu kişinin dolabındakiler: kendi dilekleri + ortak dilekler
-  const own = (wishes ?? []).filter((w) => w.userId === person || w.shared);
+  // dolapta yalnız kendi dileklerin ve ikinizin ortak dilekleri (sunucu da yalnız bunları verir)
+  const own = (wishes ?? []).filter((w) => w.userId === me || w.shared);
   const quests = own.filter((w) => w.status === "gorevde");
   const list = own.filter((w) => w.status === "dilek");
   const closet = own.filter((w) => w.status === "kazanildi" || w.status === "alindi");
@@ -133,15 +131,8 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div ref={box} tabIndex={-1} className="modal wd" role="dialog" aria-modal="true" aria-labelledby="wd-title" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}>
         <div className="wd-head">
-          <h2 id="wd-title">🎁 {mineView ? "Dilek Dolabım" : `${first(personName)}'in Dilek Dolabı`}</h2>
+          <h2 id="wd-title">🎁 Dilek Dolabım</h2>
           <button type="button" className="btn btn-quiet" onClick={onClose} aria-label="Kapat">✕</button>
-        </div>
-        <div className="chips" role="group" aria-label="Kimin dolabı">
-          {profiles.map((p) => (
-            <button key={p.id} type="button" className="chip" aria-pressed={person === p.id} onClick={() => { setPerson(p.id); setView({ kind: "list" }); }}>
-              {p.id === me ? "Benim" : `${first(p.name)}'in`}
-            </button>
-          ))}
         </div>
 
         {party && (
@@ -167,7 +158,7 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
             })}
             onDelete={view.wish ? () => run(async () => { await api(`/api/gelisim/dilek/${view.wish!.id}`, { method: "DELETE" }); setView({ kind: "list" }); setMsg("Dilek silindi."); }) : undefined} />
           : view.kind === "ideas" ? (
-            <Ideas forAysenur={isAysenur(personName)} onPick={(s, shared) => setView({ kind: "form", wish: null, draft: draftFromIdea(s, shared) })} onCancel={() => setView({ kind: "list" })} />
+            <Ideas forAysenur={isAysenur(myName)} onPick={(s, shared) => setView({ kind: "form", wish: null, draft: draftFromIdea(s, shared) })} onCancel={() => setView({ kind: "list" })} />
           ) : (
             <>
               <div className="chips wd-tabs" role="tablist">
@@ -179,8 +170,8 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
               {tab === "gorev" && (
                 quests.length === 0 ? (
                   <div className="wd-empty">
-                    <p>{mineView ? "Şu an bir ödül için çalışmıyorsun." : `${first(personName)} şu an bir görevde değil.`}</p>
-                    {mineView && <button type="button" className="btn btn-primary" onClick={() => setTab("dilek")}>Dileklerinden birini seç</button>}
+                    <p>Şu an bir ödül için çalışmıyorsun.</p>
+                    <button type="button" className="btn btn-primary" onClick={() => setTab("dilek")}>Dileklerinden birini seç</button>
                   </div>
                 ) : (
                   <ul className="wd-quests">
@@ -217,9 +208,8 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
 
               {tab === "dilek" && (
                 <>
-                  {mineView && <p className="muted wd-intro">Bir dilek seç, görevini başlat: süre işlemeye başlar ve koşullar yalnız o günlerden sayılır. Aynı anda en fazla {MAX_ACTIVE} görev ({activeMine}/{MAX_ACTIVE}).</p>}
-                  {!mineView && <p className="muted wd-intro">{first(personName)}'in dilekleri. 🎁 ile hediye etmek istediğini işaretle: bunu yalnız sen görürsün.</p>}
-                  {list.length === 0 && <p className="wd-empty">{mineView ? "Henüz dilek yok. Aşağıdan ekle ya da fikirlere bak." : "Henüz dilek eklememiş."}</p>}
+                  <p className="muted wd-intro">Bir dilek seç, görevini başlat: süre işlemeye başlar ve koşullar yalnız o günlerden sayılır. Aynı anda en fazla {MAX_ACTIVE} görev ({activeMine}/{MAX_ACTIVE}). Dolabını yalnız sen görürsün; ortak dilekleri ikiniz de.</p>
+                  {list.length === 0 && <p className="wd-empty">Henüz dilek yok. Aşağıdan ekle ya da fikirlere bak.</p>}
                   <ul className="wd-grid">
                     {list.map((w) => (
                       <li key={w.id} className="wd-card" style={{ "--tier": TIERS[w.tier].color } as React.CSSProperties}>
@@ -233,18 +223,14 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
                             onClick={() => act(w, "baslat", `Görev başladı: ${TIERS[w.tier].days} gün. Başarılar!`)}>▶ Görevi başlat</button>}
                           {w.userId === me && <button type="button" className="btn btn-ghost btn-sm" onClick={() => setView({ kind: "form", wish: w, draft: draftOf(w) })}>Düzenle</button>}
                           {w.link && <a className="btn btn-quiet btn-sm" href={w.link} target="_blank" rel="noopener noreferrer">Bağlantı ↗</a>}
-                          {w.userId !== me && !w.shared && <button type="button" className={`btn btn-sm ${w.giftByMe ? "btn-primary" : "btn-ghost"}`} aria-pressed={w.giftByMe} disabled={busy}
-                            onClick={() => act(w, "hediye", w.giftByMe ? "Hediye işareti kaldırıldı." : "🎁 Not edildi: kazanınca hediyesini sen alacaksın.")}>🎁 {w.giftByMe ? "Ben alacağım" : "Hediye et"}</button>}
                         </div>
                       </li>
                     ))}
                   </ul>
-                  {mineView && (
-                    <div className="row">
-                      <button type="button" className="btn btn-primary" onClick={() => setView({ kind: "form", wish: null, draft: blankDraft(isAysenur(personName)) })}>+ Yeni dilek</button>
-                      <button type="button" className="btn btn-ghost" onClick={() => setView({ kind: "ideas" })}>💡 Fikirler</button>
-                    </div>
-                  )}
+                  <div className="row">
+                    <button type="button" className="btn btn-primary" onClick={() => setView({ kind: "form", wish: null, draft: blankDraft(isAysenur(myName)) })}>+ Yeni dilek</button>
+                    <button type="button" className="btn btn-ghost" onClick={() => setView({ kind: "ideas" })}>💡 Fikirler</button>
+                  </div>
                 </>
               )}
 
@@ -256,7 +242,6 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
                         {icon(w)}
                         <b>{w.title}</b>
                         <small className="muted">{w.status === "alindi" ? `✓ Alındı · ${new Date(w.claimedAt!).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })}` : "Kazanıldı · henüz alınmadı"}</small>
-                        {w.giftByMe && w.status === "kazanildi" && <small className="wd-gift">🎁 Hediyesini sen alacaktın!</small>}
                         {w.userId === me && (w.status === "kazanildi"
                           ? <button type="button" className="btn btn-primary btn-sm" disabled={busy} onClick={() => act(w, "aldim", "Afiyetle kullan! Dolabında yerini aldı.")}>Aldım ✓</button>
                           : <button type="button" className="btn btn-quiet btn-sm" disabled={busy} onClick={() => act(w, "almadim", "Geri alındı.")}>Geri al</button>)}
@@ -275,7 +260,7 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
 /* ---------------------------------- fikirler ---------------------------------- */
 
 function Ideas({ forAysenur, onPick, onCancel }: { forAysenur: boolean; onPick: (s: Suggestion, shared: boolean) => void; onCancel: () => void }) {
-  const mine = SUGGESTIONS[forAysenur ? "aysenur" : "cengiz"];
+  const mine = SUGGESTIONS[forAysenur ? "aysenur" : "cengiz"], other = SUGGESTIONS[forAysenur ? "cengiz" : "aysenur"];
   const card = (s: Suggestion, shared: boolean) => (
     <li key={s.title}>
       <button type="button" className="wd-idea" onClick={() => onPick(s, shared)} style={{ "--tier": TIERS[s.tier].color } as React.CSSProperties}>
@@ -292,6 +277,8 @@ function Ideas({ forAysenur, onPick, onCancel }: { forAysenur: boolean; onPick: 
       <h3 className="st-sub">❤️ Birlikte</h3>
       <p className="muted wd-intro">Ortak dileklerde koşulları ikiniz de ayrı ayrı tamamlarsınız.</p>
       <ul className="wd-ideas">{SUGGESTIONS.ortak.map((s) => card(s, true))}</ul>
+      <h3 className="st-sub">✨ Başka fikirler</h3>
+      <ul className="wd-ideas">{other.map((s) => card(s, false))}</ul>
       <div className="row"><button type="button" className="btn btn-ghost" onClick={onCancel}>Geri</button></div>
     </div>
   );
