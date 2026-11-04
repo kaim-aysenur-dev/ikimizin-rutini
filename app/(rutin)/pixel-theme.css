@@ -1273,3 +1273,45 @@ button.xp-badge:hover {
 
 @media (max-width: 380px) { .gw-tools .gw-tools-toggle { min-width: 36px; padding: 5px 8px; } .gw-tools-label { display: none; } }
 @media (max-width: 350px) { .gw-hud { width: 205px; } .gw-hud-heading span { font-size: 10px; } .gw-slot { width: 40px; height: 40px; } .gw-slots { gap: 6px; } }
+
+/* emote çarkı: karakterin çevresinde açılır */
+.gw-wheel { position: absolute; inset: 0; z-index: 6; }
+.gw-wheel-hub, .gw-wheel-item { position: absolute; left: 50%; top: 46%; }
+.gw-wheel-hub {
+  transform: translate(-50%, -50%); width: 34px; height: 34px; display: grid; place-items: center;
+  background: rgb(14 12 24 / .85); color: #f3d48a; font: 700 13px/1 var(--body); box-shadow: 0 0 0 2px var(--px-ink); border-radius: 50%; pointer-events: none;
+}
+.gw-wheel-item {
+  display: grid; justify-items: center; gap: 2px; width: 66px; padding: 6px 4px 5px; border: 0; cursor: pointer;
+  background: rgb(20 16 34 / .92); color: var(--px-cream); box-shadow: 0 0 0 2px var(--px-ink), inset 0 -3px 0 rgb(0 0 0 / .35);
+  animation: gw-wheel-in .16s ease-out both;
+}
+.gw-wheel-item span { font-size: 22px; line-height: 1; }
+.gw-wheel-item small { font: 600 11px/1 var(--body); }
+.gw-wheel-item kbd { position: absolute; top: 2px; right: 3px; font-size: 9px; opacity: .6; }
+.gw-wheel-item:hover:not(:disabled), .gw-wheel-item:focus-visible { background: var(--px-rose); outline: none; }
+.gw-wheel-item.is-pair { box-shadow: 0 0 0 2px #e48aa0, inset 0 -3px 0 rgb(0 0 0 / .35); }
+.gw-wheel-item:disabled { opacity: .4; cursor: not-allowed; }
+@keyframes gw-wheel-in { from { opacity: 0; scale: .6; } to { opacity: 1; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .gw-wheel-item { animation: none; } }
+
+/* partner başka yerde / el ele */
+.gw-partner-chip, .gw-hold-chip {
+  position: absolute; z-index: 3; left: 50%; transform: translateX(-50%); margin: 0; padding: 5px 10px;
+  background: rgb(14 12 24 / .85); color: #f4c4d2; font-size: 12px; pointer-events: none; box-shadow: 0 0 0 2px var(--px-ink);
+}
+.gw-partner-chip { top: 44px; }
+.gw-hold-chip { top: 74px; color: #f3d48a; }
+
+/* dokunmatik: emote ve büyü düğmeleri */
+.gw-pad { grid-template-rows: repeat(3, 48px); }
+.gw-pad-btn.emo { grid-column: 1; grid-row: 3; background: #6a4a8a; }
+.gw-pad-spells { grid-column: 2 / 4; grid-row: 3; display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+.gw-pad-btn.spell { font-size: 15px; background: #3a4a7a; }
+.gw-pad-btn.spell:disabled { opacity: .35; }
+
+/* zırh paneli: yuvalar ve toplam değerler */
+.gw-armory-sum { margin: 4px 0; color: #f3d48a; font-size: 13px; }
+.gw-armory-slots { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
+.gw-armory-slots .chip { border: 0; padding: 5px 9px; font: 600 12px/1 var(--body); color: var(--px-cream); background: var(--px-stone); box-shadow: 0 0 0 2px var(--px-ink); cursor: pointer; }
+.gw-armory-slots .chip.is-on { background: var(--px-rose); }

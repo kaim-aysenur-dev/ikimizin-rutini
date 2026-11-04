@@ -1,7 +1,7 @@
 import { jsonError, jsonOk, readJson } from "@/lib/http";
 import { withUser } from "@/lib/auth/session";
 import { SIZE } from "@/lib/room";
-import { placedOf, syncPresence, unreadNotes } from "@/lib/room-server";
+import { partnerPlace, placedOf, syncPresence, unreadNotes } from "@/lib/room-server";
 import { partnerTimers } from "@/lib/study-server";
 import { parseActionHistory } from "@/lib/combat-sync";
 import { UUID_RE } from "@/lib/skin";
@@ -23,10 +23,11 @@ export const POST = withUser(async (req, user) => {
   if (typeof x !== "number" || typeof y !== "number" || !(x >= -1 && x <= w + 1 && y >= -1 && y <= d + 1) || (dir !== 1 && dir !== -1)) {
     return jsonError(400, "Geçersiz konum.");
   }
-  const [others, unread, timers, placed] = await Promise.all([
+  const [others, unread, timers, placed, where] = await Promise.all([
     syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act, pose: typeof pose === "string" && POSE_RE.test(pose) ? pose : null }), unreadNotes(user.id), partnerTimers(user),
     withPlaced === true ? placedOf(user.accountId) : null, // diğerinin koyduğu eşyalar birkaç saniyede bir eşitlenir
+    withPlaced === true ? partnerPlace(user) : undefined, // partner başka yerdeyse pusula
   ]);
   // masada oturan ve sayacı açık olan odakta görünür; şerit için sayaçlar ayrıca döner
-  return jsonOk({ others: others.map((o) => ({ ...o, focus: timers.some((x) => x.userId === o.userId) })), unread, timers, ...(placed ? { placed } : {}) });
+  return jsonOk({ others: others.map((o) => ({ ...o, focus: timers.some((x) => x.userId === o.userId) })), unread, timers, ...(placed ? { placed } : {}), ...(where !== undefined ? { partnerPlace: where } : {}) });
 });

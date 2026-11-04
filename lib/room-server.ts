@@ -7,7 +7,7 @@ import { levelOf } from "./xp";
 export type Profile = { id: string; name: string };
 import { type Action } from "./combat-sync";
 export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean; action?: Action | null; pose?: string | null };
-export type PresenceOut = Presence & { equipment: { armor: string | null; weapon: string | null; spells: string[] } };
+export type PresenceOut = Presence & { equipment: Record<string, unknown> };
 // place: "bahce" ya da "ev:<ev sahibinin kimliği>"; yalnız aynı yerdekiler birbirini görür
 
 export async function profilesOf(accountId: string): Promise<Profile[]> {
@@ -72,15 +72,24 @@ export async function syncPresence(user: { id: string; accountId: string }, plac
     await sql()`delete from garden_presence where user_id = ${user.id}`;
   }
   const rows = await sql()`
-    select g.user_id, g.x, g.y, g.dir, g.moving, g.action, g.pose, e.armor, e.weapon, e.spells
+    select g.user_id, g.x, g.y, g.dir, g.moving, g.action, g.pose, e.armor, e.helmet, e.shield, e.cape, e.gloves, e.boots, e.trinket, e.weapon, e.spells
     from garden_presence g join users u on u.id = g.user_id left join equipment e on e.user_id = g.user_id
     where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place}
       and g.updated_at > now() - case when g.moving then interval '6 seconds' else interval '90 seconds' end`;
   // duran kişi uzun süre görünür kalır: sekme arka plandayken tarayıcı zamanlayıcıyı dakikada bire düşürebilir
   return rows.map((r) => ({
     userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving, action: r.action ?? null, pose: r.pose ?? null,
-    equipment: { armor: r.armor ?? null, weapon: r.weapon ?? null, spells: r.spells ?? [] },
+    equipment: { armor: r.armor ?? null, helmet: r.helmet ?? null, shield: r.shield ?? null, cape: r.cape ?? null, gloves: r.gloves ?? null, boots: r.boots ?? null, trinket: r.trinket ?? null, weapon: r.weapon ?? null, spells: r.spells ?? [] },
   }));
+}
+
+/** Partner şu an nerede (başka yerdeyse pusulada gösterilir) */
+export async function partnerPlace(user: { id: string; accountId: string }): Promise<string | null> {
+  const [r] = await sql()`
+    select g.place from garden_presence g join users u on u.id = g.user_id
+    where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.updated_at > now() - interval '90 seconds'
+    order by g.updated_at desc limit 1`;
+  return (r?.place as string) ?? null;
 }
 
 /* ------------------------------- posta kutusu ------------------------------- */

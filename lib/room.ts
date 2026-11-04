@@ -5,7 +5,7 @@ import { type Scope, isFlat, itemById } from "./room-items";
 /** Yürünen yerler: kişinin evi, ortak bahçe ve ortak şato (şatoya eşya konmaz) */
 export type Area = Scope | "sato";
 
-export const SIZE: Record<Area, { w: number; d: number }> = { oda: { w: 28, d: 20 }, bahce: { w: 36, d: 40 }, sato: { w: 36, d: 24 } };
+export const SIZE: Record<Area, { w: number; d: number }> = { oda: { w: 28, d: 20 }, bahce: { w: 56, d: 54 }, sato: { w: 36, d: 24 } };
 
 /* ------------------------------ kat planları ------------------------------- */
 
@@ -162,43 +162,79 @@ export const innerWalls = () => wallsOf(HOUSE_PLAN);
 
 /* ---------------------------------- bahçe ---------------------------------- */
 
-// Bahçenin kuzeyinde şato: ön yüzü (j1) bahçeye bakar, kapısı ortada. Kuzeydeki şerit yalnız manzara.
-// (014 göçü eski bahçeyi 14 kare güneye kaydırdı.)
-export const CASTLE = { i0: 8, j0: 1, i1: 28, j1: 11, gate: { i: 17, width: 2 } } as const;
-const GJ = 14;
-
-// iki ev bahçede birer bina; ön kapıları binanın sol-ön yüzünde (j1 kenarı)
+// Karanlık orta çağ bahçesi. Kuzeyde şato, ortada iki ev ve kuyulu, kamp ateşli meydan; batıda yıkık şapel ve mezarlık,
+// doğuda demirci ve yel değirmeni, güneyde köprülü dere, ölü koru ve sisli bataklık. Ana yol şato kapısından güneye iner.
+// (017 göçü eski bahçeyi 10 kare doğuya kaydırdı: şato ve evler eski yerlerine göre aynı.)
+type Rect = { i0: number; j0: number; i1: number; j1: number };
+export const CASTLE = { i0: 18, j0: 1, i1: 38, j1: 11, gate: { i: 27, width: 2 } } as const;
 export const HOUSES = [
-  { i0: 3, j0: 2 + GJ, i1: 13, j1: 8 + GJ, door: { i: 7, j: 8 + GJ } },
-  { i0: 22, j0: 2 + GJ, i1: 32, j1: 8 + GJ, door: { i: 26, j: 8 + GJ } },
+  { i0: 13, j0: 16, i1: 23, j1: 22, door: { i: 17, j: 22 } },
+  { i0: 32, j0: 16, i1: 42, j1: 22, door: { i: 36, j: 22 } },
 ] as const;
-export const POND = { i0: 15, j0: 15 + GJ, i1: 21, j1: 20 + GJ };
-export const TREES: [number, number][] = [
-  // güney bahçe
-  [0, 3 + GJ], [1, 10 + GJ], [0, 16 + GJ], [1, 22 + GJ], [5, 24 + GJ], [11, 25 + GJ], [17, 24 + GJ], [24, 25 + GJ], [30, 24 + GJ], [35, 20 + GJ],
-  [34, 13 + GJ], [35, 6 + GJ], [33, 0 + GJ], [14, 0 + GJ], [21, 14 + GJ], [13, 18 + GJ], [27, 18 + GJ], [9, 14 + GJ],
-  // şatonun çevresi (kuzey şerit)
-  [1, 1], [3, 5], [1, 9], [5, 10], [31, 2], [34, 6], [32, 10], [35, 12], [6, 2], [30, 7],
+export const ROAD = { i0: 27, i1: 29 }; // şato kapısından güney kapısına
+export const PLAZA: Rect = { i0: 23, j0: 25, i1: 33, j1: 39 };
+export const WELL: Rect = { i0: 31, j0: 26, i1: 33, j1: 28 };
+export const CAMPFIRE: Rect = { i0: 27, j0: 33, i1: 29, j1: 35 };
+export const CHAPEL: Rect = { i0: 3, j0: 24, i1: 10, j1: 31 };
+export const GRAVEYARD: Rect = { i0: 2, j0: 33, i1: 12, j1: 43 };
+export const ANGEL: Rect = { i0: 6, j0: 39, i1: 8, j1: 41 }; // mezarlığın ortasında melek heykeli
+export const TOMBS: [number, number][] = [3, 4, 9, 10].flatMap((i) => [35, 37, 41].map((j) => [i, j] as [number, number]));
+export const FORGE: Rect = { i0: 44, j0: 23, i1: 50, j1: 28 };
+export const MILL: Rect = { i0: 46, j0: 32, i1: 50, j1: 36 };
+export const STREAM = { j0: 44, j1: 46 };
+export const BRIDGES = [{ i0: 26, i1: 30 }, { i0: 6, i1: 8 }];
+export const GROVE: Rect = { i0: 1, j0: 47, i1: 23, j1: 54 };
+export const SWAMP: Rect = { i0: 36, j0: 47, i1: 55, j1: 54 };
+export const SWAMP_POOLS: Rect[] = [{ i0: 38, j0: 50, i1: 41, j1: 52 }, { i0: 44, j0: 51, i1: 47, j1: 53 }, { i0: 50, j0: 47, i1: 53, j1: 49 }];
+export const LANTERNS: [number, number][] = [
+  ...[14, 18, 22, 40, 48, 52].flatMap((j) => [[26, j], [29, j]] as [number, number][]),
+  [22, 25], [33, 25], [22, 38], [33, 38],
 ];
-/** Ölü (yapraksız) ağaçlar: karanlık bahçenin havası */
-export const deadTree = (i: number, j: number) => (i * 7 + j * 3) % 4 === 0;
+export const OWL_TREE: [number, number] = [13, 43];
+export const PERCH: [number, number] = [10.5, 19.5]; // papağanın tüneği
+export const RAVEN_TREES: [number, number][] = [[8, 47], [16, 51], [42, 48]];
+export const TREES: [number, number][] = [
+  // şatonun çevresi (kuzey şerit)
+  [2, 2], [5, 6], [3, 9], [9, 3], [12, 7], [15, 2], [8, 9], [14, 9], [41, 3], [44, 7], [48, 2], [51, 6], [54, 3], [46, 10], [52, 9],
+  // kenar ormanı ve çayır
+  [1, 13], [0, 17], [1, 21], [0, 36], [1, 41], [54, 13], [55, 18], [54, 22], [55, 31], [54, 40],
+  [9, 14], [6, 18], [3, 21], [11, 23], [24, 14], [31, 14], [45, 15], [49, 19], [51, 26], [40, 31], [42, 40], [35, 41], [20, 41], [15, 36], [17, 31], [14, 26],
+  // ölü koru ve bataklık
+  [2, 48], [5, 51], [8, 47], [11, 52], [14, 47], [16, 51], [19, 48], [21, 52], [37, 52], [42, 48], [48, 53], [53, 51],
+  OWL_TREE,
+];
+const inRect = (i: number, j: number, r: Rect) => i >= r.i0 && i < r.i1 && j >= r.j0 && j < r.j1;
+/** Ölü (yapraksız) ağaçlar: koruda, bataklıkta ve mezarlık yanında hepsi; başka yerde arada bir */
+export const deadTree = (i: number, j: number) => inRect(i, j, GROVE) || inRect(i, j, SWAMP) || (i === OWL_TREE[0] && j === OWL_TREE[1]) || (i * 7 + j * 3) % 5 === 0;
 
-const inRect = (i: number, j: number, r: { i0: number; j0: number; i1: number; j1: number }) => i >= r.i0 && i < r.i1 && j >= r.j0 && j < r.j1;
 export const atGate = (i: number) => i >= CASTLE.gate.i && i < CASTLE.gate.i + CASTLE.gate.width;
+const onBridge = (i: number) => BRIDGES.some((b) => i >= b.i0 && i < b.i1);
+export const inStream = (i: number, j: number) => j >= STREAM.j0 && j < STREAM.j1 && !onBridge(i);
+export const inRectAt = inRect;
 
-// yollar: kapılardan aşağı, ortada meydan, göletin çevresi ve şato kapısına çıkan taş yol
+// yollar: ana yol, kapı önü, evlerden meydana, meydan, şapele, mezarlığa, demirciye, değirmene, koruya ve bataklık iskelesine
 export function isPath(i: number, j: number): boolean {
-  if (HOUSES.some((h) => i === h.door.i && j >= h.door.j && j <= 12 + GJ)) return true;
-  if (j === 12 + GJ && i >= 7 && i <= 26) return true;
-  if (i >= 15 && i <= 19 && j >= 10 + GJ && j <= 12 + GJ) return true;
-  if (atGate(i) && j >= CASTLE.j1 && j < 10 + GJ) return true;
-  if (j >= CASTLE.j1 && j <= CASTLE.j1 + 1 && i >= CASTLE.gate.i - 2 && i < CASTLE.gate.i + CASTLE.gate.width + 2) return true; // kapı önü
+  if (i >= ROAD.i0 && i < ROAD.i1 && j >= CASTLE.j1) return true;
+  if (j >= CASTLE.j1 && j <= CASTLE.j1 + 1 && i >= CASTLE.gate.i - 2 && i < CASTLE.gate.i + CASTLE.gate.width + 2) return true;
+  if (HOUSES.some((h) => i === h.door.i && j >= h.door.j && j <= 24)) return true;
+  if (j === 24 && i >= 17 && i <= 36) return true;
+  if (inRect(i, j, PLAZA)) return true;
+  if (j === 28 && i >= 10 && i < PLAZA.i0) return true; // şapele
+  if (i >= 6 && i <= 7 && j >= CHAPEL.j1 && j < ANGEL.j0) return true; // mezarlık kapısından heykele
+  if (j === 26 && i >= PLAZA.i1 && i < FORGE.i0) return true; // demirciye
+  if (j === 35 && i >= PLAZA.i1 && i < MILL.i0) return true; // değirmene
+  if (j === 49 && ((i >= 8 && i < ROAD.i0) || (i >= ROAD.i1 && i <= 40))) return true; // koru yolu ve bataklık iskelesi
+  if (j >= STREAM.j0 && j < STREAM.j1 && onBridge(i)) return true;
   return false;
 }
 
-/** Bahçede sabit engeller: evler, gölet, ağaçlar, şato ve arkasındaki şerit */
+/** Bahçede sabit engeller: şato şeridi, binalar, su, mezar taşları, ağaçlar, fenerler */
 export function gardenSolid(i: number, j: number): boolean {
-  return j < CASTLE.j1 || HOUSES.some((h) => inRect(i, j, h)) || inRect(i, j, POND) || TREES.some(([a, b]) => a === i && b === j);
+  if (j < CASTLE.j1) return true;
+  if (HOUSES.some((h) => inRect(i, j, h)) || [CHAPEL, FORGE, MILL, WELL, CAMPFIRE, ANGEL].some((r) => inRect(i, j, r))) return true;
+  if (inStream(i, j) || SWAMP_POOLS.some((r) => inRect(i, j, r))) return true;
+  if (GARDEN_SEATS.some((p) => footprint(p.itemId, p.tx, p.ty, p.rot).some(([a, b]) => a === i && b === j))) return true;
+  return [TOMBS, TREES, LANTERNS].some((list) => list.some(([a, b]) => a === i && b === j));
 }
 
 /* -------------------------------- yerleştirme ------------------------------- */
@@ -212,6 +248,10 @@ export function sizeOf(itemId: string, rot = 0): [number, number] {
   if (!it) return [1, 1];
   return rot & 1 ? [it.size[1], it.size[0]] : it.size;
 }
+
+// kamp ateşinin dört yanında, ateşe bakan banklar (oturulur; ikiniz oturunca "birlikte an")
+const seat = (id: string, tx: number, ty: number, rot: number): Placed => ({ id, itemId: "bank", scope: "bahce", tx, ty, userId: "", rot });
+export const GARDEN_SEATS: Placed[] = [seat("bank-kuzey", 27, 31, 0), seat("bank-guney", 27, 36, 2), seat("bank-bati", 25, 33, 1), seat("bank-dogu", 30, 33, 3)];
 
 /** Bir eşyadan en çok kaç tane konabilir: halı 10, sandalye ve çiçek gibi küçükler daha çok, büyük mobilya az */
 export function maxCopies(itemId: string): number {
@@ -271,8 +311,14 @@ if (process.env.NODE_ENV !== "production") {
   console.assert(houseStep([7, 3], [8, 3]) && !houseStep([7, 2], [8, 2]) && houseStep([3, 3], [4, 3]), "kapı boşlukları");
   console.assert(canPlace("oda", "yatak", 21, 1, []) && !canPlace("oda", "yatak", 19, 1, []), "eşya iki odaya taşmaz");
   console.assert(!canPlace("oda", "komodin", 0, 2, []) && !canPlace("oda", "komodin", 8, 3, []), "kapı önü");
-  console.assert(!canPlace("bahce", "agac", 4, 17, []) && canPlace("bahce", "agac", 10, 34, []) && !canPlace("bahce", "agac", 17, 11, []) && !canPlace("bahce", "agac", 20, 5, []), "bahçe engelleri");
+  console.assert(!canPlace("bahce", "agac", 14, 17, []) && canPlace("bahce", "agac", 20, 34, []) && !canPlace("bahce", "agac", 27, 11, []) && !canPlace("bahce", "agac", 30, 5, []) && !canPlace("bahce", "agac", 10, 44, []), "bahçe engelleri");
   console.assert(!canPlace("oda", "yatak", 27, 1, []) && canPlace("oda", "yatak", 27, 1, [], 1), "döndürünce sığar");
   console.assert(canPlace("oda", "koltuk-kırmızı", 10, 2, [{ id: "h", itemId: "hali", scope: "oda", tx: 10, ty: 2, userId: "u" }]), "halının üstüne mobilya");
+  {
+    // bahçe: her yapının ve kapının önüne yürünebilir, köprüler açık
+    const open = (i: number, j: number) => !gardenSolid(i, j);
+    console.assert(HOUSES.every((h) => open(h.door.i, h.door.j)) && open(CASTLE.gate.i, CASTLE.j1) && open(27, 45) && open(6, 45) && !open(20, 45), "bahçe kapıları ve köprüler");
+    console.assert(TREES.every(([a, b]) => !isPath(a, b) || b < CASTLE.j1) && LANTERNS.every(([a, b]) => !isPath(a, b)), "ağaç ve fener yolda değil");
+  }
   console.assert(maxCopies("hali") === 10 && maxCopies("sandalye-meşe") === 12 && maxCopies("piyano-siyah") === 2, "adet sınırı");
 }

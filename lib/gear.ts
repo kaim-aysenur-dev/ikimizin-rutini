@@ -164,6 +164,11 @@ const STEEL: SwordPal = { blade: "#9aa0ae", edge: "#e8ecf4", groove: "#6e7482", 
 
 // elle çizilmiş özel eşyalar
 const HANDMADE: Gear[] = [
+  { id: "ikimizin-yuzugu", level: 8, kind: "Zırh", owner: "İkiniz", name: "İkimizin Yüzüğü", desc: "Çift yüzük: ikiniz de takıp yan yana olunca can ve mana iki kat hızlı dolar.", draw: (c, t) => trinket(c, { gem: "#6f86d6", metal: "#e2b45a", shape: "yuzuk" }, t) },
+  { id: "mana-kolyesi", level: 14, kind: "Zırh", owner: "İkiniz", name: "Mana Kolyesi", desc: "Mavi taşı mana pınarı gibi; mana daha hızlı dolar.", draw: (c, t) => trinket(c, { gem: "#5a9ad8", metal: "#c8ccd8", shape: "kolye" }, t) },
+  { id: "can-tilsimi", level: 22, kind: "Zırh", owner: "İkiniz", name: "Can Tılsımı", desc: "Kırmızı tılsım; yaralar çabuk kapanır.", draw: (c, t) => trinket(c, { gem: "#d8485a", metal: "#a87a24", shape: "tilsim" }, t) },
+  { id: "ruzgar-muskasi", level: 35, kind: "Zırh", owner: "İkiniz", name: "Rüzgâr Muskası", desc: "Takan rüzgâr gibi koşar.", draw: (c, t) => trinket(c, { gem: "#9fe8ae", metal: "#c8ccd8", shape: "tilsim" }, t) },
+  { id: "yildiz-kolyesi", level: 50, kind: "Zırh", owner: "İkiniz", name: "Yıldız Kolyesi", desc: "Gece gökyüzünden bir parça: can ve mana hızlı dolar.", draw: (c, t) => trinket(c, { gem: "#f3d48a", metal: "#e8ecf4", shape: "kolye" }, t) },
   { id: "tunik", level: 1, kind: "Zırh", owner: "İkiniz", name: "Kumaş Tunik", desc: "Yolculuğun ilk günü: yumuşak keten, cebinde bir parça ekmek.",
     draw: (c) => armor(c, { base: "#c9b48a", shade: "#a8916a", light: "#e6d3a8", trim: "#8a6a4a", belt: "#6b4a35", buckle: "#c8b088" }) },
   { id: "tahta-kilic", level: 2, kind: "Silah", owner: "Cengiz", name: "Tahta Kılıç", desc: "Antrenman kılıcı. Kum torbası ilk rakibiydi.",
@@ -263,6 +268,40 @@ function shieldOf(c: Ctx, m: Mat) {
   line(c, [12, 5], [12, 19], 1, m.dk); line(c, [5, 10], [19, 10], 1, m.dk); disc(c, 12, 10, 2, m.gem); px(c, 6, 6, m.lt);
 }
 
+function capeOf(c: Ctx, m: Mat) {
+  const s: V[] = [[7, 3], [17, 3], [21, 21], [12, 19], [3, 21]];
+  poly(c, s, INK, 1); poly(c, s, m.base); poly(c, [[12, 4], [17, 3], [21, 21], [14, 19]], m.dk);
+  line(c, [9, 6], [6, 19], 1, m.lt); line(c, [12, 5], [12, 18], 1, m.dk);
+  rect(c, 6, 2, 12, 3, INK); rect(c, 7, 2, 10, 2, m.dk); disc(c, 12, 3, 2, m.gem); // yaka ve toka
+}
+function glovesOf(c: Ctx, m: Mat) {
+  for (const [ox, fl] of [[2, 1], [13, -1]] as [number, number][]) {
+    rect(c, ox + 1, 10, 9, 11, INK); rect(c, ox + 2, 11, 7, 9, m.base); rect(c, ox + 2, 17, 7, 3, m.dk); // avuç ve bilek
+    for (let f = 0; f < 3; f++) { rect(c, ox + 2 + f * 2 + (fl > 0 ? 0 : 1), 5, 2, 7, INK); rect(c, ox + 3 + f * 2 + (fl > 0 ? -1 : 0) + (fl > 0 ? 1 : 0), 6, 1, 5, m.base); }
+    rect(c, fl > 0 ? ox + 9 : ox, 11, 2, 4, INK); px(c, fl > 0 ? ox + 9 : ox + 1, 12, m.base); // başparmak
+    px(c, ox + 4, 18, m.gem); px(c, ox + 3, 12, m.lt);
+  }
+}
+function bootsOf(c: Ctx, m: Mat) {
+  for (const ox of [2, 12]) {
+    rect(c, ox + 1, 4, 7, 15, INK); rect(c, ox + 2, 5, 5, 13, m.base); rect(c, ox + 1, 16, 10, 5, INK); rect(c, ox + 2, 17, 8, 3, m.base);
+    rect(c, ox + 2, 19, 8, 1, m.dk); rect(c, ox + 2, 5, 5, 2, m.dk); px(c, ox + 3, 9, m.lt); px(c, ox + 4, 12, m.gem);
+  }
+}
+type Trinket = { gem: string; metal: string; shape: "yuzuk" | "kolye" | "tilsim" };
+function trinket(c: Ctx, p: Trinket, t: number) {
+  if (p.shape === "yuzuk") {
+    for (const ox of [-4, 4]) { disc(c, 12 + ox, 14, 6, INK); disc(c, 12 + ox, 14, 5, p.metal); disc(c, 12 + ox, 14, 3, INK); disc(c, 12 + ox, 14, 2, "#141020"); }
+    rect(c, 6, 6, 4, 4, INK); rect(c, 7, 7, 2, 2, p.gem); rect(c, 14, 6, 4, 4, INK); rect(c, 15, 7, 2, 2, "#e48aa0"); // iki taş: ikinizin
+  } else if (p.shape === "kolye") {
+    for (let k = 0; k <= 10; k++) { const a = Math.PI * (k / 10); px(c, Math.round(12 - Math.cos(a) * 9), Math.round(4 + Math.sin(a) * 9), p.metal); }
+    disc(c, 12, 16, 5, INK); disc(c, 12, 16, 4, p.gem); px(c, 11, 14, "#ffffff");
+  } else {
+    poly(c, [[12, 3], [19, 10], [12, 21], [5, 10]], INK, 1); poly(c, [[12, 3], [19, 10], [12, 21], [5, 10]], p.metal); poly(c, [[12, 7], [16, 11], [12, 17], [8, 11]], p.gem);
+  }
+  if (Math.floor(t * 3) % 3 === 0) { px(c, 19, 4, "#fff6c8"); px(c, 18, 4, "rgba(255,246,200,0.5)"); px(c, 20, 4, "rgba(255,246,200,0.5)"); }
+}
+
 type Tmpl = { id: string; noun: string; kind: GearKind; owner: string; off: number; desc: string; draw: (c: Ctx, m: Mat, t: number) => void };
 const TEMPLATES: Tmpl[] = [
   { id: "kilic", noun: "Kılıç", kind: "Silah", owner: "Cengiz", off: 0, desc: "Dengeli bir kılıç.", draw: (c, m) => sword(c, swordPal(m)) },
@@ -275,6 +314,9 @@ const TEMPLATES: Tmpl[] = [
   { id: "kalkan", noun: "Kalkan", kind: "Zırh", owner: "İkiniz", off: 5, desc: "Armalı bir kalkan.", draw: (c, m) => shieldOf(c, m) },
   { id: "cekic", noun: "Savaş Çekici", kind: "Silah", owner: "Cengiz", off: 5, desc: "Örsten fırlamış gibi ağır bir çekiç.", draw: (c, m) => hammer(c, m) },
   { id: "asa", noun: "Asa", kind: "Silah", owner: "İkiniz", off: 6, desc: "Ucunda taş parlayan bir asa.", draw: (c, m, t) => staff(c, m, t) },
+  { id: "pelerin", noun: "Pelerin", kind: "Zırh", owner: "İkiniz", off: 2, desc: "Rüzgârda dalgalanan bir pelerin.", draw: (c, m) => capeOf(c, m) },
+  { id: "eldiven", noun: "Eldiven", kind: "Zırh", owner: "İkiniz", off: 4, desc: "Parmakları koruyan eldivenler.", draw: (c, m) => glovesOf(c, m) },
+  { id: "cizme", noun: "Çizme", kind: "Zırh", owner: "İkiniz", off: 6, desc: "Adımları hafifleten çizmeler.", draw: (c, m) => bootsOf(c, m) },
   { id: "buyuk-kilic", noun: "İki Elli Kılıç", kind: "Silah", owner: "Cengiz", off: 7, desc: "İki elle kavranan dev bir kılıç.", draw: (c, m) => greatsword(c, m) },
 ];
 
@@ -331,7 +373,9 @@ const GENERATED: Gear[] = [
 ];
 
 /** Hareketli çizilen eşyalar (büyüler ve asalar): listede yalnız bunlar oynatılır */
-export const animated = (g: Gear) => g.kind === "Büyü" || g.id.startsWith("asa-") || ["kalp-kilici", "efsane-zirhi", "yildiz-mizragi"].includes(g.id);
+export const animated = (g: Gear) => g.kind === "Büyü" || g.id.startsWith("asa-") || ["kalp-kilici", "efsane-zirhi", "yildiz-mizragi", "ikimizin-yuzugu", "mana-kolyesi", "can-tilsimi", "ruzgar-muskasi", "yildiz-kolyesi"].includes(g.id);
+/** Takılar (yüzük, kolye, tılsım): takı yuvasına girer */
+export const TRINKETS = new Set(["ikimizin-yuzugu", "mana-kolyesi", "can-tilsimi", "ruzgar-muskasi", "yildiz-kolyesi"]);
 
 // elle çizilmiş bir eşyayla aynı adı taşıyan üretilmiş eşya alınmaz
 export const GEAR: Gear[] = [...HANDMADE, ...GENERATED.filter((g) => !HANDMADE.some((h) => h.name === g.name))].sort((a, b) => a.level - b.level);

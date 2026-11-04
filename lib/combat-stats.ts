@@ -1,6 +1,7 @@
 // Gelişim dövüşü: Hazine eşyalarının oyundaki değerleri. Seviye arttıkça eşya güçlenir.
 // Dengelemek için bütün sayılar bu dosyada.
 import { GEAR, MATS } from "./gear";
+import { type Equipment, WEAR_SLOTS, worn } from "./equipment";
 
 export type WeaponStyle = "kilic" | "hancer" | "yay" | "mizrak" | "agir" | "asa" | "iki-elli";
 export type WeaponStats = { style: WeaponStyle; damage: number; cooldown: number; range: number; combo: number; trail?: string };
@@ -72,6 +73,41 @@ export function armorLook(id: string | null | undefined): { outfit: "home" | "ar
   return { outfit: "armor", tint: t && { ...t, bottom: t.topDk, skirt: t.top } }; // bacaklar ve etek de zırh renginde
 }
 
+/* ------------------------------ takılar ve setler ----------------------------- */
+
+export type TrinketStats = { hpRegen: number; manaRegen: number; speed: number; together?: boolean };
+const TRINKET: Record<string, TrinketStats> = {
+  "ikimizin-yuzugu": { hpRegen: 1, manaRegen: 1, speed: 0, together: true }, // ikiniz de takınca ve yan yanayken
+  "mana-kolyesi": { hpRegen: 0, manaRegen: 0.6, speed: 0 },
+  "can-tilsimi": { hpRegen: 1, manaRegen: 0, speed: 0 },
+  "ruzgar-muskasi": { hpRegen: 0, manaRegen: 0, speed: 0.1 },
+  "yildiz-kolyesi": { hpRegen: 0.8, manaRegen: 0.8, speed: 0.03 },
+};
+export const trinketStats = (id: string | null | undefined): TrinketStats | null => (id ? TRINKET[id] ?? null : null);
+
+/** Set: göğüslük, miğfer ve kalkan aynı malzemedense ek savunma ve hafif parıltı */
+export function setBonus(e: Equipment): { mat: string; defense: number } | null {
+  const mat = (id: string | null, pre: string) => (id?.startsWith(pre) ? id.slice(pre.length) : null);
+  const a = mat(e.armor, "gogusluk-"), h = mat(e.helmet, "migfer-"), s = mat(e.shield, "kalkan-");
+  if (!a || a !== h || a !== s) return null;
+  const d = [e.armor, e.helmet, e.shield].reduce((n, id) => n + (armorStats(id!)?.defense ?? 0), 0);
+  return { mat: a, defense: Math.round(d * 0.25) };
+}
+
+/** Toplam savunma ve ek can: bütün giyilenler (set bonusu dahil) */
+export function wearStats(e: Equipment): { defense: number; bonusHp: number } {
+  let defense = 0, bonusHp = 0;
+  for (const id of worn(e)) { const a = armorStats(id); if (a) { defense += a.defense; bonusHp += a.bonusHp; } }
+  return { defense: defense + (setBonus(e)?.defense ?? 0), bonusHp };
+}
+
+/** Yürüme hızı çarpanı: çizme (malzeme kademesiyle) ve muska */
+export function gearSpeed(e: Equipment): number {
+  const b = e.boots ? armorStats(e.boots) : null;
+  const rank = b ? ({ cloth: 0, leather: 1, steel: 2, gold: 3, legend: 4 } as const)[b.tier] : -1;
+  return 1 + (b ? 0.05 + rank * 0.01 : 0) + (trinketStats(e.trinket)?.speed ?? 0);
+}
+
 /* ---------------------------------- büyüler --------------------------------- */
 
 const ELEMENT: Record<string, [string, string]> = {
@@ -111,6 +147,12 @@ if (process.env.NODE_ENV !== "production") {
   console.assert((a("efsane-zirhi")?.defense ?? 0) > (a("tunik")?.defense ?? 0) && a("tunik")?.tier === "cloth", "zırh savunması");
   console.assert(armorLook(null).outfit === "home" && armorLook("altin-zirh").outfit === "armor" && armorLook("gogusluk-bakir").tint?.top === "#c8784a"
     && armorLook("gogusluk-bakir").tint?.top !== armorLook("gogusluk-demir").tint?.top, "her zırh kendi renginde");
+  {
+    const full: Equipment = { armor: "gogusluk-demir", helmet: "migfer-demir", shield: "kalkan-demir", cape: null, gloves: null, boots: "cizme-demir", trinket: "ruzgar-muskasi", weapon: null, spells: [] };
+    console.assert(setBonus(full)?.mat === "demir" && setBonus({ ...full, shield: "kalkan-altin" }) === null, "set bonusu yalnız üçü aynı malzemeyken");
+    console.assert(wearStats(full).defense > wearStats({ ...full, shield: null }).defense && gearSpeed(full) > 1.1, "set savunması ve hız");
+    console.assert(WEAR_SLOTS.length === 7, "yedi giyim yuvası");
+  }
   console.assert(s("alev-topu")?.shape === "kivilcim" && (s("sifa")?.heal ?? 0) > 0 && s("buyu-buz-muhru")?.shape === "muhru", "büyü şekilleri");
   console.assert(w("yok") === null, "bilinmeyen eşya");
   console.assert(GEAR.filter((g) => g.kind === "Silah").every((g) => w(g.id)), "her silahın değeri var");

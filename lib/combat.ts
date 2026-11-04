@@ -1,6 +1,6 @@
 // Gelişim dövüş motoru (saf): can, mana, kılıç kombosu, mermiler ve büyüler. Çizim ve giriş yok.
 // Koordinatlar izometrik kare (i, j); "ileri" ekranda sağ (dir 1) ya da sol (dir -1) demek: i - j artar ya da azalır.
-import { FIST, type SpellShape, armorStats, spellStats, weaponStats } from "./combat-stats";
+import { FIST, type SpellShape, armorStats, spellStats, wearStats, weaponStats } from "./combat-stats";
 import { type Equipment, NO_EQUIPMENT } from "./equipment";
 
 export type Fighter = { hp: number; maxHp: number; mana: number; maxMana: number; shield: number; shieldUntil: number; comboStep: number; comboAt: number; readyAt: number; spellReady: Record<string, number> };
@@ -18,7 +18,7 @@ const HIT_RADIUS = 0.75;
 const RESPAWN = 2; // yıkılan hedef kaç sn sonra kalkar
 
 export function newFighter(level: number, e: Equipment): Fighter {
-  const bonus = e.armor ? armorStats(e.armor)?.bonusHp ?? 0 : 0;
+  const bonus = wearStats(e).bonusHp; // bütün giyilenlerin ek canı
   const maxHp = 100 + level * 5 + bonus, maxMana = 50 + level * 3;
   return { hp: maxHp, maxHp, mana: maxMana, maxMana, shield: 0, shieldUntil: 0, comboStep: 0, comboAt: -9, readyAt: 0, spellReady: {} };
 }

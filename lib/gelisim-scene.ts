@@ -4,21 +4,26 @@ import { duldul, parrot } from "./companions";
 import { lights } from "./env";
 import { type Origin, type Part, at, box, setFlip, shade, tile } from "./iso";
 import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, lerpFree, line, poly, px, rect, rnd, sprite } from "./pixel";
-import { type Area, CASTLE, type Floor, FRONT_DOOR, HOUSES, POND, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, gardenSolid, innerWalls, isPath, sizeOf } from "./room";
+import { type Area, CASTLE, type Floor, FRONT_DOOR, GARDEN_SEATS, HOUSES, PERCH, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, innerWalls, sizeOf } from "./room";
+import { above, ground, sky, snowfall, structures } from "./garden-draw";
+import { type Weather } from "./gelisim-weather";
 import { type RoomItem, isFlat, itemById } from "./room-items";
 import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
 import { drawEffect, drawHeld } from "./combat-draw";
 import { type Effect, shotAt } from "./combat";
 import { STAND_F, walkFrame } from "./anim";
+import { armorStats } from "./combat-stats";
 import { MATS } from "./gear";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
 export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number }; study?: { reading: boolean; focus: boolean };
-  gear?: { weapon: string | null; armor?: string | null; swing?: number }; shield?: boolean; // elde silah, kuşanılan zırh (miğfer, kalkan görünür), savuruş (0..1), kalkan büyüsü
-  emote?: { kind: Emote; at: number } }; // başın üstünde kısa bir kalp ya da el sallama
-export type Emote = "kalp" | "el";
+  gear?: { weapon: string | null; armor?: string | null; helmet?: string | null; shield?: string | null; cape?: string | null; trinket?: string | null; set?: string | null; swing?: number }; shield?: boolean; // elde silah, kuşanılan zırh (miğfer, kalkan görünür), savuruş (0..1), kalkan büyüsü
+  emote?: { kind: Emote; at: number }; hold?: boolean }; // başın üstünde kısa emote; el ele tutuşma
+export type Emote = "kalp" | "el" | "gul" | "opucuk" | "sasir" | "uyku" | "dans" | "saril";
+/** Emote'un ekranda kalma süresi (sn) */
+export const emoteLife = (k: Emote) => (k === "dans" ? 3.6 : k === "saril" ? 3 : 2.2);
 export type Ghost = { itemId: string; tx: number; ty: number; ok: boolean; rot?: number } | null;
 export type Cat = { i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; sleep?: boolean };
 export type SceneState = {
@@ -38,6 +43,8 @@ export type SceneState = {
   now?: number; // efektlerin zaman tabanı (sn)
   mailHeart: number | null; // okunmamış not: bu evin posta kutusunda kalp
   music: { i: number; j: number; t0: number } | null; // piyanodan yükselen notalar
+  weather?: Weather; // bugünün havası (bahçede yağmur, sis, kar ya da açık gök)
+  moment?: boolean; // ikiniz kamp ateşinde oturuyorsunuz: kayan yıldızlar sıklaşır
 };
 
 // oturuş: kalça alçakta, dizler önde (yatak, koltuk, bank)
@@ -229,35 +236,6 @@ export { innerWall };
 
 /* ---------------------------------- bahçe ---------------------------------- */
 
-function gardenGround(c: Ctx, o: Origin, t: number) {
-  const { w, d } = SIZE.bahce;
-  c.fillStyle = "#121a16"; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
-  for (let i = 0; i < w; i++) for (let j = 0; j < d; j++) {
-    if (isPath(i, j)) { tile(c, o, i, j, (i + j) % 2 ? "#4e4c58" : "#46444f"); tile(c, o, i + 0.25, j + 0.25, "#5a5864", 0.2, 0.2); continue; }
-    tile(c, o, i, j, (i * 7 + j * 3) % 5 ? ((i + j) % 2 ? "#2c4535" : "#283f31") : "#243a2d");
-    const n = (i * 13 + j * 7) % 11;
-    if (n === 0) { const [x, y] = at(o, i + 0.5, j + 0.5); px(c, x, y, "#7a2a3a"); px(c, x + 3, y + 1, "#5a4a7a"); } // koyu güller
-    if (n === 5) { const [x, y] = at(o, i + 0.4, j + 0.6); px(c, x, y - 1, "#3a5a40"); px(c, x + 1, y - 2, "#3a5a40"); }
-    if (n === 8 && !gardenSolid(i, j)) { const q = (t * 1.2 + i * 0.37 + j * 0.61) % 1; if (q < 0.3) { const [x, y] = at(o, i + 0.5, j + 0.5); px(c, x - 1, y, "rgba(170,195,230,0.5)"); px(c, x + 1, y, "rgba(170,195,230,0.5)"); } } // yağmur sıçraması
-  }
-  // gölet: koyu su, yağmur halkaları, nilüfer
-  for (let i = POND.i0; i < POND.i1; i++) for (let j = POND.j0; j < POND.j1; j++) {
-    const edge = i === POND.i0 || j === POND.j0 || i === POND.i1 - 1 || j === POND.j1 - 1;
-    tile(c, o, i, j, edge ? "#4a4c58" : (i + j + Math.floor(t * 1.5)) % 3 ? "#1e3448" : "#24405a");
-  }
-  for (let k = 0; k < 8; k++) {
-    const q = (t * 0.9 + rnd(k * 2.3)) % 1, ri = POND.i0 + 1.3 + rnd(k * 5.1 + Math.floor(t * 0.9 + rnd(k * 2.3))) * (POND.i1 - POND.i0 - 2.6), rj = POND.j0 + 1.3 + rnd(k * 3.7 + Math.floor(t * 0.9 + rnd(k * 2.3))) * (POND.j1 - POND.j0 - 2.6);
-    const [x, y] = at(o, ri, rj), r = Math.round(1 + q * 4);
-    const col = `rgba(170,200,235,${(0.6 * (1 - q)).toFixed(2)})`;
-    rect(c, x - r, y, 1, 1, col); rect(c, x + r, y, 1, 1, col); rect(c, x, y - Math.ceil(r / 2), 1, 1, col); rect(c, x, y + Math.ceil(r / 2), 1, 1, col);
-  }
-  for (const [a, b] of [[17, POND.j0 + 1], [19, POND.j0 + 3]] as V[]) { const [x, y] = at(o, a + 0.5, b + 0.5); rect(c, x - 2, y - 1, 5, 2, "#2f4a37"); px(c, x, y - 2, "#b8344a"); }
-  // dış demir parmaklık (arka kenarlar): sivri uçlu
-  const fence = (a: V, b: V) => { rect(c, a[0] - 1, a[1] - 10, 2, 10, "#24242c"); px(c, a[0], a[1] - 11, "#4a4a56"); line(c, [a[0], a[1] - 8], [b[0], b[1] - 8], 1, "#24242c"); line(c, [a[0], a[1] - 3], [b[0], b[1] - 3], 1, "#24242c"); };
-  for (let j = 0; j < d; j++) fence(at(o, 0, j), at(o, 0, j + 1));
-  for (let i = 0; i < w; i++) fence(at(o, i, 0), at(o, i + 1, 0));
-}
-
 const HOUSE_LOOK: Record<Theme, { wall: string; roof: string; door: string }> = {
   cengiz: { wall: "#626676", roof: "#1f2747", door: "#3e2a20" },
   aysenur: { wall: "#6e5c66", roof: "#4a1828", door: "#4a2430" },
@@ -445,7 +423,8 @@ function depthOrder(list: D[]): D[] {
 export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   lights.length = 0;
   nightNow = s.night;
-  flashNow = stormFlash(t);
+  const weather: Weather = s.weather ?? "firtina";
+  flashNow = weather === "firtina" ? stormFlash(t) : 0;
   const o = s.cam;
   const W = c.canvas.width, Hc = c.canvas.height;
   const list: D[] = [];
@@ -494,8 +473,11 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       anchors.push({ key: "parrot", x: a.head[0], y: a.head[1] });
     } });
   } else {
-    gardenGround(c, o, t);
+    sky(c, W, Hc, t, s.night, weather, !!s.moment);
+    ground(c, o, t, weather);
     for (const p of s.placed) if (flat(p.itemId)) drawItem(c, o, p, t);
+    structures((key, draw) => list.push({ key, draw }), c, o, t, KIT, s.heroes, flashNow);
+    for (const p of GARDEN_SEATS) list.push({ key: depthOf(p), draw: () => drawItem(c, o, p, t) });
     list.push({ key: Math.min(CASTLE.i0 + CASTLE.j1, CASTLE.i1 + CASTLE.j0), draw: () => { const a = castleOutside(c, o, t, KIT, flashNow); anchors.push({ key: "sato", x: a[0], y: a[1] }); } });
     person(GATE_GUARD.key, GATE_GUARD.who, GATE_GUARD.i, GATE_GUARD.j, GATE_GUARD.dir);
     // bina: önündekiler (sol ön ya da sağ ön yüzün önü) ondan sonra çizilsin
@@ -512,7 +494,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     } }));
     HOUSES.forEach((h) => list.push({ key: h.door.i + 1.6 + h.door.j + 0.6, draw: () => mailbox(c, o, h.door.i + 1.6, h.door.j + 0.6) }));
     for (const [a, b] of TREES) list.push({ key: a + b + 1, draw: () => tree(c, o, a, b, t) });
-    const perch: V = [2.5, HOUSES[0].j1 + 4.5];
+    const perch: V = PERCH;
     list.push({ key: perch[0] + perch[1], draw: () => {
       const [x, y] = at(o, perch[0], perch[1]);
       rect(c, x - 1, y - 18, 2, 18, P.woodDk); rect(c, x - 5, y - 19, 10, 2, P.woodLt);
@@ -533,13 +515,15 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       // oturur ve uzanırken ayaktan pozuna yumuşakça geçer
       const k = h.sit ? (h.sit.at === undefined ? 1 : ease((t - h.sit.at) / (h.sit.sleep ? 0.45 : 0.28))) : 0;
       const lift = Math.round((h.sit?.lift ?? 0) * k);
-      let pose: CharState["pose"] = h.moving ? walkFrame(h.dist) : STAND;
+      const dance = h.emote?.kind === "dans" && !h.sit && t - h.emote.at < emoteLife("dans") ? t - h.emote.at : -1;
+      let pose: CharState["pose"] = h.moving ? walkFrame(h.dist) : dance >= 0 ? walkFrame(dance * 14) : STAND;
       if (h.sit) {
         let target = h.sit.sleep ? LIE : SEAT;
         if (h.sit.sleep && k >= 1 && Math.sin(t * 1.6) > 0.55) target = { ...LIE, neck: [LIE.neck[0], LIE.neck[1] - 1], eF: [LIE.eF[0], LIE.eF[1] - 1], hF: [LIE.hF[0], LIE.hF[1] - 1] }; // nefes
         pose = k >= 1 ? target : lerpFree(STAND_F, target, k);
       }
-      const a = drawCharacter(c, { who: h.who, x, y: y - lift, dir: h.dir, pose, outfit: h.outfit, tint: h.tint, blink: (h.sit?.sleep && k >= 1) || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      const hop = dance >= 0 ? Math.round(Math.abs(Math.sin(dance * 7)) * 3) : 0, ddir = dance >= 0 && Math.floor(dance * 2.4) % 2 ? (-h.dir as 1 | -1) : h.dir;
+      const a = drawCharacter(c, { who: h.who, x, y: y - lift - hop, dir: ddir, pose, outfit: h.outfit, tint: h.tint, blink: (h.sit?.sleep && k >= 1) || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
       if (h.sit?.sleep && k >= 1) {
         // battaniye: kalçadan ayaklara
         const d = h.dir, bx = d > 0 ? a.hip[0] - 2 : a.hip[0] - 11;
@@ -548,9 +532,9 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         rect(c, d > 0 ? bx : bx + 11, a.hip[1] - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
         for (let q = 0; q < 3; q++) px(c, bx + 3 + q * 4, a.hip[1] - 3 + (q % 2), "rgba(255,255,255,0.35)");
       }
-      wornGear(c, a, h.dir, h.gear?.armor, !!h.sit);
+      wornGear(c, a, h.who, h.dir, h.gear, h.sit, t, h.dist);
       if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
-      if (h.emote && t - h.emote.at < 2.2) emoteAbove(c, a.head, h.emote.kind, t - h.emote.at);
+      if (h.emote && t - h.emote.at < emoteLife(h.emote.kind)) emoteAbove(c, a.head, h.emote.kind, t - h.emote.at, h.dir);
       if (h.shield) for (let k = 0; k < 20; k++) { const ang = t * 2 + (k / 20) * Math.PI * 2; px(c, Math.round(x + Math.cos(ang) * 10), Math.round(y - 10 + Math.sin(ang) * 6), k % 2 ? "#f3d48a" : "rgba(255,255,255,0.5)"); }
       if (h.sit?.sleep && k >= 1) for (let k = 0; k < 3; k++) {
         const q = (t * 0.5 + k / 3) % 1; const zx = a.head[0] + 4 + Math.round(q * 8), zy = a.head[1] - 2 - Math.round(q * 12);
@@ -575,7 +559,24 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     list.push({ key: ei + ej + 0.6, box: dot(ei, ej, 1, 2), draw: () => drawEffect(c, o, e, now) });
   }
   depthOrder(list).forEach((d) => d.draw());
+  if (s.scope === "bahce" && above(c, o, t, s.heroes, s.night, weather)) anchors.push({ key: "sfx:kuzgun", x: 0, y: 0 });
 
+  // el ele: iki elin buluştuğu yerde kenetlenmiş eller; sarılma: aralarında büyük atan kalp
+  if (s.heroes.length >= 2) {
+    const [h1, h2] = s.heroes, gap = Math.hypot(h1.i - h2.i, h1.j - h2.j);
+    if ((h1.hold || h2.hold) && gap < 1.8 && !h1.sit && !h2.sit) {
+      const [x1, y1] = at(o, h1.i, h1.j), [x2, y2] = at(o, h2.i, h2.j), mx = Math.round((x1 + x2) / 2), my = Math.round((y1 + y2) / 2) - 9;
+      line(c, [x1 + Math.sign(x2 - x1) * 3, y1 - 11], [mx, my], 1, "#e8b890"); line(c, [x2 + Math.sign(x1 - x2) * 3, y2 - 11], [mx, my], 1, "#e8b890");
+      rect(c, mx - 2, my - 1, 4, 3, P.ink); rect(c, mx - 1, my, 2, 1, "#f0c8a0");
+      if (Math.floor(t * 1.5) % 4 === 0) sprite(c, SMALL_HEART, mx - 2, my - 9, { o: P.ink, x: "#e48aa0" });
+    }
+    const hug = [h1, h2].find((h) => h.emote?.kind === "saril" && t - h.emote.at < emoteLife("saril"));
+    if (hug && gap < 2.2) {
+      const [x, y] = at(o, (h1.i + h2.i) / 2, (h1.j + h2.j) / 2), beat = 1 + Math.abs(Math.sin(t * 6)) * 0.5;
+      const big = [".oo.oo.", "oxxoxxo", "oxxxxxo", ".oxxxo.", "..oxo..", "...o..."];
+      c.save(); c.translate(x, y - 36); c.scale(beat, beat); sprite(c, big, -3, -3, { o: P.ink, x: "#d8485a" }); c.restore();
+    }
+  }
   // yan yana gelince aranızdan kalpler yükselir
   if (s.heroes.length >= 2) {
     const [h1, h2] = s.heroes;
@@ -620,6 +621,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       lights.push({ x, y: fy, r: 6, color: "180,255,120" });
     }
     fog(c, W, Hc, t);
+    if (weather === "sis") { fog(c, W, Hc, t + 40); fog(c, W, Hc, t + 90); }
     bats(c, W, Hc, t);
   }
 
@@ -646,7 +648,8 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   c.restore();
 
   // fırtına: dışarıda yağmur perdesi; şimşekte her yer bir an ağarır
-  if (outside) screenRain(c, W, Hc, t, 1);
+  if (outside && weather === "firtina") screenRain(c, W, Hc, t, 1);
+  else if (outside && weather === "kar") snowfall(c, W, Hc, t);
   else if (s.scope === "sato" && s.floor === 2) {
     // açık balkon: yağmur yalnız balkonun üstüne düşer
     const lift = (p: V): V => [p[0], p[1] - 80];
@@ -694,42 +697,179 @@ function studyProps(c: Ctx, x: number, y: number, dir: 1 | -1, st: { reading: bo
 // ------------------------------- kuşanılanlar ve emote -------------------------------
 
 const INK_C = "#1a1420";
-/** Kuşanılan miğfer başın üstünde, kalkan arka kolda; renkler zırhın malzemesinden */
-function wornGear(c: Ctx, a: { head: V; hip: V }, dir: 1 | -1, armor: string | null | undefined, seated: boolean) {
-  if (!armor) return;
-  const m = MATS.find((x) => armor.endsWith(`-${x.id}`));
-  if (!m) return;
-  if (armor.startsWith("migfer-")) {
-    const [hx, hy] = a.head;
-    rect(c, hx - 4, hy, 9, 1, INK_C); rect(c, hx - 5, hy + 1, 11, 4, INK_C);
-    rect(c, hx - 3, hy + 1, 7, 1, m.base); rect(c, hx - 4, hy + 2, 9, 1, m.base);
-    rect(c, hx - 3, hy + 2, 2, 1, m.lt); rect(c, hx - 4, hy + 3, 9, 1, m.dk);
-    rect(c, hx + (dir > 0 ? 1 : -2), hy + 4, 1, 2, m.dk); // burun koruması
-    rect(c, hx, hy - 3, 1, 3, m.gem); rect(c, hx - 1, hy - 4, 3, 1, m.gem); // sorguç
-  } else if (armor.startsWith("kalkan-") && !seated) {
-    // kalkan gövdenin arka yanında, kolda taşınır gibi
-    const x = a.hip[0] - dir * 5 - 3, y = a.hip[1] - 9;
-    rect(c, x - 1, y - 1, 8, 7, INK_C); rect(c, x, y + 6, 6, 1, INK_C); rect(c, x + 1, y + 7, 4, 1, INK_C); rect(c, x + 2, y + 8, 2, 1, INK_C);
-    rect(c, x, y, 6, 6, m.base); rect(c, x + 1, y + 6, 4, 1, m.base); rect(c, x + 2, y + 7, 2, 1, m.dk);
-    rect(c, x + 2, y, 2, 7, m.dk); px(c, x + 2, y + 2, m.gem); px(c, x + 3, y + 2, m.gem); px(c, x, y, m.lt);
+type Pal = { base: string; dk: string; lt: string; gem: string };
+// elle çizilmiş zırhların renkleri (Hazine'deki çizimleriyle aynı)
+const HAND_PAL: Record<string, Pal> = {
+  tunik: { base: "#c8b48a", dk: "#9a8a64", lt: "#e8d8b0", gem: "#5fae6e" },
+  "deri-zirh": { base: "#8a5a36", dk: "#6a4226", lt: "#b07a4e", gem: "#c8784a" },
+  "celik-zirh": { base: "#9aa0ae", dk: "#6e7482", lt: "#e8ecf4", gem: "#6f86d6" },
+  "altin-zirh": { base: "#d8a840", dk: "#a87a24", lt: "#f8dc88", gem: "#d8485a" },
+  "efsane-zirhi": { base: "#6a5aa8", dk: "#4a3a80", lt: "#a898e8", gem: "#f3d48a" },
+};
+const palOf = (id: string): Pal | null => HAND_PAL[id] ?? MATS.find((x) => id.endsWith(`-${x.id}`)) ?? null;
+const TIER_RANK = { cloth: 0, leather: 1, steel: 2, gold: 3, legend: 4 } as const;
+
+/** Elle çizilmiş zırhın seti: kendi kaskı (Ayşenur'da taç ve çiçekler) */
+function setHelm(c: Ctx, [hx, hy]: V, who: Theme, dir: 1 | -1, armor: string, t: number) {
+  const p = HAND_PAL[armor]; if (!p) return;
+  const aw = who === "aysenur";
+  if (armor === "tunik") {
+    if (!aw) return;
+    const fx = hx - dir * 3, fy = hy + 2; // saçta küçük çiçek
+    px(c, fx, fy - 1, "#f4a8c0"); px(c, fx - 1, fy, "#f4a8c0"); px(c, fx + 1, fy, "#f4a8c0"); px(c, fx, fy + 1, "#f4a8c0"); px(c, fx, fy, "#ffe08a");
+  } else if (armor === "deri-zirh") {
+    // deri başlık: yumuşak kubbe, dikiş ve kulak kapağı
+    rect(c, hx - 4, hy, 9, 1, INK_C); rect(c, hx - 5, hy + 1, 11, 3, INK_C);
+    rect(c, hx - 3, hy + 1, 7, 1, p.base); rect(c, hx - 4, hy + 2, 9, 1, p.base); px(c, hx - 2, hy + 1, p.lt);
+    for (let k = -3; k <= 3; k += 2) px(c, hx + k, hy + 2, p.dk);
+    rect(c, hx - dir * 4 - (dir > 0 ? 0 : 0), hy + 3, 2, 3, INK_C); px(c, hx - dir * 4 + (dir > 0 ? 0 : 1), hy + 3, p.dk);
+  } else if (armor === "celik-zirh") {
+    // siperli çelik miğfer: yanak koruması, göz yarığı, perçinler
+    rect(c, hx - 4, hy - 1, 9, 1, INK_C); rect(c, hx - 5, hy, 11, 6, INK_C);
+    rect(c, hx - 3, hy, 7, 1, p.base); rect(c, hx - 4, hy + 1, 9, 4, p.base); rect(c, hx - 3, hy, 2, 2, p.lt);
+    rect(c, hx + (dir > 0 ? -1 : -3), hy + 3, 5, 1, INK_C); // göz yarığı
+    px(c, hx - 4, hy + 4, p.dk); px(c, hx + 4, hy + 4, p.dk); px(c, hx - dir * 3, hy + 2, p.lt);
+    rect(c, hx, hy - 4, 1, 3, "#b8344a"); rect(c, hx - dir, hy - 5, 2, 1, "#d8485a"); // kırmızı tüy
+  } else if (armor === "altin-zirh") {
+    if (aw) {
+      // yakutlu altın taç
+      rect(c, hx - 4, hy + 1, 9, 2, INK_C); rect(c, hx - 3, hy + 1, 7, 1, p.base); rect(c, hx - 3, hy + 2, 7, 1, p.dk);
+      for (const k of [-3, 0, 3]) { px(c, hx + k, hy, INK_C); px(c, hx + k, hy - 1, p.lt); }
+      px(c, hx, hy + 1, p.gem); px(c, hx - 2, hy + 1, "#f8dc88"); px(c, hx + 2, hy + 1, "#f8dc88");
+      if (Math.floor(t * 2) % 3 === 0) px(c, hx, hy - 2, "#ffffff");
+    } else {
+      // kanatlı altın miğfer
+      rect(c, hx - 4, hy - 1, 9, 1, INK_C); rect(c, hx - 5, hy, 11, 5, INK_C);
+      rect(c, hx - 3, hy, 7, 1, p.base); rect(c, hx - 4, hy + 1, 9, 3, p.base); rect(c, hx - 3, hy, 2, 2, p.lt); rect(c, hx - 4, hy + 3, 9, 1, p.dk);
+      px(c, hx, hy + 1, p.gem);
+      for (const s2 of [-1, 1]) { const wx = hx + s2 * 6; rect(c, wx - (s2 > 0 ? 0 : 2), hy - 2, 3, 1, "#f4f0e0"); rect(c, wx - (s2 > 0 ? 0 : 1), hy - 1, 2, 2, "#f4f0e0"); px(c, wx + s2 * 2, hy - 3, "#f4f0e0"); px(c, wx, hy + 1, "#d8d0c0"); }
+    }
+  } else if (armor === "efsane-zirhi") {
+    const glow = 0.5 + 0.5 * Math.sin(t * 3);
+    if (aw) {
+      // yıldız tacı: ince altın çember, ortada parlayan yıldız, çevresinde uçuşan kıvılcımlar
+      rect(c, hx - 4, hy + 2, 9, 1, INK_C); rect(c, hx - 3, hy + 2, 7, 1, p.gem);
+      const sx = hx, sy = hy - 1; px(c, sx, sy - 1, "#fff6c8"); px(c, sx - 1, sy, "#fff6c8"); px(c, sx + 1, sy, "#fff6c8"); px(c, sx, sy + 1, "#fff6c8"); px(c, sx, sy, "#ffffff");
+      for (let k = 0; k < 3; k++) { const an = t * 1.5 + k * 2.1; px(c, Math.round(hx + Math.cos(an) * 7), Math.round(hy + 1 + Math.sin(an) * 3), `rgba(200,184,255,${(0.5 + 0.5 * Math.sin(t * 4 + k)).toFixed(2)})`); }
+    } else {
+      // taçlı efsane miğferi: koyu mor kubbe, altın taç dişleri, alnında yıldız
+      rect(c, hx - 4, hy - 1, 9, 1, INK_C); rect(c, hx - 5, hy, 11, 6, INK_C);
+      rect(c, hx - 3, hy, 7, 1, p.base); rect(c, hx - 4, hy + 1, 9, 4, p.base); rect(c, hx - 3, hy, 2, 2, p.lt); rect(c, hx - 4, hy + 4, 9, 1, p.dk);
+      rect(c, hx + (dir > 0 ? -1 : -3), hy + 3, 5, 1, INK_C);
+      for (const k of [-4, -2, 0, 2, 4]) { px(c, hx + k, hy - 2, INK_C); px(c, hx + k, hy - 1, p.gem); }
+      px(c, hx, hy + 1, `rgba(255,246,200,${(0.6 + 0.4 * glow).toFixed(2)})`);
+    }
+    lights.push({ x: hx, y: hy, r: 9, color: "200,184,255" });
   }
 }
 
-/** Başın üstünde: yükselen kalpler ya da sallanan el */
-function emoteAbove(c: Ctx, [hx, hy]: V, kind: Emote, age: number) {
-  const fade = age > 1.7 ? Math.max(0, (2.2 - age) / 0.5) : 1;
+/**
+ * Kuşanılan zırhın karakterdeki ayrıntıları. Kademe yükseldikçe çoğalır:
+ * deri: kemer; çelik: omuzluk ve zırh eteği (Ayşenur) ya da kalça plakaları (Cengiz);
+ * altın: parıltı; efsane: pelerin ve ışık. Elle çizilmiş zırhlar kendi kaskıyla gelir.
+ * Generated miğfer başta, kalkan arka kolda görünür.
+ */
+function wornGear(c: Ctx, a: { head: V; hip: V; shoulder: V }, who: Theme, dir: 1 | -1, g: Hero["gear"], sit: { sleep?: boolean } | undefined, t: number, dist: number) {
+  if (!g || sit?.sleep) return; // yorganın altında zırh görünmez
+  const [sx, sy] = a.shoulder, [hx, hy] = a.hip, aw = who === "aysenur";
+  const armor = g.armor, p = armor ? palOf(armor) : null;
+  const st = armor ? armorStats(armor) : null, rank = st ? TIER_RANK[st.tier] : 0;
+  // pelerin: kuşanılan pelerin ya da efsane zırhın kendi kızıl pelerini; yürürken daha çok dalgalanır
+  const capeP = g.cape ? palOf(g.cape) : rank >= 4 ? { base: "#7a1f36", dk: "#5a1428", lt: "#a83a52", gem: p?.gem ?? "#f3d48a" } : null;
+  if (capeP && !sit) {
+    const wave = Math.sin(t * 4 + dist * 0.6), len = 13;
+    for (let k = 0; k < len; k++) {
+      const off = Math.round((k / len) * (2 + wave * 1.5)), x = sx - dir * (3 + off), y = sy + 1 + k;
+      px(c, x - dir, y, INK_C); px(c, x, y, k % 4 === 0 ? capeP.lt : capeP.base); px(c, x - dir * 2, y, capeP.dk);
+    }
+    rect(c, sx - dir * 4 - 1, sy, 3, 1, capeP.gem); // pelerin tokası
+  }
+  if (p) {
+    if (rank >= 1) { rect(c, hx - 3, hy - 1, 7, 1, "#2a1c16"); px(c, hx + dir, hy - 1, p.gem); px(c, hx + dir * 2, hy - 1, p.lt); } // kemer
+    if (rank >= 2 && !sit) {
+      if (aw) for (let k = 0; k < 4; k++) { const x = hx - 3 + k * 2; rect(c, x, hy, 2, 4 + (k % 2), INK_C); px(c, x, hy, p.lt); rect(c, x, hy + 1, 1, 2 + (k % 2), k % 2 ? p.dk : p.base); }
+      else { rect(c, hx - 3, hy, 7, 3, INK_C); rect(c, hx - 2, hy, 2, 2, p.base); rect(c, hx + 1, hy, 2, 2, p.base); px(c, hx - 2, hy, p.lt); }
+    }
+    if (rank >= 2) {
+      const w = aw ? 4 : 6, h = aw ? 2 : 3, x = sx - Math.floor(w / 2) + dir;
+      rect(c, x - 1, sy - 2, w + 2, h + 2, INK_C); rect(c, x, sy - 1, w, h, p.base); rect(c, x, sy - 1, w, 1, p.lt);
+      if (aw) px(c, x + 1, sy - 1 + h - 1, p.gem); else { px(c, x + 1, sy, p.dk); px(c, x + w - 2, sy, p.dk); if (rank >= 3) { px(c, x + Math.floor(w / 2), sy - 3, INK_C); px(c, x + Math.floor(w / 2), sy - 2, p.lt); } }
+    }
+    if (rank >= 3) {
+      for (let k = 0; k < 3; k++) if (Math.floor(t * 3 + k * 1.7) % 4 === 0) { const x = hx - 3 + ((k * 5) % 7), y = sy + 2 + k * 3; px(c, x, y, "#fff6c8"); px(c, x - 1, y, "rgba(255,246,200,0.5)"); px(c, x + 1, y, "rgba(255,246,200,0.5)"); }
+      lights.push({ x: hx, y: hy - 6, r: rank >= 4 ? 16 : 11, color: rank >= 4 ? "170,150,255" : "255,210,120" });
+    }
+  }
+  // takı: boyunda parlayan küçük taş
+  if (g.trinket) {
+    const gem = g.trinket === "mana-kolyesi" ? "#5a9ad8" : g.trinket === "can-tilsimi" ? "#d8485a" : g.trinket === "ruzgar-muskasi" ? "#9fe8ae" : g.trinket === "yildiz-kolyesi" ? "#f3d48a" : "#e48aa0";
+    px(c, sx + dir, sy + 2, INK_C); px(c, sx + dir, sy + 3, gem); if (Math.floor(t * 2) % 3 === 0) px(c, sx + dir + 1, sy + 2, "#ffffff");
+  }
+  // kalkan: gövdenin arka yanında, kolda taşınır gibi
+  const sp = g.shield ? palOf(g.shield) : null;
+  if (sp && !sit) {
+    const x = hx - dir * 5 - 3, y = hy - 9;
+    rect(c, x - 1, y - 1, 8, 7, INK_C); rect(c, x, y + 6, 6, 1, INK_C); rect(c, x + 1, y + 7, 4, 1, INK_C); rect(c, x + 2, y + 8, 2, 1, INK_C);
+    rect(c, x, y, 6, 6, sp.base); rect(c, x + 1, y + 6, 4, 1, sp.base); rect(c, x + 2, y + 7, 2, 1, sp.dk);
+    rect(c, x + 2, y, 2, 7, sp.dk); px(c, x + 2, y + 2, sp.gem); px(c, x + 3, y + 2, sp.gem); px(c, x, y, sp.lt);
+  }
+  // kask: kuşanılan miğfer; yoksa elle çizilmiş zırhın kendi kaskı
+  const hp = g.helmet ? palOf(g.helmet) : null;
+  if (hp) {
+    const [kx, ky] = a.head;
+    rect(c, kx - 4, ky, 9, 1, INK_C); rect(c, kx - 5, ky + 1, 11, 4, INK_C);
+    rect(c, kx - 3, ky + 1, 7, 1, hp.base); rect(c, kx - 4, ky + 2, 9, 1, hp.base);
+    rect(c, kx - 3, ky + 2, 2, 1, hp.lt); rect(c, kx - 4, ky + 3, 9, 1, hp.dk);
+    rect(c, kx + (dir > 0 ? 1 : -2), ky + 4, 1, 2, hp.dk); // burun koruması
+    rect(c, kx, ky - 3, 1, 3, hp.gem); rect(c, kx - 1, ky - 4, 3, 1, hp.gem); // sorguç
+  } else if (armor) setHelm(c, a.head, who, dir, armor, t);
+  // set: aynı malzemeden göğüslük, miğfer ve kalkan → çevresinde dönen ışıltı
+  if (g.set) {
+    const m = palOf(`x-${g.set}`);
+    for (let k = 0; k < 6; k++) { const an = t * 2.2 + (k / 6) * Math.PI * 2; px(c, Math.round(hx + Math.cos(an) * 8), Math.round(hy - 6 + Math.sin(an) * 4), m?.lt ?? "#fff6c8"); }
+    lights.push({ x: hx, y: hy - 6, r: 14, color: "200,220,255" });
+  }
+}
+
+// konuşma balonundaki küçük simgeler
+const ICON: Partial<Record<Emote, { rows: string[]; x: string }>> = {
+  gul: { rows: [".xxx.", "x.x.x", "xxxxx", "x...x", ".xxx."], x: "#e2b45a" },
+  sasir: { rows: ["..x..", "..x..", "..x..", ".....", "..x.."], x: "#d8485a" },
+  uyku: { rows: ["xxxx.", "..x..", ".x...", "xxxx.", "....."], x: "#6f86d6" },
+};
+/** Başın üstünde emote: kalpler, el sallama, balonlu simgeler, uçan öpücük, müzik notaları */
+function emoteAbove(c: Ctx, [hx, hy]: V, kind: Emote, age: number, dir: 1 | -1) {
+  const life = emoteLife(kind), fade = age > life - 0.5 ? Math.max(0, (life - age) / 0.5) : 1;
   c.save(); c.globalAlpha = fade;
-  if (kind === "kalp") {
+  if (kind === "kalp" || kind === "saril") {
     for (let k = 0; k < 3; k++) {
       const q = (age * 0.8 + k / 3) % 1;
       sprite(c, SMALL_HEART, Math.round(hx - 2 + Math.sin(q * 6 + k) * 4), Math.round(hy - 6 - q * 16), { o: P.ink, x: k % 2 ? "#e48aa0" : "#d8485a" });
     }
-  } else {
+  } else if (kind === "el") {
     const sw = Math.round(Math.sin(age * 14) * 2), x = hx + 6 + sw, y = hy - 8;
     rect(c, x - 1, y - 1, 6, 7, INK_C); rect(c, x, y, 4, 5, "#f0c8a0"); // avuç
     for (let f = 0; f < 3; f++) { rect(c, x + f + (f > 0 ? f - 1 : 0), y - 3, 1, 3, INK_C); }
     rect(c, x, y - 2, 1, 2, "#f0c8a0"); rect(c, x + 2, y - 3, 1, 3, "#f0c8a0"); rect(c, x + 4, y - 2, 1, 2, INK_C);
     rect(c, x - 2, y + 2, 1, 2, "#f0c8a0"); // başparmak
+  } else if (kind === "opucuk") {
+    // dudaktan çıkıp ileri süzülen kalp, arkasında ışıltı
+    const q = Math.min(1, age / 1.4), x = Math.round(hx + dir * (4 + q * 22)), y = Math.round(hy + 4 - Math.sin(q * Math.PI) * 10);
+    sprite(c, SMALL_HEART, x - 2, y - 2, { o: P.ink, x: "#e8486a" });
+    for (let k = 1; k < 4; k++) px(c, x - dir * k * 3, y + (k % 2), `rgba(255,200,220,${(0.8 - k * 0.2).toFixed(2)})`);
+    if (age < 0.4) { rect(c, hx + dir * 3, hy + 9, 2, 1, "#d8485a"); }
+  } else if (kind === "dans") {
+    for (let k = 0; k < 3; k++) {
+      const q = (age * 0.7 + k / 3) % 1, nx = Math.round(hx - 8 + k * 8 + Math.sin(q * 6 + k) * 2), ny = Math.round(hy - 2 - q * 14);
+      const col = k % 2 ? "#e48aa0" : "#f3d48a";
+      rect(c, nx, ny, 2, 2, col); rect(c, nx + 1, ny - 4, 1, 4, col); px(c, nx + 2, ny - 4, col);
+    }
+  } else {
+    // balon: beyaz, mürekkep kenarlı, kuyruklu; içinde simge
+    const ic = ICON[kind]!, bob = Math.round(Math.sin(age * 5)), x = hx + 3, y = hy - 13 + bob;
+    rect(c, x - 1, y - 1, 9, 9, INK_C); rect(c, x, y, 7, 7, "#f4f0e4"); rect(c, x + 1, y + 8, 2, 1, INK_C); px(c, x + 1, y + 7, "#f4f0e4");
+    sprite(c, ic.rows, x + 1, y + 1, { x: ic.x, ".": "rgba(0,0,0,0)" });
+    if (kind === "uyku") for (let k = 0; k < 2; k++) { const q = (age * 0.6 + k / 2) % 1; px(c, x + 9 + Math.round(q * 4), y - Math.round(q * 8), `rgba(111,134,214,${(1 - q).toFixed(2)})`); }
   }
   c.restore();
 }
