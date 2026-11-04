@@ -282,6 +282,10 @@ function glovesOf(c: Ctx, m: Mat) {
     px(c, ox + 4, 18, m.gem); px(c, ox + 3, 12, m.lt);
   }
 }
+function legsOf(c: Ctx, m: Mat) {
+  rect(c, 5, 3, 14, 5, INK); rect(c, 6, 4, 12, 3, m.dk); px(c, 12, 5, m.gem); // kemer
+  for (const ox of [5, 13]) { rect(c, ox, 7, 6, 15, INK); rect(c, ox + 1, 8, 4, 13, m.base); rect(c, ox + 1, 13, 4, 2, m.lt); rect(c, ox + 1, 19, 4, 1, m.dk); } // diz plakası
+}
 function bootsOf(c: Ctx, m: Mat) {
   for (const ox of [2, 12]) {
     rect(c, ox + 1, 4, 7, 15, INK); rect(c, ox + 2, 5, 5, 13, m.base); rect(c, ox + 1, 16, 10, 5, INK); rect(c, ox + 2, 17, 8, 3, m.base);
@@ -316,6 +320,7 @@ const TEMPLATES: Tmpl[] = [
   { id: "asa", noun: "Asa", kind: "Silah", owner: "İkiniz", off: 6, desc: "Ucunda taş parlayan bir asa.", draw: (c, m, t) => staff(c, m, t) },
   { id: "pelerin", noun: "Pelerin", kind: "Zırh", owner: "İkiniz", off: 2, desc: "Rüzgârda dalgalanan bir pelerin.", draw: (c, m) => capeOf(c, m) },
   { id: "eldiven", noun: "Eldiven", kind: "Zırh", owner: "İkiniz", off: 4, desc: "Parmakları koruyan eldivenler.", draw: (c, m) => glovesOf(c, m) },
+  { id: "bacaklik", noun: "Bacaklık", kind: "Zırh", owner: "İkiniz", off: 5, desc: "Dizleri ve bacakları saran plakalar.", draw: (c, m) => legsOf(c, m) },
   { id: "cizme", noun: "Çizme", kind: "Zırh", owner: "İkiniz", off: 6, desc: "Adımları hafifleten çizmeler.", draw: (c, m) => bootsOf(c, m) },
   { id: "buyuk-kilic", noun: "İki Elli Kılıç", kind: "Silah", owner: "Cengiz", off: 7, desc: "İki elle kavranan dev bir kılıç.", draw: (c, m) => greatsword(c, m) },
 ];

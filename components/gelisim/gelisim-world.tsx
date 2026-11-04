@@ -47,9 +47,9 @@ const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : 
 /** Görünüm: kuşanılmış zırh kıyafeti değiştirir (yoksa ev kıyafeti); elde kuşanılmış silah */
 const lookFor = (_level: number, eq: Equipment | undefined) => {
   const base = armorLook(eq?.armor), mat = (id: string | null | undefined) => (id ? MATS.find((m) => id.endsWith(`-${m.id}`)) : undefined);
-  const gl = mat(eq?.gloves), bt = mat(eq?.boots);
+  const gl = mat(eq?.gloves), bt = mat(eq?.boots), lg = mat(eq?.legs);
   // eldiven elleri, çizme ayakları malzemesinin rengine boyar
-  const tint = { ...base.tint, ...(gl ? { glove: gl.base } : {}), ...(bt ? { shoe: bt.dk } : {}) };
+  const tint = { ...base.tint, ...(gl ? { glove: gl.base } : {}), ...(bt ? { shoe: bt.dk } : {}), ...(lg ? { bottom: lg.base } : {}) };
   return { outfit: base.outfit, tint: Object.keys(tint).length ? tint : undefined, gear: gearOf(eq) };
 };
 const gearOf = (eq: Equipment | undefined) => ({
@@ -874,8 +874,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const fireRoom = where.scope === "sato" && (roomName === "Şömine odası" || roomName === "Büyük salon");
   useEffect(() => {
     if (!sound) return;
-    setMix({ rain: where.scope === "bahce" ? 1 : 0.4, fire: fireRoom ? 0.6 : 0, purr: 0 });
-  }, [sound, where.scope, fireRoom]);
+    // yağmur yalnız fırtınalı günde tam; sisli günde çisenti, açık ve karlı günde yok
+    const wet = weather.current === "firtina" ? 1 : weather.current === "sis" ? 0.15 : 0;
+    setMix({ rain: (where.scope === "bahce" ? 1 : 0.4) * wet, fire: fireRoom ? 0.6 : 0, purr: 0 });
+  }, [sound, where.scope, fireRoom, weatherName]);
   useEffect(() => {
     let want = false;
     try { want = localStorage.getItem(SOUND_KEY) === "1"; } catch { /* tercih okunamadı */ }

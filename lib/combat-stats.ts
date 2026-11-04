@@ -148,10 +148,10 @@ if (process.env.NODE_ENV !== "production") {
   console.assert(armorLook(null).outfit === "home" && armorLook("altin-zirh").outfit === "armor" && armorLook("gogusluk-bakir").tint?.top === "#c8784a"
     && armorLook("gogusluk-bakir").tint?.top !== armorLook("gogusluk-demir").tint?.top, "her zırh kendi renginde");
   {
-    const full: Equipment = { armor: "gogusluk-demir", helmet: "migfer-demir", shield: "kalkan-demir", cape: null, gloves: null, boots: "cizme-demir", trinket: "ruzgar-muskasi", weapon: null, spells: [] };
+    const full: Equipment = { armor: "gogusluk-demir", helmet: "migfer-demir", legs: null, shield: "kalkan-demir", cape: null, gloves: null, boots: "cizme-demir", trinket: "ruzgar-muskasi", weapon: null, spells: [] };
     console.assert(setBonus(full)?.mat === "demir" && setBonus({ ...full, shield: "kalkan-altin" }) === null, "set bonusu yalnız üçü aynı malzemeyken");
     console.assert(wearStats(full).defense > wearStats({ ...full, shield: null }).defense && gearSpeed(full) > 1.1, "set savunması ve hız");
-    console.assert(WEAR_SLOTS.length === 7, "yedi giyim yuvası");
+    console.assert(WEAR_SLOTS.length === 8, "sekiz giyim yuvası");
   }
   console.assert(s("alev-topu")?.shape === "kivilcim" && (s("sifa")?.heal ?? 0) > 0 && s("buyu-buz-muhru")?.shape === "muhru", "büyü şekilleri");
   console.assert(w("yok") === null, "bilinmeyen eşya");
