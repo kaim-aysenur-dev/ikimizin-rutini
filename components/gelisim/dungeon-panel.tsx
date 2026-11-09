@@ -31,7 +31,7 @@ export function DungeonPanel({ level, power, onEnter, onClose }: { level: number
               <li key={s.id} className={`gw-item${locked ? " is-locked" : ""}${done ? " is-active" : ""}`}>
                 <span className="gw-dungeon-emoji" aria-hidden="true">{locked ? "🔒" : s.emoji}</span>
                 <div>
-                  <b>{s.id}. {s.name}{done && " ✓"}</b>
+                  <b>{s.id}. {s.name}{s.big && <span className="gw-big-tag">🌀 Büyük tünel</span>}{done && " ✓"}</b>
                   <small>{locked ? `Seviye ${s.level}'de açılır` : s.story}</small>
                   {!locked && (
                     <small>

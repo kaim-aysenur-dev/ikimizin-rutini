@@ -12,6 +12,7 @@
 //   r  rün (süs)      i  buz (süs)            t  meşale direği
 import { type EnemyKind } from "./dungeon-enemies";
 import { type ThemeId } from "./dungeon-themes";
+import { type GenSpec, generate } from "./dungeon-gen";
 
 export type Stage = {
   id: number; name: string; emoji: string; theme: ThemeId; level: number; power: number; xp: number;
@@ -20,10 +21,12 @@ export type Stage = {
   waves: [EnemyKind, number][][];
   champion: { kind: EnemyKind; name: string }; // son dalganın şefi (güçlü, iri, altın halkalı)
   title: string; // bölümü geçene açılan unvan
+  big?: boolean; // büyük tünel bölümü (her dört bölümde bir): odalar, geçitler, beş dalga
   map: string[];
 };
 
-export const STAGES: Stage[] = [
+// elle çizilmiş bölümler (sıra ve seviye aşağıda ORDER ile verilir; buradaki id, level, power, xp yer tutucu)
+const HANDMADE: Stage[] = [
   {
     id: 1, name: "Goblin Mağarası", emoji: "🕳️", theme: "magara", level: 1, power: 20, xp: 50, title: "Goblin Avcısı",
     story: "Ay Kapısı'nın ardındaki ilk mağara. Karanlıkta parlayan sarı gözler, metal tıkırtıları... Goblinler hazinelerini sana kaptırmak istemiyor.",
@@ -425,5 +428,103 @@ export const STAGES: Stage[] = [
     ],
   },
 ];
+
+/* --------------------------- üretilmiş bölümler --------------------------- */
+
+// temanın haritasında serpiştirilen süsler ve tehlikeler (dungeon-gen.ts)
+const GEN: Record<ThemeId, Omit<GenSpec, "kind" | "seed">> = {
+  magara: { props: "RRRc" }, orman: { props: "TTTR" }, bataklik: { props: "uuT", hazard: "p" }, yuva: { props: "Re", hazard: "w", hazardRate: 0.1 },
+  mezar: { props: "ggo" }, kuyu: { props: "Rc", hazard: "~", hazardRate: 0.05 }, kamp: { props: "xnf" }, kule: { props: "oh", decor: "r" },
+  buz: { props: "Rc", decor: "i" }, kopru: { props: "o", hazard: "~", hazardRate: 0.06 }, ocak: { props: "Rxf", hazard: "L" }, kale: { props: "o#f" },
+  cukur: { props: "R", hazard: "L", hazardRate: 0.1 }, mahzen: { props: "gof" }, ejder: { props: "$R" }, kanay: { props: "Tf", hazard: "p" },
+  col: { props: "RRx", hazard: "~", hazardRate: 0.04 }, piramit: { props: "og$", decor: "r" }, deniz: { props: "Rc", hazard: "~", hazardRate: 0.07 },
+  kristal: { props: "ccR" }, gotik: { props: "ogf" }, kapadokya: { props: "RRx" }, bulut: { props: "oc", hazard: "~", hazardRate: 0.06 }, cehennem: { props: "Rf", hazard: "L", hazardRate: 0.09 },
+};
+type Draft = { name: string; emoji: string; theme: ThemeId; story: string; tip: string; foes: EnemyKind[]; champion: { kind: EnemyKind; name: string }; title: string; boss?: EnemyKind[] };
+const ph = 0;
+const draft = (d: Draft): Stage => ({ id: ph, level: ph, power: ph, xp: ph, waves: [], map: [], ...d });
+
+// yeni normal bölümler: efsaneler, masallar ve destanlardan esinlenmiş
+const NEW: Record<string, Draft> = {
+  kurtadam: { name: "Kurt Adam Köyü", emoji: "🌕", theme: "orman", story: "Dolunay doğunca köyün kapıları kilitlenir. Ormandan gelen uluma, insan sesine benziyor...", tip: "Kurt adamlar çok hızlıdır; yuvarlanarak (Shift) saldırılarından kaç.", foes: ["kurtadam", "kurt", "kurt"], champion: { kind: "kurtadam", name: "Dolunay Uluyanı" }, title: "Gümüş Kurşun" },
+  akrep: { name: "Çöl Akrepleri", emoji: "🦂", theme: "col", story: "Kızgın kumların altında dev akrepler bekliyor. Rüzgâr kumu kaldırınca iğneleri parlıyor.", tip: "Akrepler kalabalık gelir; sırtını kayaya ver.", foes: ["akrep", "mumya", "akrep"], champion: { kind: "akrep", name: "Zehirli Kuyruk" }, title: "Kum Gezgini" },
+  harpi: { name: "Harpi Kayalıkları", emoji: "🪶", theme: "kapadokya", story: "Peri bacalarının tepesinde harpiler yuva kurmuş. Çığlıkları vadide yankılanıyor.", tip: "Harpiler uçar ve yukarıdan dalar; kayaların dibinde dur.", foes: ["harpi", "goblin", "harpi"], champion: { kind: "harpi", name: "Fırtına Pençe" }, title: "Gök Avcısı" },
+  batik: { name: "Batık Tapınak", emoji: "🌊", theme: "deniz", story: "Denizin altına gömülmüş bir tapınak. Boğulmuş denizciler hâlâ nöbette.", tip: "Mavi sular geçilmez; adacıklar arasındaki yolları izle.", foes: ["iskelet", "golge", "hayalet"], champion: { kind: "golge", name: "Boğulmuş Kaptan" }, title: "Dalgaların Efendisi" },
+  kristal: { name: "Kristal Mağaralar", emoji: "💎", theme: "kristal", story: "Mor kristallerin ışığında yankılanan sessizlik. Taş golemler kristalleri koruyor.", tip: "Golemler yavaştır; etrafında dön ve arkasından vur.", foes: ["golem", "buz", "yarasa"], champion: { kind: "golem", name: "Kristal Muhafız" }, title: "Işık Kıran" },
+  kont: { name: "Kontun Gotik Şatosu", emoji: "🦇", theme: "gotik", story: "Dağın tepesindeki şatoda mumlar hiç sönmez. Kont misafirlerini akşam yemeğine bekliyor.", tip: "Vampirler uzaktan kan büyüsü atar; yarasalara dikkat.", foes: ["vampir", "yarasa", "golge"], champion: { kind: "vampir", name: "Kont Morvay" }, title: "Gece Avcısı" },
+  gorgon: { name: "Gorgon'un Bahçesi", emoji: "🐍", theme: "piramit", story: "Bahçe taş heykellerle dolu; hepsi bir zamanlar kahramandı. Yılan saçlı Gorgon bekliyor.", tip: "Gorgon'un bakışı uzaktan vurur; sütunların arkasından ilerle.", foes: ["medusa", "akrep", "iskelet"], champion: { kind: "medusa", name: "Taş Bakışlı" }, title: "Aynalı Kalkan" },
+  karaelf: { name: "Kara Elf Ormanı", emoji: "🏹", theme: "orman", story: "Ağaçların arasında görünmez okçular. Kara elfler ormanlarına girenleri affetmez.", tip: "Okçular uzaktan vurur; zikzak çizerek yaklaş.", foes: ["kara-elf", "kurt", "orumcek"], champion: { kind: "kara-elf", name: "Gölge Okçu Nyx" }, title: "Ok Kesen" },
+  albasti: { name: "Albastı Bataklığı", emoji: "🌫️", theme: "bataklik", story: "Gece yarısı bataklıkta bir kadın şarkı söylüyor. Yaklaşanlar bir daha dönmüyor.", tip: "Albastılar uçar ve büyü atar; zehirli sulara girme.", foes: ["alkarisi", "mantar", "hayalet"], champion: { kind: "alkarisi", name: "Bataklık Cadısı" }, title: "Cadı Avcısı" },
+  karakoncolos: { name: "Karakoncolos Geçidi", emoji: "❄️", theme: "buz", story: "Zemheride dağ geçidinde biri kapı çalar. Karakoncolos soruyu yanlış bilene acımaz.", tip: "Karakoncolos güçlü vurur; vurduktan sonraki boşlukta saldır.", foes: ["karakoncolos", "kurt", "buz"], champion: { kind: "karakoncolos", name: "Zemheri" }, title: "Kış Yolcusu" },
+  kopek: { name: "Cehennem Köpekleri", emoji: "🔥", theme: "cehennem", story: "Lav nehrinin kıyısında alevli köpekler sürü hâlinde avlanıyor.", tip: "Lav yakar; köpekler çok hızlı, büyüyle alan temizle.", foes: ["cehennem-kopegi", "seytan", "cehennem-kopegi"], champion: { kind: "cehennem-kopegi", name: "Üç Başlı Bekçi" }, title: "Ateş Tasması" },
+  minotor: { name: "Minotor Labirenti", emoji: "🐂", theme: "kale", story: "Taş koridorların sonunda bir böğürtü. Labirentin boğa başlı bekçisi seni kokladı.", tip: "Minotor ağır vurur; koridorda yan yana gelme, yuvarlanarak kaç.", foes: ["minotor", "iskelet", "kara-sovalye"], champion: { kind: "minotor", name: "Labirentin Boğası" }, title: "Labirent Çözücü" },
+  agac: { name: "Ağaç Adamlar Korusu", emoji: "🌳", theme: "orman", story: "Kadim koruda ağaçlar konuşuyor ve yürüyor. Baltayla girenleri ezmeye kararlılar.", tip: "Ağaç adamlar çok dayanıklıdır; ateş büyüsü iyi gelir.", foes: ["agac-adam", "orumcek", "kurt"], champion: { kind: "agac-adam", name: "Kadim Meşe" }, title: "Ormanın Dostu" },
+  mumya: { name: "Mumya Mahzeni", emoji: "🏺", theme: "piramit", story: "Bin yıllık sargılar çözülüyor. Lanetli mahzenin firavunu uyandı.", tip: "Mumyalar yavaş ama dayanıklı; akreplerden önce kurtul.", foes: ["mumya", "akrep", "golge"], champion: { kind: "mumya", name: "Firavun Neferet" }, title: "Lanet Bozucu" },
+  golge: { name: "Gölgeler Diyarı", emoji: "🌑", theme: "mahzen", story: "Işığın hiç girmediği diyar. Ruh çalan gölgeler sıcaklığına doğru süzülüyor.", tip: "Gölgeler duvardan geçer; sırtını açık bırakma.", foes: ["golge", "hayalet", "iskelet"], champion: { kind: "golge", name: "Ruh Çalan" }, title: "Ruhunu Koruyan" },
+  dev: { name: "Buz Devleri Diyarı", emoji: "🏔️", theme: "buz", story: "Buzulların arasında dağ kadar devler. Adımları yeri titretiyor.", tip: "Devler yavaş ama çok sert vurur; menzilli saldırıyla yıprat.", foes: ["buz-devi", "buz", "karakoncolos"], champion: { kind: "buz-devi", name: "Donmuş Taç" }, title: "Devleri Deviren" },
+  yeralti: { name: "Yeraltı Şehri", emoji: "🏜️", theme: "kapadokya", story: "Kayaların içine oyulmuş katlarca şehir. Eski muhafızlar hâlâ kapıları tutuyor.", tip: "Dar odalar; okçuları ve golemleri ayır.", foes: ["kara-elf", "golem", "goblin"], champion: { kind: "golem", name: "Taş Muhafız" }, title: "Yeraltı Kâşifi" },
+  bulut: { name: "Bulut Kalesi", emoji: "☁️", theme: "bulut", story: "Gökyüzünde süzülen mermer bir kale. Harpiler ve buz ruhları burayı yuva yapmış.", tip: "Mavi boşluklar gökyüzüdür, düşülmez ama geçilmez.", foes: ["harpi", "buz", "alkarisi"], champion: { kind: "harpi", name: "Gök Kraliçesi" }, title: "Bulutların Üstünde" },
+  gelin: { name: "Vampir Gelinleri", emoji: "🥀", theme: "gotik", story: "Balo salonunda müzik hiç durmuyor. Kızıl gelinlikli dansçılar konuklarını bekliyor.", tip: "Vampirler kan büyüsü atar; gölgeler arkadan gelir.", foes: ["vampir", "golge", "yarasa"], champion: { kind: "vampir", name: "Kızıl Gelin" }, title: "Şafağın Işığı" },
+  kapi: { name: "Cehennem Kapısı", emoji: "🚪", theme: "cehennem", story: "Dünyalar arasındaki kapı aralandı. Bekçisi kimseyi geri göndermiyor.", tip: "Lav her yerde; şeytanların ateş toplarından yana kay.", foes: ["seytan", "cehennem-kopegi", "golem"], champion: { kind: "seytan", name: "Kapı Bekçisi Azgal" }, title: "Kapıyı Kapatan" },
+  elmas: { name: "Elmas İni", emoji: "💠", theme: "kristal", story: "Kristallerin en derininde elmastan bir yürek atıyor. Bekçileri ışık kadar parlak.", tip: "Elmas golem çok sağlamdır; İki Kalp Patlaması'nı sakla.", foes: ["golem", "buz", "kara-elf"], champion: { kind: "golem", name: "Elmas Golem" }, title: "Elmas Yürekli" },
+  yildiz: { name: "Yıldızların Kıyısı", emoji: "✨", theme: "bulut", story: "Gökyüzünün bittiği yerde yıldızlar yere iniyor. Burada gölgeler de ışık gibi parlıyor.", tip: "Son büyük savaştan önce son durak; her şeyini kullan.", foes: ["golge", "kara-elf", "alkarisi"], champion: { kind: "kara-elf", name: "Yıldız Okçusu" }, title: "Yıldıza Dokunan" },
+};
+
+// büyük tüneller: her dört bölümde bir; odalar, geçitler ve sonda büyük bir boss
+const TUNNELS: Draft[] = [
+  { name: "Cüce Madenleri", emoji: "⛏️", theme: "magara", story: "Terk edilmiş cüce madenleri dağın içinde kilometrelerce uzanıyor. Karanlıkta bir şeyler kazıyor...", tip: "Tüneller uzun: odadan odaya ilerle, canın azalınca geri çekil.", foes: ["goblin", "orumcek", "yarasa"], champion: { kind: "goblin", name: "Maden Kralı Dırdır" }, title: "Madenlerin Fatihi", boss: ["trol"] },
+  { name: "Örümcek Tünelleri", emoji: "🕸️", theme: "yuva", story: "Ağlarla kaplı dolambaçlı tüneller. Her köşede sekiz göz parlıyor.", tip: "Ağlar yavaşlatır; geçitlerde savaşma, odalarda savaş.", foes: ["orumcek", "yarasa", "mantar"], champion: { kind: "orumcek", name: "Ana Örümcek Vesh" }, title: "Ağların Efendisi", boss: ["orumcek"] },
+  { name: "Tepegöz'ün Mağarası", emoji: "👁️", theme: "magara", story: "Dede Korkut'un anlattığı dev: tek gözlü Tepegöz. Mağarasına giren çoban bir daha dönmedi.", tip: "Tepegöz'ün sopası çok sert; tek gözünü hedef al, arkasında kal.", foes: ["goblin", "ork", "kurt"], champion: { kind: "ork", name: "Tepegöz'ün Çobanı" }, title: "Tepegöz'ü Deviren", boss: ["tepegoz"] },
+  { name: "Şahmeran'ın Yeraltı Sarayı", emoji: "🐍", theme: "kapadokya", story: "Kayaların altında yılanların kraliçesi Şahmeran'ın sarayı. Sırrını öğrenenler yer altından çıkamaz.", tip: "Şahmeran uzaktan altın zehir atar; peri bacalarını siper al.", foes: ["harpi", "kara-elf", "akrep"], champion: { kind: "medusa", name: "Yılan Muhafız" }, title: "Şahmeran'ın Sırdaşı", boss: ["sahmeran"] },
+  { name: "Kum Solucanı Çölü", emoji: "🏜️", theme: "col", story: "Kum tepelerinin altında bir şey kıpırdıyor. Yer sarsılınca kaçmak için çok geç.", tip: "Solucan yerden çıkar ve ezer; sürekli hareket et.", foes: ["akrep", "mumya", "harpi"], champion: { kind: "mumya", name: "Kumların Firavunu" }, title: "Kumları Yaran", boss: ["kum-solucani"] },
+  { name: "Batık Şehir", emoji: "🐙", theme: "deniz", story: "Okyanusun dibinde ışıkları sönmüş bir şehir. Derinlerden dev dokunaçlar uzanıyor.", tip: "Kraken uzaktan su topu atar; dokunaçlar geniş alanı tarar.", foes: ["golge", "iskelet", "buz"], champion: { kind: "golge", name: "Derinliklerin Sesi" }, title: "Kraken Avcısı", boss: ["kraken"] },
+  { name: "Hidra Bataklığı", emoji: "🐲", theme: "bataklik", story: "Her kesilen başın yerine iki baş çıkar derler. Bataklığın kalbinde Hidra uyuyor.", tip: "Hidra beş ağızdan zehir tükürür; zehirli sulara girme.", foes: ["alkarisi", "mantar", "orumcek"], champion: { kind: "alkarisi", name: "Bataklık Annesi" }, title: "Hidra'yı Yenen", boss: ["hidra"] },
+  { name: "Kontun Mahzenleri", emoji: "🧛", theme: "gotik", story: "Şatonun altındaki mahzenlerde tabutlar açık. Kan Lordu buradan dünyaya hükmediyor.", tip: "Vampirler ve gölgeler bir arada gelir; ışık büyülerini kullan.", foes: ["vampir", "golge", "yarasa"], champion: { kind: "vampir", name: "Kontun Sağ Kolu" }, title: "Mahzenleri Aydınlatan", boss: ["kan-lordu"] },
+  { name: "Ejderha Dağı", emoji: "🌋", theme: "ejder", story: "Dağın içinden geçen tüneller altın ve kemikle dolu. En yukarıda kadim ejderha yatıyor.", tip: "Ejderhanın alevi geniş yayılır; yanlarından saldır.", foes: ["seytan", "kara-sovalye", "golem"], champion: { kind: "kara-sovalye", name: "Ejderha Şövalyesi" }, title: "Ejderha Dağı Fatihi", boss: ["ejderha"] },
+  { name: "Kaf Dağı", emoji: "🦚", theme: "bulut", story: "Masalların sonundaki dağ. Zümrüdüanka buraya yuva yapar; ona ulaşan dileğine kavuşur.", tip: "Anka uçar ve ateş yağdırır; menzilli silahlar işe yarar.", foes: ["harpi", "alkarisi", "buz"], champion: { kind: "harpi", name: "Anka'nın Bekçisi" }, title: "Kaf Dağı'na Varan", boss: ["anka"] },
+  { name: "Cehennemin Derinlikleri", emoji: "💀", theme: "cehennem", story: "Lav nehirlerinin aktığı en derin tüneller. Ölümsüz büyücü burada güç topluyor.", tip: "Lav ve şeytanlar bir arada; canını sürekli izle.", foes: ["seytan", "cehennem-kopegi", "golge"], champion: { kind: "seytan", name: "Alevlerin Prensi" }, title: "Cehennemden Dönen", boss: ["lich"] },
+  { name: "Karanlıklar Kalesi", emoji: "🏰", theme: "kanay", story: "Kan Ayı'ndan önceki son kale. Kadim ejderha ve ölümsüz büyücü son kez birlikte karşınızda.", tip: "İki boss birden! İki Kalp Patlaması'nı birlikte kullanın.", foes: ["kara-sovalye", "minotor", "vampir"], champion: { kind: "minotor", name: "Kalenin Kapı Bekçisi" }, title: "Karanlığı Yaran", boss: ["ejderha", "lich"] },
+];
+
+// sıra: üç normal bölüm, sonra büyük tünel; en sonda Kan Ayı
+const H = (name: string) => HANDMADE.find((x) => x.name === name)!;
+const ORDER: (Stage | "T")[] = [
+  H("Goblin Mağarası"), H("Kurt Ormanı"), H("Mantar Bataklığı"), "T",
+  H("Örümcek Yuvası"), H("İskelet Mezarı"), draft(NEW.kurtadam), "T",
+  H("Yarasa Kuyusu"), draft(NEW.akrep), H("Ork Kampı"), "T",
+  draft(NEW.harpi), H("Büyücü Kulesi"), draft(NEW.batik), "T",
+  H("Buz Mağarası"), draft(NEW.kristal), H("Trol Köprüsü"), "T",
+  draft(NEW.kont), draft(NEW.gorgon), H("Golem Ocağı"), "T",
+  draft(NEW.karaelf), draft(NEW.albasti), H("Kara Şövalyeler Kalesi"), "T",
+  draft(NEW.karakoncolos), draft(NEW.kopek), draft(NEW.minotor), "T",
+  H("Şeytan Çukuru"), draft(NEW.agac), draft(NEW.mumya), "T",
+  H("Lich'in Mahzeni"), draft(NEW.golge), draft(NEW.dev), "T",
+  draft(NEW.yeralti), draft(NEW.bulut), H("Ejderha Yuvası"), "T",
+  draft(NEW.gelin), draft(NEW.kapi), draft(NEW.elmas), "T",
+  draft(NEW.yildiz), H("Kan Ayı"),
+];
+
+/** Seviye eğrisi: 1. bölüm seviye 1, 50. bölüm seviye 100; güç ve XP seviyeyle büyür (tünel 1,6 kat XP) */
+const levelAt = (n: number, total: number) => (n === 1 ? 1 : Math.round(1 + ((n - 1) * 99) / (total - 1)));
+const wavesFor = (f: EnemyKind[], big: boolean, boss?: EnemyKind[]): [EnemyKind, number][][] => {
+  const [a, b, c2] = [f[0], f[1] ?? f[0], f[2] ?? f[0]];
+  if (!big) return [[[a, 3]], [[a, 2], [b, 2]], [[b, 2], [c2, 2]]];
+  return [[[a, 4]], [[b, 3], [a, 2]], [[c2, 3], [b, 2]], [[a, 3], [b, 2], [c2, 2]], [...(boss ?? []).map((k): [EnemyKind, number] => [k, 1]), [b, 2]]];
+};
+
+let tunnelNo = 0;
+export const STAGES: Stage[] = ORDER.map((entry, k) => {
+  const id = k + 1, level = levelAt(id, ORDER.length), power = Math.round(20 + (level - 1) * 9.6);
+  if (entry === "T") {
+    const t = TUNNELS[tunnelNo++];
+    const map = generate({ kind: "tunel", seed: id * 1013, ...GEN[t.theme] });
+    return { ...draft(t), id, level, power, xp: Math.round((50 + level * 8) * 1.6), big: true, waves: wavesFor(t.foes, true, t.boss), map };
+  }
+  const handmade = entry.map.length > 0;
+  const draftData = entry as Stage & Partial<Draft>;
+  const waves = handmade ? entry.waves : wavesFor(draftData.foes ?? ["goblin"], false);
+  const map = handmade ? entry.map : generate({ kind: "arena", seed: id * 977, ...GEN[entry.theme] });
+  return { ...entry, id, level, power, xp: Math.round(50 + level * 8), waves, map };
+});
 
 export const stageById = (id: number) => STAGES.find((s) => s.id === id) ?? null;

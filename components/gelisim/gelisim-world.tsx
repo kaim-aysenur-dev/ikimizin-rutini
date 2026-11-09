@@ -7,7 +7,7 @@ import { api } from "@/lib/api-client";
 import { type Anchor, type Cat, type Emote, type Hero, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
 import { setSfx, sfx } from "@/lib/sfx";
 import { WEATHER_NAME, weatherToday } from "@/lib/gelisim-weather";
-import { ENEMIES, type Enemy, type EnemyShot, GHOSTS_PER_NIGHT, hazardAt, hitPlayer, hurtFx, powerOf, pruneDead, spawnEnemy, spawnWave, stageById, starsFor, stepEnemies } from "@/lib/dungeon";
+import { ENEMIES, type Enemy, type EnemyShot, type Flow, GHOSTS_PER_NIGHT, hazardAt, makeFlow, hitPlayer, hurtFx, powerOf, pruneDead, spawnEnemy, spawnWave, stageById, starsFor, stepEnemies } from "@/lib/dungeon";
 import { stageMap } from "@/lib/dungeon-map";
 import { type Progress, type Style, mountById, sanitizeStyle, titleById } from "@/lib/character";
 import { AppearancePanel } from "@/components/gelisim/appearance-panel";
@@ -124,6 +124,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [gateOpen, setGateOpen] = useState(false);
   const dungeon = useRef<{ stage: number; wave: number; enemies: Enemy[]; shots: EnemyShot[]; cleared: boolean; claimed: boolean; nextAt: number; startAt: number; lost: number; hazardMsgAt: number }>({ stage: 1, wave: 0, enemies: [], shots: [], cleared: false, claimed: false, nextAt: 0, startAt: 0, lost: 0, hazardMsgAt: 0 });
   const [intro, setIntro] = useState<number | null>(null); // bölüm giriş kartı
+  const flowRef = useRef<Flow | null>(null); // zindanın yol haritası (oyuncunun karesine göre)
   // görünüm (unvan, iz, binek) ve karakter hareketleri
   const [styles, setStyles] = useState<Record<string, Style>>(initialStyles);
   const stylesRef = useRef(styles); stylesRef.current = styles;
@@ -803,7 +804,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         // hayaletler yalnız mezarlığa yaklaşanı kovalar; yoksa mezarlıkta süzülür
         const gc: [number, number] = [GRAVEYARD.i0 + 5, GRAVEYARD.j0 + 5], chase = cur.scope === "zindan" || Math.hypot(h.i - gc[0], h.j - gc[1]) < 9;
         const cz = cur.scope === "zindan" ? stageMap(stageById(cur.stage)!) : null;
-        const hits = stepEnemies(foes, box.shots, chase ? { i: h.i, j: h.j } : { i: gc[0] + Math.sin(t * 0.3) * 3, j: gc[1] + Math.cos(t * 0.4) * 3 }, dt, t, cz ?? SIZE[cur.scope], cz ? (a, b) => cz.solid.has(`${a},${b}`) : undefined);
+        if (cz) flowRef.current = makeFlow(cz.solid, cz.w, cz.d, [h.i, h.j], flowRef.current); // yaratıklar geçitlerden dolaşsın
+        const hits = stepEnemies(foes, box.shots, chase ? { i: h.i, j: h.j } : { i: gc[0] + Math.sin(t * 0.3) * 3, j: gc[1] + Math.cos(t * 0.4) * 3 }, dt, t, cz ?? SIZE[cur.scope], cz ? (a, b) => cz.solid.has(`${a},${b}`) : undefined, cz ? flowRef.current : null);
         if (fade.current || t - rollAt.current < ROLL_TIME) hits.length = 0; // yuvarlanırken dokunulmaz
         for (const raw of hits) {
           const took = hitPlayer(fgt, eqRef.current, raw);
@@ -894,16 +896,16 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         g.addColorStop(0, "rgba(8,6,18,0)"); g.addColorStop(1, `rgba(8,6,18,${studyLock.current ? 0.86 : 0.7})`);
         c.fillStyle = g; c.fillRect(0, 0, cv.width, cv.height);
       }
-      // partner ekranın dışındaysa kenarda onu gösteren pembe ok
-      const mate = others.current[0];
-      if (mate) {
-        const mx = o.ox + (mate.i - mate.j) * 8, my = o.oy + (mate.i + mate.j) * 4 - 12, pad2 = 10;
+      // portal açıldıysa ve ekranın dışındaysa kenarda altın ok; partner dışarıdaysa pembe ok
+      const portal = cur.scope === "zindan" && dungeon.current.cleared ? stageMap(stageById(cur.stage)!).exit : null;
+      for (const [ti2, tj2, fill] of [...(portal ? [[portal[0], portal[1], "#f3d48a"]] : []), ...(others.current[0] ? [[others.current[0].i, others.current[0].j, "#e48aa0"]] : [])] as [number, number, string][]) {
+        const mx = o.ox + (ti2 - tj2) * 8, my = o.oy + (ti2 + tj2) * 4 - 12, pad2 = 10;
         if (mx < 0 || my < 0 || mx > cv.width || my > cv.height) {
           const cx = cv.width / 2, cy = cv.height / 2, ang = Math.atan2(my - cy, mx - cx);
           const ex = Math.max(pad2, Math.min(cv.width - pad2, mx)), ey = Math.max(pad2, Math.min(cv.height - pad2, my));
           c.save(); c.translate(Math.round(ex), Math.round(ey)); c.rotate(ang);
           c.fillStyle = "#1a1420"; c.beginPath(); c.moveTo(7, 0); c.lineTo(-5, -6); c.lineTo(-5, 6); c.closePath(); c.fill();
-          c.fillStyle = "#e48aa0"; c.beginPath(); c.moveTo(5, 0); c.lineTo(-4, -4); c.lineTo(-4, 4); c.closePath(); c.fill();
+          c.fillStyle = fill; c.beginPath(); c.moveTo(5, 0); c.lineTo(-4, -4); c.lineTo(-4, 4); c.closePath(); c.fill();
           c.restore();
         }
       }

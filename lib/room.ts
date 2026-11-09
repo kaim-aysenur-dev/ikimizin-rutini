@@ -5,7 +5,7 @@ import { type Scope, isFlat, itemById } from "./room-items";
 /** Yürünen yerler: kişinin evi, ortak bahçe ve ortak şato (şatoya eşya konmaz) */
 export type Area = Scope | "sato" | "zindan";
 
-export const SIZE: Record<Area, { w: number; d: number }> = { oda: { w: 28, d: 20 }, bahce: { w: 56, d: 54 }, sato: { w: 36, d: 24 }, zindan: { w: 32, d: 24 } }; // zindan: en büyük bölüm haritasının sınırı (bölümler dungeon-stages.ts)
+export const SIZE: Record<Area, { w: number; d: number }> = { oda: { w: 28, d: 20 }, bahce: { w: 56, d: 54 }, sato: { w: 36, d: 24 }, zindan: { w: 48, d: 36 } }; // zindan: en büyük bölüm haritasının sınırı (bölümler dungeon-stages.ts)
 
 /* ------------------------------ kat planları ------------------------------- */
 

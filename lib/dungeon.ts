@@ -44,7 +44,11 @@ export function spawnEnemy(kind: EnemyKind, level: number, i: number, j: number,
 /** Dalganın yaratıkları haritadaki doğma yerlerinde (oyuncudan en uzak olanlardan başlayarak); son dalgada şef de gelir */
 export function spawnWave(stage: Stage, wave: number, now: number, player: [number, number]): Enemy[] {
   const m = stageMap(stage), out: Enemy[] = [];
-  const spots = [...m.spawns].sort((a, b) => Math.hypot(b[0] - player[0], b[1] - player[1]) - Math.hypot(a[0] - player[0], a[1] - player[1]));
+  // normal bölümde oyuncudan en uzak yerler; tünelde dalga ilerledikçe girişten uzaklaşan odalar
+  const fromStart = [...m.spawns].sort((a, b) => Math.hypot(a[0] - m.start[0], a[1] - m.start[1]) - Math.hypot(b[0] - m.start[0], b[1] - m.start[1]));
+  const spots = stage.big
+    ? fromStart.slice(Math.floor((wave / stage.waves.length) * Math.max(1, fromStart.length - 3))).concat(fromStart)
+    : [...m.spawns].sort((a, b) => Math.hypot(b[0] - player[0], b[1] - player[1]) - Math.hypot(a[0] - player[0], a[1] - player[1]));
   let k = 0;
   for (const [kind, n] of stage.waves[wave] ?? []) for (let q = 0; q < n; q++, k++) {
     const [i, j] = ENEMIES[kind].boss ? m.boss : spots[k % Math.max(1, spots.length)] ?? m.boss;
@@ -70,11 +74,43 @@ export function hazardAt(stage: Stage | null, i: number, j: number) {
   return hz ? { kind: hz, ...HAZARD_EFFECT[hz] } : null;
 }
 
+/** Yol haritası: oyuncunun karesinden her kareye yürüme uzaklığı (geçitli tünellerde yaratıklar duvara takılmasın) */
+export type Flow = { w: number; d: number; dist: Int16Array; from: string };
+export function makeFlow(solid: Set<string>, w: number, d: number, target: [number, number], prev?: Flow | null): Flow {
+  const ti = Math.max(0, Math.min(w - 1, Math.floor(target[0]))), tj = Math.max(0, Math.min(d - 1, Math.floor(target[1]))), key = `${ti},${tj}`;
+  if (prev && prev.from === key && prev.w === w && prev.d === d) return prev;
+  const dist = new Int16Array(w * d).fill(-1), q = [ti + tj * w];
+  dist[q[0]] = 0;
+  for (let h = 0; h < q.length; h++) {
+    const c = q[h], i = c % w, j = (c - i) / w;
+    for (const [a, b] of [[i + 1, j], [i - 1, j], [i, j + 1], [i, j - 1]]) {
+      if (a < 0 || b < 0 || a >= w || b >= d || dist[a + b * w] >= 0 || solid.has(`${a},${b}`)) continue;
+      dist[a + b * w] = dist[c] + 1; q.push(a + b * w);
+    }
+  }
+  return { w, d, dist, from: key };
+}
+/** Yol haritasında bir sonraki karenin ortasına doğru yön (yoksa null: doğrudan yürür) */
+function flowDir(f: Flow, i: number, j: number): [number, number] | null {
+  const ci = Math.floor(i), cj = Math.floor(j), here = f.dist[ci + cj * f.w];
+  if (here <= 1) return null;
+  let best: [number, number] | null = null, bd = here;
+  for (const [a, b] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
+    const ni = ci + a, nj = cj + b;
+    if (ni < 0 || nj < 0 || ni >= f.w || nj >= f.d) continue;
+    const v = f.dist[ni + nj * f.w];
+    if (v < 0 || v >= bd) continue;
+    if (a && b && (f.dist[ni + cj * f.w] < 0 || f.dist[ci + nj * f.w] < 0)) continue; // köşeden kesme
+    bd = v; best = [ni + 0.5 - i, nj + 0.5 - j];
+  }
+  return best;
+}
+
 /**
  * Yaratıklar: oyuncuya yürür (birbirinden biraz uzak durur), menzildeyse saldırır; menzilliler mermi atar ve çok yaklaşınca geri çekilir.
  * blocked: yürünemeyen kareler (uçanlar yok sayar). Dönen: bu karede oyuncuya isabet eden ham hasarlar.
  */
-export function stepEnemies(enemies: Enemy[], shots: EnemyShot[], p: { i: number; j: number }, dt: number, now: number, bounds: { w: number; d: number }, blocked?: (i: number, j: number) => boolean): number[] {
+export function stepEnemies(enemies: Enemy[], shots: EnemyShot[], p: { i: number; j: number }, dt: number, now: number, bounds: { w: number; d: number }, blocked?: (i: number, j: number) => boolean, flow?: Flow | null): number[] {
   const hits: number[] = [];
   for (const en of enemies) {
     if (en.hp <= 0 || now < en.spawnAt) { en.moving = false; continue; }
@@ -82,7 +118,11 @@ export function stepEnemies(enemies: Enemy[], shots: EnemyShot[], p: { i: number
     const di = p.i - en.i, dj = p.j - en.j, d = Math.hypot(di, dj) || 1;
     const want = base.ranged ? en.range * 0.75 : en.range * 0.85;
     let mi = 0, mj = 0;
-    if (d > want) { mi = di / d; mj = dj / d; } else if (base.ranged && d < want * 0.5) { mi = -di / d; mj = -dj / d; }
+    if (d > want) {
+      // duvarlı haritada yol haritasını izler (uçanlar ve görüş hattındakiler doğrudan gelir)
+      const fd = !base.flying && flow ? flowDir(flow, en.i, en.j) : null;
+      if (fd) { const fl = Math.hypot(fd[0], fd[1]) || 1; mi = fd[0] / fl; mj = fd[1] / fl; } else { mi = di / d; mj = dj / d; }
+    } else if (base.ranged && d < want * 0.5) { mi = -di / d; mj = -dj / d; }
     for (const o of enemies) { // kalabalıkta birbirine girmesin
       if (o === en || o.hp <= 0) continue;
       const oi = en.i - o.i, oj = en.j - o.j, od = Math.hypot(oi, oj);
@@ -133,7 +173,9 @@ export function starsFor(hpLostShare: number, seconds: number): 1 | 2 | 3 {
 
 // kendi kendini denetler: bölüm verisi ve haritalar tutarlı, motor doğru çalışıyor
 if (process.env.NODE_ENV !== "production") {
-  console.assert(STAGES.every((s, k) => s.id === k + 1 && (k === 0 || (s.level > STAGES[k - 1].level && s.power > STAGES[k - 1].power && s.xp > STAGES[k - 1].xp))), "bölümler sırayla zorlaşır");
+  console.assert(STAGES.length === 50 && STAGES.every((s, k) => s.id === k + 1 && (k === 0 || (s.level > STAGES[k - 1].level && s.power > STAGES[k - 1].power))), "50 bölüm, sırayla zorlaşır");
+  console.assert(STAGES.filter((s) => s.big).length === 12 && STAGES.every((s) => !!s.big === (s.id % 4 === 0)), "her dört bölümde bir büyük tünel");
+  console.assert(new Set(STAGES.map((s) => s.title)).size === 50 && new Set(STAGES.map((s) => s.name)).size === 50, "adlar ve unvanlar benzersiz");
   for (const s of STAGES) {
     const m = stageMap(s);
     console.assert(s.map.every((r) => r.length === m.w) && m.w >= 16 && m.d >= 12, `${s.name}: harita satırları eşit uzunlukta`);
@@ -141,7 +183,8 @@ if (process.env.NODE_ENV !== "production") {
     console.assert(m.spawns.length >= 4, `${s.name}: en az dört doğma yeri`);
     const can = reachable(m, m.start), at = (c: [number, number]) => can.has(`${Math.floor(c[0])},${Math.floor(c[1])}`);
     console.assert(at(m.exit) && at(m.boss) && m.spawns.every(at), `${s.name}: çıkışa, şefe ve doğma yerlerine yürünür`);
-    console.assert(s.waves.length === 3 && s.waves.every((w) => w.every(([kind, n]) => ENEMIES[kind] && n > 0)) && ENEMIES[s.champion.kind], `${s.name}: üç dalga ve şef`);
+    console.assert(s.waves.length === (s.big ? 5 : 3) && s.waves.every((w) => w.length > 0 && w.every(([kind, n]) => ENEMIES[kind] && n > 0)) && ENEMIES[s.champion.kind], `${s.name}: dalgalar ve şef`);
+    console.assert(!!s.title && !!s.story && !!s.tip, `${s.name}: unvan, hikâye ve ipucu`);
     console.assert([...s.map.join("")].every((ch) => ".SEmB#oRTgxfcnhue$Yk~=Lpwrit".includes(ch)), `${s.name}: bilinmeyen harita karakteri yok`);
   }
   const en = spawnEnemy("goblin", 1, 5, 5, 0); en.readyAt = 0;
@@ -156,6 +199,13 @@ if (process.env.NODE_ENV !== "production") {
   const last = spawnWave(STAGES[0], 2, 0, stageMap(STAGES[0]).start);
   console.assert(last.some((e) => e.elite) && spawnWave(STAGES[0], 0, 0, [1, 1]).every((e) => !e.elite), "şef yalnız son dalgada");
   console.assert(powerOf({ ...none, weapon: "kilic-gok", armor: "gogusluk-gok" }) > powerOf(none) * 5, "güç ekipmanla artar");
-  console.assert(hazardAt(stageById(13), 0.5, 0.5)?.kind === "lav" && hazardAt(stageById(13), 3.5, 7.5) === null, "lav yakar, taş zemin yakmaz");
+  { const pit = STAGES.find((x) => x.name === "Şeytan Çukuru") ?? null; console.assert(hazardAt(pit, 0.5, 0.5)?.kind === "lav" && hazardAt(pit, 3.5, 7.5) === null, "lav yakar, taş zemin yakmaz"); }
   console.assert(starsFor(0.1, 60) === 3 && starsFor(0.9, 60) === 1, "yıldız puanı");
+  {
+    // yol bulma: duvarın arkasındaki oyuncuya dolanarak gelir
+    const wall = new Set(["3,0", "3,1", "3,2", "3,3"]), f = makeFlow(wall, 8, 6, [6.5, 1.5]);
+    const g = spawnEnemy("goblin", 1, 1.5, 1.5, 0); g.readyAt = 99;
+    for (let k = 0; k < 120; k++) stepEnemies([g], [], { i: 6.5, j: 1.5 }, 0.05, 1 + k * 0.05, { w: 8, d: 6 }, (a2, b2) => wall.has(`${a2},${b2}`), f);
+    console.assert(g.i > 4 && Math.hypot(g.i - 6.5, g.j - 1.5) < 1.5, "yaratık duvarın etrafından dolaşır");
+  }
 }

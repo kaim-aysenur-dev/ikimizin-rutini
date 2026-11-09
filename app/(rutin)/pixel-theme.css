@@ -1381,3 +1381,5 @@ button.xp-badge:hover {
 .gw-pad-btn.emo { grid-column: 2; grid-row: 3; }
 .gw-pad-spells { grid-column: 1 / 4; grid-row: 4; }
 .gw-titles { max-height: 52vh; }
+
+.gw-big-tag { margin-left: 6px; padding: 1px 5px; font-size: 10px; color: #f4e6c4; background: #5a3a8a; box-shadow: 0 0 0 1px var(--px-ink); vertical-align: middle; }

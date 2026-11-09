@@ -163,6 +163,170 @@ const SPRITE: Record<Enemy["kind"], Draw> = {
     for (let k = 0; k < 3; k++) { const q = (t * 0.5 + k / 3) % 1; px(c, x - 5 + k * 5, y - 22 - Math.round(q * 10), `rgba(170,240,100,${(1 - q).toFixed(2)})`); } // sporlar
     lights.push({ x, y: y - 15, r: 12, color: "170,240,100" });
   },
+  kurtadam: (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#4a3a30", 3, 2, 7);
+    rect(c, x - 5, y - 18, 10, 12, INK); rect(c, x - 4, y - 17, 8, 10, "#6a5446"); rect(c, x - 3, y - 14, 6, 6, "#8a7262"); // kürklü gövde
+    rect(c, x + d * 2 - 3, y - 25, 7, 7, INK); rect(c, x + d * 2 - 2, y - 24, 5, 5, "#6a5446"); rect(c, x + d * 5 - (d > 0 ? 0 : 2), y - 21, 3, 2, "#6a5446"); // kurt başı
+    px(c, x + d * 1, y - 26, "#6a5446"); px(c, x + d * 3, y - 26, "#6a5446"); px(c, x + d * 3, y - 23, "#ffe040");
+    for (const k of [-6, 5]) { line(c, [x + k, y - 15], [x + k + Math.sign(k) * 2, y - 8], 2, "#6a5446"); px(c, x + k + Math.sign(k) * 3, y - 7, "#f4f0e0"); } // pençeler
+  },
+  vampir: (c, x, y, d, t, s) => {
+    const fl = Math.sin(t * 3);
+    poly(c, [[x - 3, y - 18], [x + 3, y - 18], [x + 8 + fl, y], [x - 8 - fl, y]], INK, 1); poly(c, [[x - 3, y - 18], [x + 3, y - 18], [x + 8 + fl, y], [x - 8 - fl, y]], "#1a1420"); // pelerin
+    poly(c, [[x - 3, y - 18], [x + 3, y - 18], [x + 6 + fl, y], [x - 6 - fl, y]], "#7a1428");
+    rect(c, x - 2, y - 17, 4, 12, "#2a2430"); rect(c, x - 1, y - 16, 2, 4, "#e8e4dc");
+    disc(c, x, y - 21, 4, INK); disc(c, x, y - 21, 3, "#d8d4e0"); px(c, x + d, y - 22, "#e8203a"); px(c, x + d * 2, y - 22, "#e8203a"); px(c, x + d, y - 19, "#ffffff"); // kızıl gözler, diş
+    rect(c, x - 4, y - 25, 9, 2, "#1a1420"); px(c, x, y - 26, "#1a1420"); // saç sivrisi
+  },
+  mumya: (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#c8b890", 2, 1, 6);
+    rect(c, x - 4, y - 17, 8, 11, INK); rect(c, x - 3, y - 16, 6, 10, "#d8c8a0");
+    for (let k = 0; k < 5; k++) rect(c, x - 3, y - 15 + k * 2, 6, 1, "#a89870"); // sargılar
+    disc(c, x, y - 20, 4, INK); disc(c, x, y - 20, 3, "#d8c8a0"); rect(c, x - 2, y - 21, 5, 1, "#a89870"); px(c, x + d, y - 20, "#4ae8a8");
+    line(c, [x + d * 3, y - 14], [x + d * 8, y - 14 + Math.round(Math.sin(t * 2))], 2, "#d8c8a0"); // uzanan kol
+    rect(c, x - d * 4, y - 6, 2, 3, "#a89870"); // sarkan sargı
+  },
+  akrep: (c, x, y, d, t, s) => {
+    for (let k = 0; k < 3; k++) for (const sd of [-1, 1]) line(c, [x + sd * 3, y - 4 - k], [x + sd * 8, y - 1 + k * 0 - k], 1, INK);
+    rect(c, x - 6, y - 7, 12, 5, INK); rect(c, x - 5, y - 6, 10, 3, "#8a4a1a"); for (let k = -4; k <= 4; k += 3) px(c, x + k, y - 6, "#a85a24");
+    const sw = Math.round(Math.sin(t * 4) * 1.5);
+    line(c, [x - d * 5, y - 6], [x - d * 8, y - 14], 2, "#8a4a1a"); line(c, [x - d * 8, y - 14], [x - d * 4 + sw, y - 19], 2, "#8a4a1a"); px(c, x - d * 3 + sw, y - 19, "#e8d040"); // kuyruk ve iğne
+    for (const sd of [-1, 1]) { rect(c, x + d * 7, y - 7 + sd * 2, 3, 2, INK); px(c, x + d * 8, y - 7 + sd * 2, "#a85a24"); } // kıskaçlar
+  },
+  harpi: (c, x, y, d, t, s) => {
+    const fy = y - 10 - Math.round(Math.sin(t * 5 + x) * 2), up = Math.floor(t * 8 + x) % 2;
+    for (const sd of [-1, 1]) poly(c, [[x + sd * 2, fy - 8], [x + sd * 11, fy - (up ? 14 : 4)], [x + sd * 8, fy - 2]], "#6a4a3a");
+    rect(c, x - 3, fy - 10, 6, 8, INK); rect(c, x - 2, fy - 9, 4, 6, "#a87a5a");
+    disc(c, x, fy - 13, 3, INK); disc(c, x, fy - 13, 2, "#d8b090"); px(c, x + d, fy - 13, "#e83a3a"); rect(c, x - 3, fy - 16, 6, 2, "#3a2a2a"); // saç
+    px(c, x - 1, fy - 1, "#e8d040"); px(c, x + 1, fy - 1, "#e8d040"); // pençeler
+  },
+  minotor: (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#4a3020", 3, 3, 8);
+    rect(c, x - 7, y - 21, 14, 14, INK); rect(c, x - 6, y - 20, 12, 12, "#6a4228"); rect(c, x - 4, y - 14, 8, 5, "#8a5a38");
+    rect(c, x - 5, y - 9, 10, 3, "#3a2a20"); // peştamal
+    rect(c, x + d * 2 - 4, y - 28, 9, 8, INK); rect(c, x + d * 2 - 3, y - 27, 7, 6, "#5a3820"); rect(c, x + d * 5 - (d > 0 ? 0 : 2), y - 24, 3, 3, "#7a5030"); px(c, x + d * 6, y - 23, "#e8d040"); // halka
+    for (const sd of [-1, 1]) { line(c, [x + d * 2 + sd * 4, y - 27], [x + d * 2 + sd * 8, y - 31], 2, "#e8dcc0"); } // boynuzlar
+    px(c, x + d * 3, y - 25, "#e83a3a");
+    line(c, [x + d * 7, y - 16], [x + d * 11, y - 28], 2, P.woodDk); poly(c, [[x + d * 9, y - 31], [x + d * 15, y - 29], [x + d * 13, y - 24], [x + d * 10, y - 26]], "#9aa0ae"); // çift ağızlı balta
+  },
+  "agac-adam": (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#3a2a1a", 4, 3, 8);
+    rect(c, x - 6, y - 26, 12, 19, INK); rect(c, x - 5, y - 25, 10, 17, "#5a4028"); for (let k = 0; k < 4; k++) rect(c, x - 4 + (k % 2) * 3, y - 23 + k * 4, 2, 3, "#4a3220"); // kabuk
+    rect(c, x - 2 + d, y - 21, 2, 2, "#ffd040"); rect(c, x + 2 + d, y - 21, 2, 2, "#ffd040"); // parlayan gözler
+    const sw = Math.round(Math.sin(t * 1.5) * 1);
+    for (const [a, b, l] of [[-5, -25, -10], [5, -26, 10], [0, -26, 0]] as [number, number, number][]) { line(c, [x + a, y + b], [x + a + l * 0.6 + sw, y + b - 7], 2, "#4a3220"); disc(c, x + a + l * 0.6 + sw, y + b - 9, 4, "#2e5a2a"); }
+    line(c, [x - 6, y - 18], [x - 11, y - 10], 3, "#5a4028"); line(c, [x + 6, y - 18], [x + 11, y - 10], 3, "#5a4028"); // dal kollar
+  },
+  "kara-elf": (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#2a2238", 1, 1, 6);
+    rect(c, x - 3, y - 16, 6, 10, INK); rect(c, x - 2, y - 15, 4, 8, "#3a2a5a"); rect(c, x - 3, y - 9, 6, 1, "#b8a0ff");
+    disc(c, x, y - 19, 3, INK); disc(c, x, y - 19, 2, "#5a4a7a"); rect(c, x - 3, y - 23, 6, 3, "#e8e4f4"); // beyaz saç
+    px(c, x - d * 3, y - 20, "#5a4a7a"); px(c, x - d * 4, y - 21, "#5a4a7a"); px(c, x + d, y - 19, "#ffffff"); // sivri kulak
+    line(c, [x + d * 5, y - 22], [x + d * 7, y - 15], 1, "#4a3a2a"); line(c, [x + d * 7, y - 15], [x + d * 5, y - 8], 1, "#4a3a2a"); line(c, [x + d * 5, y - 22], [x + d * 5, y - 8], 1, "#c8c0e0"); // yay
+  },
+  "cehennem-kopegi": (c, x, y, d, t, s) => {
+    rect(c, x - 7, y - 9, 14, 6, INK); rect(c, x - 6, y - 8, 12, 4, "#3a1a14");
+    for (const k of [-5, -2, 2, 5]) rect(c, x + k + (k % 2 ? s : -s) * 0.5, y - 4, 1, 4, "#2a1210");
+    rect(c, x + d * 5 - 2, y - 13, 6, 6, INK); rect(c, x + d * 5 - 1, y - 12, 4, 4, "#3a1a14"); px(c, x + d * 6, y - 11, "#ff6a20"); px(c, x + d * 8, y - 9, "#ffe08a");
+    for (let k = 0; k < 4; k++) { const q = (t * 2 + k / 4) % 1; px(c, x - 4 + k * 3, y - 10 - Math.round(q * 6), `rgba(255,120,40,${(1 - q).toFixed(2)})`); } // sırtındaki alevler
+    line(c, [x - d * 6, y - 8], [x - d * 10, y - 11], 1, "#ff6a20");
+    lights.push({ x, y: y - 8, r: 14, color: "255,110,40" });
+  },
+  karakoncolos: (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#2a2a2a", 3, 2, 6);
+    disc(c, x, y - 15, 9, INK); disc(c, x, y - 15, 8, "#3a3a40"); for (let k = 0; k < 8; k++) px(c, x - 7 + k * 2, y - 8 + (k % 2), "#4a4a52"); // tüylü gövde
+    disc(c, x + d * 2, y - 25, 5, INK); disc(c, x + d * 2, y - 25, 4, "#3a3a40"); px(c, x + d, y - 26, "#e8e040"); px(c, x + d * 3, y - 26, "#e8e040");
+    rect(c, x + d * 2 - 1, y - 22, 3, 1, "#f4f0e0"); // dişler
+    for (const sd of [-1, 1]) line(c, [x + sd * 7, y - 16], [x + sd * 10, y - 6], 2, "#3a3a40"); // uzun kollar
+    if (Math.floor(t * 2) % 2) for (let k = 0; k < 3; k++) px(c, x - 6 + k * 6, y - 30 - k, "rgba(240,248,255,0.7)"); // kar
+  },
+  alkarisi: (c, x, y, d, t, s) => {
+    const fy = y - 6 - Math.round(Math.sin(t * 2 + x) * 2);
+    c.save(); c.globalAlpha *= 0.85;
+    poly(c, [[x - 4, fy - 18], [x + 4, fy - 18], [x + 7, fy], [x - 7, fy]], "#4a6a50"); // yosun yeşili elbise
+    disc(c, x, fy - 21, 4, "#c8d8c0"); for (let k = -5; k <= 5; k += 2) line(c, [x + k * 0.6, fy - 24], [x + k, fy - 8], 1, "#2a3a2a"); // uzun saç
+    px(c, x + d, fy - 21, "#e83a3a");
+    c.restore();
+    lights.push({ x, y: fy - 14, r: 14, color: "150,220,160" });
+  },
+  "buz-devi": (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#5a7a9a", 4, 3, 9);
+    rect(c, x - 9, y - 26, 18, 17, INK); rect(c, x - 8, y - 25, 16, 15, "#8ab0d0"); rect(c, x - 8, y - 25, 16, 3, "#c8e0f0");
+    rect(c, x - 3, y - 34, 7, 8, INK); rect(c, x - 2, y - 33, 5, 6, "#8ab0d0"); px(c, x + d, y - 31, "#1a4a7a");
+    rect(c, x - 2, y - 28, 5, 4, "#e8f4ff"); // buz sakal
+    for (const sd of [-1, 1]) { rect(c, x + sd * 11 - 2, y - 24, 4, 12, INK); rect(c, x + sd * 11 - 1, y - 23, 2, 10, "#8ab0d0"); }
+    for (let k = 0; k < 3; k++) poly(c, [[x - 6 + k * 6, y - 26], [x - 4 + k * 6, y - 31], [x - 2 + k * 6, y - 26]], "#e8f4ff"); // omuz buzları
+    lights.push({ x, y: y - 20, r: 16, color: "160,220,255" });
+  },
+  golge: (c, x, y, d, t, s) => {
+    const fy = y - 8 - Math.round(Math.sin(t * 3 + x) * 2);
+    c.save(); c.globalAlpha *= 0.8;
+    poly(c, [[x - 5, fy - 16], [x + 5, fy - 16], [x + 8, fy + 2], [x + 3, fy - 2], [x, fy + 3], [x - 3, fy - 2], [x - 8, fy + 2]], "#0a0810"); // yırtık pelerin
+    disc(c, x, fy - 18, 5, "#0a0810"); rect(c, x - 2 + d, fy - 19, 2, 1, "#a8c8ff"); rect(c, x + 1 + d, fy - 19, 2, 1, "#a8c8ff");
+    for (const sd of [-1, 1]) line(c, [x + sd * 4, fy - 12], [x + sd * 9, fy - 6 + Math.round(Math.sin(t * 4)) ], 1, "#1a1420"); // uzun parmaklar
+    c.restore();
+    for (let k = 0; k < 3; k++) { const q = (t + k / 3) % 1; px(c, x - 3 + k * 3, fy + 2 + Math.round(q * 3), `rgba(10,8,16,${(0.7 * (1 - q)).toFixed(2)})`); }
+  },
+  medusa: (c, x, y, d, t, s) => {
+    for (let k = 0; k < 4; k++) { const sw = Math.round(Math.sin(t * 3 + k) * 2); rect(c, x - 6 + k * 3 + sw, y - 4 + (k % 2), 4, 3, "#3a6a3a"); } // yılan kuyruk
+    rect(c, x - 4, y - 16, 8, 12, INK); rect(c, x - 3, y - 15, 6, 10, "#4a8a4a"); rect(c, x - 3, y - 12, 6, 2, "#e2b45a");
+    disc(c, x, y - 20, 4, INK); disc(c, x, y - 20, 3, "#8ac88a"); px(c, x + d, y - 21, "#ffe040"); px(c, x + d * 2, y - 21, "#ffe040");
+    for (let k = 0; k < 6; k++) { const an = -Math.PI / 2 + (k - 2.5) * 0.45, sw = Math.sin(t * 5 + k) * 1.5; line(c, [x, y - 22], [Math.round(x + Math.cos(an) * 7 + sw), Math.round(y - 22 + Math.sin(an) * 6)], 1, "#3a8a3a"); px(c, Math.round(x + Math.cos(an) * 7 + sw), Math.round(y - 22 + Math.sin(an) * 6), "#e83a3a"); } // yılan saçlar
+    lights.push({ x, y: y - 20, r: 12, color: "110,230,140" });
+  },
+  tepegoz: (c, x, y, d, t, s) => {
+    legs(c, x, y, s, "#7a5a40", 5, 4, 10);
+    rect(c, x - 11, y - 32, 22, 22, INK); rect(c, x - 10, y - 31, 20, 20, "#a87a58"); rect(c, x - 10, y - 14, 20, 4, "#5a3a24"); // gövde, kemer
+    disc(c, x, y - 40, 9, INK); disc(c, x, y - 40, 8, "#b8886a");
+    disc(c, x + d * 2, y - 41, 4, "#f4f0e0"); disc(c, x + d * 3, y - 41, 2, "#e8203a"); px(c, x + d * 3, y - 41, INK); // tek göz
+    rect(c, x - 3, y - 35, 7, 1, "#5a3a24");
+    line(c, [x + d * 12, y - 26], [x + d * 18, y - 6], 5, INK); line(c, [x + d * 12, y - 26], [x + d * 18, y - 6], 3, "#6a4a30"); disc(c, x + d * 18, y - 6, 4, "#4a3220"); // kocaman sopa
+    lights.push({ x: x + d * 3, y: y - 41, r: 14, color: "255,80,80" });
+  },
+  sahmeran: (c, x, y, d, t, s) => {
+    for (let k = 0; k < 6; k++) { const sw = Math.round(Math.sin(t * 2 + k * 0.8) * 2); rect(c, x - 10 + k * 3 + sw, y - 4, 5, 4, k % 2 ? "#d8b030" : "#a87a20"); px(c, x - 9 + k * 3 + sw, y - 4, "#3a2a10"); } // yılan gövde
+    rect(c, x - 4, y - 18, 8, 14, INK); rect(c, x - 3, y - 17, 6, 12, "#e8c040"); for (let k = 0; k < 4; k++) rect(c, x - 3, y - 16 + k * 3, 6, 1, "#a87a20");
+    disc(c, x, y - 22, 4, INK); disc(c, x, y - 22, 3, "#f0d0a0"); px(c, x + d, y - 23, "#2a8a4a");
+    for (const k of [-4, -2, 0, 2, 4]) { px(c, x + k, y - 28, INK); px(c, x + k, y - 27, "#e8d040"); } rect(c, x - 4, y - 26, 9, 1, "#e8d040"); // taç
+    for (const sd of [-1, 1]) { const sw = Math.round(Math.sin(t * 3 + sd) * 2); line(c, [x + sd * 4, y - 17], [x + sd * 9, y - 22 + sw], 2, "#a87a20"); disc(c, x + sd * 9, y - 23 + sw, 2, "#e8c040"); px(c, x + sd * 10, y - 24 + sw, "#e83a3a"); } // omuz yılanları
+    lights.push({ x, y: y - 18, r: 22, color: "232,200,64" });
+  },
+  hidra: (c, x, y, d, t, s) => {
+    rect(c, x - 11, y - 14, 22, 12, INK); rect(c, x - 10, y - 13, 20, 10, "#2e6a3a"); rect(c, x - 10, y - 6, 20, 3, "#4a8a4a");
+    for (const k of [-7, -3, 3, 7]) rect(c, x + k - 1, y - 3, 3, 3, "#2e5a2a");
+    for (let k = 0; k < 5; k++) {
+      const off = (k - 2) * 5, sw = Math.sin(t * 2 + k * 1.3) * 3, hx = x + off + Math.round(sw), hy = y - 26 - Math.abs(k - 2) * -2 - (k % 2) * 4;
+      line(c, [x + off * 0.5, y - 12], [hx, hy + 3], 3, INK); line(c, [x + off * 0.5, y - 12], [hx, hy + 3], 2, "#3a7a44");
+      rect(c, hx - 3, hy - 2, 7, 5, INK); rect(c, hx - 2, hy - 1, 5, 3, "#4a8a4a"); px(c, hx + d, hy - 1, "#ffe040"); px(c, hx + d * 3, hy + 1, "#e83a3a");
+    }
+    lights.push({ x, y: y - 22, r: 18, color: "110,230,120" });
+  },
+  kraken: (c, x, y, d, t, s) => {
+    for (let k = 0; k < 7; k++) {
+      const an = Math.PI + (k / 6) * Math.PI, sw = Math.sin(t * 2 + k) * 4, ex = x + Math.cos(an) * (16 + sw), ey = y - 6 + Math.sin(an) * 4 - Math.abs(Math.sin(t * 2.5 + k)) * 10;
+      line(c, [x + Math.cos(an) * 6, y - 8], [ex, ey], 3, INK); line(c, [x + Math.cos(an) * 6, y - 8], [ex, ey], 2, "#8a3a5a"); px(c, Math.round(ex), Math.round(ey), "#e8a0b8");
+    }
+    disc(c, x, y - 18, 11, INK); disc(c, x, y - 18, 10, "#9a4a6a"); disc(c, x - 3, y - 22, 4, "#b86a8a");
+    disc(c, x - 4, y - 16, 3, "#ffe040"); disc(c, x + 4, y - 16, 3, "#ffe040"); px(c, x - 4, y - 16, INK); px(c, x + 4, y - 16, INK);
+    lights.push({ x, y: y - 16, r: 22, color: "90,160,220" });
+  },
+  "kum-solucani": (c, x, y, d, t, s) => {
+    const rise = Math.round(Math.abs(Math.sin(t * 1.2)) * 6);
+    for (let k = 0; k < 6; k++) { const yy = y - 4 - k * 5 - rise * (k / 6), xx = x + Math.round(Math.sin(t * 2 + k * 0.6) * 3); disc(c, xx, yy, 7 - k * 0.3, INK); disc(c, xx, yy, 6 - k * 0.3, k % 2 ? "#c8a060" : "#b08848"); }
+    const hy = y - 34 - rise;
+    disc(c, x, hy, 8, INK); disc(c, x, hy, 7, "#a87a40"); disc(c, x + d * 2, hy, 5, "#3a1a10"); // açık ağız
+    for (let k = 0; k < 8; k++) { const an = (k / 8) * Math.PI * 2; px(c, Math.round(x + d * 2 + Math.cos(an) * 4), Math.round(hy + Math.sin(an) * 4), "#f4f0e0"); } // diş halkası
+    for (let k = 0; k < 6; k++) { const q = (t + k / 6) % 1; px(c, x - 10 + k * 4, y - Math.round(q * 6), `rgba(200,170,110,${(1 - q).toFixed(2)})`); } // kum
+  },
+  anka: (c, x, y, d, t, s) => {
+    const fy = y - 18 - Math.round(Math.sin(t * 2) * 3), flap = Math.sin(t * 5) * 6;
+    for (const sd of [-1, 1]) { poly(c, [[x + sd * 3, fy - 4], [x + sd * 22, fy - 14 - flap], [x + sd * 18, fy + 2], [x + sd * 6, fy + 2]], "#e86a1a"); poly(c, [[x + sd * 6, fy - 4], [x + sd * 18, fy - 10 - flap], [x + sd * 14, fy]], "#ffd040"); }
+    disc(c, x, fy, 6, INK); disc(c, x, fy, 5, "#ff9a2a"); disc(c, x + d * 6, fy - 8, 4, INK); disc(c, x + d * 6, fy - 8, 3, "#ffb040");
+    px(c, x + d * 7, fy - 9, "#2a8a4a"); poly(c, [[x + d * 9, fy - 8], [x + d * 13, fy - 7], [x + d * 9, fy - 6]], "#e8c040"); // zümrüt göz, gaga
+    for (let k = 0; k < 3; k++) line(c, [x - d * 4, fy + 2], [x - d * (10 + k * 3), fy + 10 + k * 2], 1, k % 2 ? "#2a8a4a" : "#ffd040"); // kuyruk tüyleri
+    for (let k = 0; k < 6; k++) { const q = (t * 1.5 + k / 6) % 1; px(c, x - 12 + k * 5, fy + 6 + Math.round(q * 12), `rgba(255,170,60,${(1 - q).toFixed(2)})`); }
+    lights.push({ x, y: fy - 4, r: 34, color: "255,170,60" });
+  },
   lich: (c, x, y, d, t, s) => {
     poly(c, [[x - 7, y], [x + 7, y], [x + 4, y - 18], [x - 4, y - 18]], INK, 1); poly(c, [[x - 7, y], [x + 7, y], [x + 4, y - 18], [x - 4, y - 18]], "#2a1838");
     rect(c, x - 5, y - 9, 10, 1, "#7ae8c8");
@@ -211,7 +375,10 @@ export function drawArena(c: Ctx, o: Origin, t: number, stage: Stage) {
   c.fillStyle = "#08060c"; c.fillRect(0, 0, c.canvas.width, c.canvas.height);
   const wf = shade(th.wall, 0.12, 0.22);
   box(c, o, -0.5, -0.5, m.w + 0.5, 0.5, H, wf, 0, false); box(c, o, -0.5, 0, 0.5, m.d, H, wf, 0, false);
+  const W = c.canvas.width, Hh = c.canvas.height;
   for (let i = 0; i < m.w; i++) for (let j = 0; j < m.d; j++) {
+    const [sx, sy] = at(o, i + 0.5, j + 0.5);
+    if (sx < -20 || sx > W + 20 || sy < -20 || sy > Hh + 40) continue; // ekran dışı çizilmez (büyük tünellerde)
     const ch = stage.map[j]?.[i] ?? ".";
     floorTile(c, o, i, j, ch, th, t);
   }
@@ -224,9 +391,11 @@ export function drawArena(c: Ctx, o: Origin, t: number, stage: Stage) {
 
 function floorTile(c: Ctx, o: Origin, i: number, j: number, ch: string, th: DungeonTheme, t: number) {
   const chk = (i + j) % 2, [x, y] = at(o, i + 0.5, j + 0.5);
+  if (ch === "#") { tile(c, o, i, j, chk ? th.wall : shade(th.wall, 0.06, 0.12).right); return; } // kaya kütlesinin üstü
   if (ch === "~") { // uçurum: kenarı taş, içi karanlık, altında sis
-    tile(c, o, i, j, (i * 3 + j) % 4 ? "#06060c" : "#0a0a14");
-    if ((i + j + Math.floor(t)) % 7 === 0) px(c, x, y, "rgba(140,160,200,0.25)");
+    const ab = th.abyss ?? ["#06060c", "#0a0a14"];
+    tile(c, o, i, j, (i * 3 + j + Math.floor(t * (th.abyss ? 1.5 : 0))) % 4 ? ab[0] : ab[1]);
+    if ((i + j + Math.floor(t)) % 7 === 0) px(c, x, y, th.abyss ? "rgba(255,255,255,0.35)" : "rgba(140,160,200,0.25)");
     return;
   }
   if (ch === "L") { const hot = Math.sin(t * 2 + i * 0.7 + j) > 0; tile(c, o, i, j, hot ? th.pool[1] : th.pool[0]); if ((i * 5 + j + Math.floor(t * 3)) % 6 === 0) { px(c, x, y - 1, "#ffd040"); px(c, x + 1, y - 2, "#ffe08a"); } lights.push({ x, y, r: 10, color: "255,110,40" }); return; }
@@ -249,7 +418,9 @@ function torchAt(c: Ctx, x: number, y: number, t: number, col: string) {
 /** Haritadaki katı süsler (kaya, ağaç, sütun, mezar...): derinlik sırasıyla çizilmek üzere */
 export function arenaProps(stage: Stage): { i: number; j: number; draw: (c: Ctx, o: Origin, t: number) => void }[] {
   const th = THEMES[stage.theme];
-  return stageMap(stage).cells.filter((cl) => PROP[cl.ch]).map((cl) => ({
+  const m = stageMap(stage), rock = (i: number, j: number) => i < 0 || j < 0 || i >= m.w || j >= m.d || stage.map[j][i] === "#";
+  // kaya kütlesinin içi blok olarak çizilmez; yalnız yürünür yere bakan kenar duvarlar
+  return m.cells.filter((cl) => PROP[cl.ch] && !(cl.ch === "#" && rock(cl.i + 1, cl.j) && rock(cl.i - 1, cl.j) && rock(cl.i, cl.j + 1) && rock(cl.i, cl.j - 1))).map((cl) => ({
     i: cl.i + 0.5, j: cl.j + 0.5,
     draw: (c: Ctx, o: Origin, t: number) => { const [x, y] = at(o, cl.i + 0.5, cl.j + 0.5); PROP[cl.ch]!(c, x, y, t, cl.i * 7 + cl.j * 3, th, o, cl.i, cl.j); },
   }));
@@ -258,7 +429,9 @@ type Prop = (c: Ctx, x: number, y: number, t: number, k: number, th: DungeonThem
 const PROP: Partial<Record<string, Prop>> = {
   "#": (c, x, y, t, k, th, o, i, j) => { box(c, o, i, j, 1, 1, 22, shade(th.wall, 0.16, 0.26)); if (k % 3 === 0) px(c, x - 3, y - 14, "rgba(255,255,255,0.08)"); },
   o: (c, x, y, t, k, th) => { const col = shade(th.wall, 0.2, 0.2); rect(c, x - 4, y - 30, 8, 30, INK); rect(c, x - 3, y - 29, 6, 28, col.left); rect(c, x - 3, y - 29, 2, 28, col.top); rect(c, x - 5, y - 32, 10, 3, INK); rect(c, x - 4, y - 31, 8, 1, col.top); rect(c, x - 5, y - 2, 10, 2, INK); },
-  R: (c, x, y, t, k, th) => { poly(c, [[x - 7, y], [x - 4, y - 10], [x + 2, y - 13], [x + 7, y], [x + 6, y + 1]], INK, 1); poly(c, [[x - 7, y], [x - 4, y - 10], [x + 2, y - 13], [x + 7, y]], th.rock); line(c, [x - 3, y - 9], [x + 1, y - 12], 1, "rgba(255,255,255,0.15)"); },
+  R: (c, x, y, t, k, th) => {
+    if (th.tallRock) { const h = 18 + (k % 3) * 5; poly(c, [[x - 6, y], [x + 6, y], [x + 2, y - h], [x - 2, y - h]], INK, 1); poly(c, [[x - 6, y], [x + 6, y], [x + 2, y - h], [x - 2, y - h]], th.rock); disc(c, x, y - h - 2, 3, INK); disc(c, x, y - h - 2, 2, shade(th.rock, 0.2, 0.3).left); line(c, [x - 3, y - 4], [x - 1, y - h + 4], 1, "rgba(255,255,255,0.15)"); return; } // peri bacası ya da sarkıt
+    poly(c, [[x - 7, y], [x - 4, y - 10], [x + 2, y - 13], [x + 7, y], [x + 6, y + 1]], INK, 1); poly(c, [[x - 7, y], [x - 4, y - 10], [x + 2, y - 13], [x + 7, y]], th.rock); line(c, [x - 3, y - 9], [x + 1, y - 12], 1, "rgba(255,255,255,0.15)"); },
   T: (c, x, y, t, k, th) => {
     if (th.tree) { rect(c, x - 1, y - 14, 3, 14, th.tree[0]); const sw = Math.round(Math.sin(t + k)); disc(c, x + sw, y - 20, 8, INK); disc(c, x + sw, y - 20, 7, th.tree[1]); disc(c, x - 2 + sw, y - 23, 4, "rgba(255,255,255,0.06)"); return; }
     rect(c, x - 1, y - 18, 3, 18, INK); rect(c, x, y - 18, 1, 17, "#3a2e2a"); line(c, [x, y - 14], [x - 6, y - 22], 1, "#3a2e2a"); line(c, [x, y - 16], [x + 5, y - 25], 1, "#3a2e2a"); line(c, [x, y - 18], [x + 1, y - 27], 1, "#3a2e2a");
@@ -292,6 +465,8 @@ export function themeParticles(c: Ctx, W: number, H: number, t: number, kind: Pa
     kar: { col: () => "rgba(240,248,255,0.8)", vy: 14, vx: 3, wob: 6 },
     kivilcim: { col: () => "rgba(255,210,120,0.75)", vy: -9, vx: 0, wob: 4 },
     kan: { col: () => "rgba(200,30,50,0.7)", vy: 30, vx: 0, wob: 1 },
+    kum: { col: () => "rgba(230,200,140,0.5)", vy: 2, vx: 24, wob: 3 },
+    kabarcik: { col: () => "rgba(200,240,255,0.55)", vy: -10, vx: 0, wob: 4 },
     yaprak: { col: () => "rgba(150,110,60,0.6)", vy: 10, vx: 6, wob: 8 },
   };
   const st = style[kind];

@@ -479,7 +479,11 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   } else if (s.scope === "zindan") {
     const stg = stageById(s.stage ?? 1) ?? stageById(1)!, mp = stageMap(stg);
     drawArena(c, o, t, stg);
-    for (const p of arenaProps(stg)) list.push({ key: p.i + p.j, box: area(p.i - 0.5, p.j - 0.5, 1, 1), draw: () => p.draw(c, o, t) });
+    for (const p of arenaProps(stg)) {
+      const [px2, py2] = at(o, p.i, p.j);
+      if (px2 < -40 || px2 > W + 40 || py2 < -10 || py2 > Hc + 60) continue; // ekran dışı süs sıralamaya girmez
+      list.push({ key: p.i + p.j, box: area(p.i - 0.5, p.j - 0.5, 1, 1), draw: () => p.draw(c, o, t) });
+    }
     list.push({ key: mp.exit[0] + mp.exit[1] - 0.4, box: dot(mp.exit[0], mp.exit[1]), draw: () => drawPortal(c, o, t, !!s.portalOpen, mp.exit) });
     const { w: aw, d: ad } = mp, fr = shade(THEMES[stg.theme].wall, 0.12, 0.22);
     for (let j = 0; j < ad; j++) list.push({ key: aw + j + 0.55, box: area(aw, j, 0, 1), draw: () => box(c, o, aw - 0.1, j, 0.2, 1, 7, fr, 0, false) });
