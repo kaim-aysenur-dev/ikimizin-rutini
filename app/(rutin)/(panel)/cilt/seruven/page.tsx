@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Images } from "lucide-react";
 import { Compare } from "@/components/skin/compare";
 import { ScoreCharts } from "@/components/skin/score-charts";
@@ -30,10 +29,7 @@ export default async function JourneyPage() {
           <Images size={26} />
         </span>
         <h2>Serüven ilk kayıtla başlar</h2>
-        <p>Cilt günlüğüne puan ve fotoğraf ekledikçe burada zaman çizelgesi ve önce/sonra karşılaştırması oluşur.</p>
-        <Link href="/cilt/gunluk" className="btn btn-primary">
-          Günlüğe git
-        </Link>
+        <p>Puanlı ve fotoğraflı cilt kaydı olmadığı için burada henüz zaman çizelgesi ve önce/sonra karşılaştırması yok.</p>
       </div>
     );
   }
@@ -46,8 +42,7 @@ export default async function JourneyPage() {
         <p className="notice">
           <Images size={18} aria-hidden="true" />
           <span>
-            Önce/sonra karşılaştırması için en az iki fotoğraflı günlük kaydı gerekiyor (şu an {photos.length}).{" "}
-            <Link href="/cilt/gunluk">Günlüğe fotoğraf ekle</Link>
+            Önce/sonra karşılaştırması için en az iki fotoğraflı kayıt gerekiyor (şu an {photos.length}).
           </span>
         </p>
       )}
