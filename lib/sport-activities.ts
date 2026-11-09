@@ -73,7 +73,7 @@ export async function saveGoal(userId: string, g: SportGoal) {
 
 export async function listVideos(userId: string): Promise<Video[]> {
   const rows = await sql()`
-    select v.id, v.youtube_id, v.title, v.channel, v.type_id, v.minutes, v.level,
+    select v.id, v.youtube_id, v.title, v.channel, v.type_id, v.minutes, v.level, v.weekdays,
            count(s.id)::int as times, to_char(max(s.day), 'YYYY-MM-DD') as last_day
     from sport_videos v left join sport_sessions s on s.video_id = v.id and s.user_id = ${userId}
     where v.user_id = ${userId} and not v.archived
@@ -86,18 +86,19 @@ export async function listVideos(userId: string): Promise<Video[]> {
     typeId: r.type_id,
     minutes: r.minutes,
     level: r.level,
+    weekdays: r.weekdays ?? [],
     times: r.times,
     lastDay: r.last_day,
   }));
 }
 
-export type VideoInput = { title: string; channel: string; typeId: string | null; minutes: number | null; level: Intensity | null };
+export type VideoInput = { title: string; channel: string; typeId: string | null; minutes: number | null; level: Intensity | null; weekdays: number[] };
 
 /** Aynı video zaten listedeyse null döner. */
 export async function createVideo(userId: string, youtubeId: string, v: VideoInput): Promise<string | null> {
   const rows = await sql()`
-    insert into sport_videos (user_id, youtube_id, title, channel, type_id, minutes, level)
-    values (${userId}, ${youtubeId}, ${v.title}, ${v.channel}, ${v.typeId}, ${v.minutes}, ${v.level})
+    insert into sport_videos (user_id, youtube_id, title, channel, type_id, minutes, level, weekdays)
+    values (${userId}, ${youtubeId}, ${v.title}, ${v.channel}, ${v.typeId}, ${v.minutes}, ${v.level}, ${v.weekdays})
     on conflict (user_id, youtube_id) where not archived do nothing
     returning id`;
   return rows[0]?.id ?? null;
@@ -105,7 +106,7 @@ export async function createVideo(userId: string, youtubeId: string, v: VideoInp
 
 export async function updateVideo(userId: string, id: string, v: VideoInput): Promise<boolean> {
   const rows = await sql()`
-    update sport_videos set title = ${v.title}, channel = ${v.channel}, type_id = ${v.typeId}, minutes = ${v.minutes}, level = ${v.level}
+    update sport_videos set title = ${v.title}, channel = ${v.channel}, type_id = ${v.typeId}, minutes = ${v.minutes}, level = ${v.level}, weekdays = ${v.weekdays}
     where id = ${id} and user_id = ${userId} and not archived returning id`;
   return rows.length > 0;
 }

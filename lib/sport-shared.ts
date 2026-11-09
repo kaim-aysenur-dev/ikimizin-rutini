@@ -28,6 +28,8 @@ export type Video = {
   typeId: string | null;
   minutes: number | null;
   level: Intensity | null;
+  /** Hangi günlerin videosu (0 = Pazartesi … 6 = Pazar); boşsa günsüz */
+  weekdays: number[];
   times: number;
   lastDay: string | null;
 };

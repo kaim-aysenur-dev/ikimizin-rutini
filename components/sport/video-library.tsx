@@ -7,7 +7,7 @@ import { Toast } from "@/components/toast";
 import { api } from "@/lib/api-client";
 import { gainXp } from "@/components/xp-badge";
 import { XP } from "@/lib/xp";
-import { diffDays, formatDayShort } from "@/lib/dates";
+import { WEEKDAY_LONG, WEEKDAY_SHORT, diffDays, formatDayShort, weekdayIndex } from "@/lib/dates";
 import {
   INTENSITIES,
   INTENSITY_LABEL,
@@ -58,6 +58,9 @@ function lastLabel(day: string, today: string): string {
 /** Spor · Videolar: YouTube linkleriyle kişisel video listesi */
 export function VideoLibrary({ today, videos, types }: Props) {
   const router = useRouter();
+  // gün süzgeci: bugünün videosu varsa sayfa bugünle açılır
+  const todayWd = weekdayIndex(today);
+  const [dayFilter, setDayFilter] = useState<number | null>(() => (videos.some((v) => v.weekdays.includes(todayWd)) ? todayWd : null));
   const [typeFilter, setTypeFilter] = useState<string | null>(null);
   const [lengthFilter, setLengthFilter] = useState<string | null>(null);
   const [opened, setOpened] = useState<string | null>(null);
@@ -73,7 +76,7 @@ export function VideoLibrary({ today, videos, types }: Props) {
 
   const length = LENGTHS.find((l) => l.id === lengthFilter);
   const shown = videos.filter(
-    (v) => (!typeFilter || v.typeId === typeFilter) && (!length || (v.minutes !== null && length.test(v.minutes))),
+    (v) => (dayFilter === null || v.weekdays.includes(dayFilter)) && (!typeFilter || v.typeId === typeFilter) && (!length || (v.minutes !== null && length.test(v.minutes))),
   );
 
   function open(id: string) {
@@ -103,6 +106,22 @@ export function VideoLibrary({ today, videos, types }: Props) {
       {videos.length > 0 ? (
         <>
           <div className="stack" style={{ gap: 8 }}>
+            {videos.some((v) => v.weekdays.length) && (
+              <div className="chips" role="group" aria-label="Güne göre">
+                <button type="button" className="chip" aria-pressed={dayFilter === null} onClick={() => setDayFilter(null)}>
+                  Tüm günler
+                </button>
+                {WEEKDAY_SHORT.map((label, d) => {
+                  const n = videos.filter((v) => v.weekdays.includes(d)).length;
+                  if (!n && d !== todayWd) return null;
+                  return (
+                    <button key={d} type="button" className="chip" aria-pressed={dayFilter === d} onClick={() => setDayFilter(dayFilter === d ? null : d)}>
+                      {d === todayWd ? `Bugün · ${WEEKDAY_LONG[d]}` : label} <span className="count">{n}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <div className="chips" role="group" aria-label="Türe göre">
               <button type="button" className="chip" aria-pressed={!typeFilter} onClick={() => setTypeFilter(null)}>
                 Tümü <span className="count">{videos.length}</span>
@@ -139,7 +158,9 @@ export function VideoLibrary({ today, videos, types }: Props) {
                   <li key={v.id} className="video-card" data-color={t?.color}>
                     <a href={youtubeWatchUrl(v.youtubeId)} target="_blank" rel="noopener noreferrer" className="video-thumb" onClick={() => open(v.id)} aria-label={`${v.title} videosunu YouTube'da aç`}>
                       <img src={youtubeThumbUrl(v.youtubeId)} alt="" loading="lazy" />
-                      {t && <span className="video-tag">{t.name}</span>}
+                      {(t || v.weekdays.length > 0) && (
+                        <span className="video-tag">{[v.weekdays.map((d) => WEEKDAY_SHORT[d]).join(" · "), t?.name].filter(Boolean).join(" · ")}</span>
+                      )}
                       <span className="video-play" aria-hidden="true">
                         <Play size={18} fill="currentColor" />
                       </span>
@@ -195,7 +216,7 @@ export function VideoLibrary({ today, videos, types }: Props) {
               })}
             </ul>
           ) : (
-            <p className="muted">Bu filtreye uyan video yok.</p>
+            <p className="muted">{dayFilter !== null ? `${WEEKDAY_LONG[dayFilter]} için video yok. Bir videoyu düzenleyip bu günü seçebilirsin.` : "Bu filtreye uyan video yok."}</p>
           )}
         </>
       ) : (
@@ -204,7 +225,7 @@ export function VideoLibrary({ today, videos, types }: Props) {
             <VideoIcon size={26} />
           </span>
           <h2>Video listen boş</h2>
-          <p>Pilates ya da dans videosunun linkini YouTube&apos;dan kopyalayıp yukarıya yapıştır. Başlık ve kanal otomatik gelir.</p>
+          <p>Videonun linkini YouTube&apos;dan kopyalayıp yukarıya yapıştır. Başlık ve kanal otomatik gelir; hangi günün videosu olduğunu seçebilirsin.</p>
         </div>
       )}
       <Toast message={message} onDone={clear} />
@@ -289,6 +310,7 @@ function VideoForm({
   const [typeId, setTypeId] = useState(video?.typeId ?? types[0]?.id ?? "");
   const [minutes, setMinutes] = useState(video?.minutes?.toString() ?? "");
   const [level, setLevel] = useState<Intensity | null>(video?.level ?? null);
+  const [weekdays, setWeekdays] = useState<number[]>(video?.weekdays ?? []);
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -297,7 +319,7 @@ function VideoForm({
   async function run(action: "save" | "delete") {
     setBusy(true);
     setError(null);
-    const body = { youtubeId, title, channel, typeId: typeId || null, minutes, level };
+    const body = { youtubeId, title, channel, typeId: typeId || null, minutes, level, weekdays };
     try {
       if (action === "delete") await api(`/api/sport/videos/${video!.id}`, { method: "DELETE" });
       else if (video) await api(`/api/sport/videos/${video.id}`, { method: "PATCH", body });
@@ -346,6 +368,17 @@ function VideoForm({
           <label htmlFor={`v-min-${key}`}>Süre (dk)</label>
           <input id={`v-min-${key}`} className="input" inputMode="numeric" value={minutes} onChange={(e) => setMinutes(e.target.value)} placeholder="Ör. 20" />
         </div>
+        <fieldset className="field span-2">
+          <legend className="field-label">Hangi günler?</legend>
+          <div className="chips" role="group" aria-label="Günler">
+            {WEEKDAY_SHORT.map((label, d) => (
+              <button key={d} type="button" className="chip" aria-pressed={weekdays.includes(d)}
+                onClick={() => setWeekdays((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d].sort((a, b) => a - b)))}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </fieldset>
         <fieldset className="field">
           <legend className="field-label">Zorluk</legend>
           <div className="seg" role="radiogroup" aria-label="Zorluk">

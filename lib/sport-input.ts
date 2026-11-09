@@ -11,6 +11,13 @@ const uuidOrNull = (v: unknown): string | null | undefined =>
 const intensityOrNull = (v: unknown): Intensity | null | undefined =>
   v === null || v === undefined || v === "" ? null : INTENSITIES.includes(v as Intensity) ? (v as Intensity) : undefined;
 
+/** Gün listesi: yoksa boş, 0–6 dışı ya da sayı olmayan değer varsa null (hata); sıralı ve tekrarsız döner */
+const weekdaysOf = (v: unknown): number[] | null => {
+  if (v === undefined || v === null) return [];
+  if (!Array.isArray(v) || !v.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) return null;
+  return [...new Set(v as number[])].sort((a, b) => a - b);
+};
+
 /** Boş → null; tamsayı ve aralık içinde değilse undefined (hata) */
 function optionalInt(v: unknown, min: number, max: number): number | null | undefined {
   const n = optionalNumber(v, min, max);
@@ -36,7 +43,9 @@ export function parseVideo(body: Record<string, unknown> | null): VideoInput | s
   if (minutes === undefined) return "Süre 1 ile 300 dakika arasında olmalı.";
   const level = intensityOrNull(body?.level);
   if (level === undefined) return "Zorluk geçersiz.";
-  return { title, channel: text(body?.channel, 120), typeId, minutes, level };
+  const weekdays = weekdaysOf(body?.weekdays);
+  if (!weekdays) return "Gün seçimi geçersiz.";
+  return { title, channel: text(body?.channel, 120), typeId, minutes, level, weekdays };
 }
 
 /** Spor oturumu */
