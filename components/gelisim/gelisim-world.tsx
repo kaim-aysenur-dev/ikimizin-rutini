@@ -4,158 +4,46 @@ import { useEffect, useRef, useState } from "react";
 import { PixelIcon } from "@/components/pixel-icon";
 import { StudyDesk, type StudyTab } from "@/components/gelisim/study-desk";
 import { api } from "@/lib/api-client";
-import { type Anchor, type Cat, type Emote, type Hero, type Theme, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
+import { type Anchor, type Cat, type Emote, type Hero, drawItemPreview, drawScene } from "@/lib/gelisim-scene";
 import { setSfx, sfx } from "@/lib/sfx";
 import { WEATHER_NAME, weatherToday } from "@/lib/gelisim-weather";
+import { ENEMIES, type Enemy, type EnemyShot, GHOSTS_PER_NIGHT, hazardAt, hitPlayer, hurtFx, powerOf, pruneDead, spawnEnemy, spawnWave, stageById, starsFor, stepEnemies } from "@/lib/dungeon";
+import { stageMap } from "@/lib/dungeon-map";
+import { type Progress, type Style, mountById, sanitizeStyle, titleById } from "@/lib/character";
+import { AppearancePanel } from "@/components/gelisim/appearance-panel";
+import { ROLL_TIME } from "@/lib/gelisim-scene";
+import { DungeonPanel } from "@/components/gelisim/dungeon-panel";
+import { type Quest, QuestBoard } from "@/components/gelisim/quest-board";
 import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
-import { CAMPFIRE, GARDEN_SEATS, OWL_TREE, PERCH, CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, footprint, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn } from "@/lib/room";
-import { ARMORY_STATIONS, CASTLE_DECOR, castleBlocked, castleInteractive } from "@/lib/castle";
+import { CAMPFIRE, GRAVEYARD, MERCHANT, OWL_TREE, PERCH, CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, footprint, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn, GARDEN_SEATS } from "@/lib/room";
+import { ARMORY_STATIONS, BOARD_AT, castleBlocked } from "@/lib/castle";
 import { type Equipment, NO_EQUIPMENT, sanitizeEquipment, toggleEquip } from "@/lib/equipment";
-import { FIST, armorLook, gearSpeed, setBonus, spellStats, trinketStats, weaponStats } from "@/lib/combat-stats";
-import { MATS } from "@/lib/gear";
+import { FIST, gearSpeed, spellStats, trinketStats, weaponStats } from "@/lib/combat-stats";
 import { type Effect, type Fighter, type Target, attack, cast, newFighter, stepEffects, tick as tickFighter } from "@/lib/combat";
-import { type Action, ACTION_TTL, actionHistory, captureAction, replayEffects, unseenActions } from "@/lib/combat-sync";
+import { type Action, ACTION_TTL, actionHistory, captureAction, unseenActions, replayEffects } from "@/lib/combat-sync";
 import { CombatHud, type HudSpell } from "@/components/gelisim/combat-hud";
 import { TARGETS } from "@/lib/castle";
 import { type GearKind } from "@/lib/gear";
 import { ArmoryPanel } from "@/components/gelisim/armory-panel";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
-import { CATS, type Cat as ItemCat, ROOM_ITEMS, type Scope, isFlat, itemById, vitrine } from "@/lib/room-items";
+import { type Cat as ItemCat, ROOM_ITEMS, type Scope, isFlat, itemById, vitrine, CATS } from "@/lib/room-items";
 import { WishWardrobe } from "@/components/gelisim/wish-wardrobe";
 import type { Wish, WishCat } from "@/lib/wishes";
 import { levelOf, xpToLevel } from "@/lib/xp";
 import { XP_EVENT } from "@/components/xp-badge";
 
-type Profile = { id: string; name: string; level: number; xp?: number };
-type Where = { scope: "oda"; owner: string } | { scope: "bahce" } | { scope: "sato"; floor: Floor };
-type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" } | { kind: "rotate" };
-type Remote = Hero & { userId: string; ti: number; tj: number; swingAt?: number };
-// emote çarkı: altı kişisel, iki ortak (yanındayken)
-const WHEEL: { id: Emote; icon: string; label: string; pair?: boolean }[] = [
-  { id: "kalp", icon: "💗", label: "Kalp" }, { id: "el", icon: "👋", label: "El salla" }, { id: "gul", icon: "😂", label: "Gül" },
-  { id: "opucuk", icon: "💋", label: "Öpücük" }, { id: "sasir", icon: "😮", label: "Şaşır" }, { id: "uyku", icon: "😴", label: "Uyku" },
-  { id: "dans", icon: "💃", label: "Dans", pair: true }, { id: "saril", icon: "🤗", label: "Sarıl", pair: true },
-];
-const EMOTE_IDS = new Set<string>(WHEEL.map((w) => w.id));
-const EMOTE_SOUND: Record<Emote, () => void> = { kalp: sfx.pop, el: sfx.pop, gul: sfx.laugh, opucuk: sfx.kiss, sasir: sfx.gasp, uyku: sfx.snore, dans: sfx.chime, saril: sfx.chime };
-const PLACE_NAME = (pl: string) => (pl === "bahce" ? "bahçede" : pl === "sato" ? "şatoda · 1. kat" : pl.startsWith("sato:") ? `şatoda · ${pl.slice(5)}. kat` : "evde");
-
-const TARGET_HP = 300;
-
-const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
-/** Görünüm: kuşanılmış zırh kıyafeti değiştirir (yoksa ev kıyafeti); elde kuşanılmış silah */
-const lookFor = (_level: number, eq: Equipment | undefined) => {
-  const base = armorLook(eq?.armor), mat = (id: string | null | undefined) => (id ? MATS.find((m) => id.endsWith(`-${m.id}`)) : undefined);
-  const gl = mat(eq?.gloves), bt = mat(eq?.boots), lg = mat(eq?.legs);
-  // eldiven elleri, çizme ayakları malzemesinin rengine boyar
-  const tint = { ...base.tint, ...(gl ? { glove: gl.base } : {}), ...(bt ? { shoe: bt.dk } : {}), ...(lg ? { bottom: lg.base } : {}) };
-  return { outfit: base.outfit, tint: Object.keys(tint).length ? tint : undefined, gear: gearOf(eq) };
-};
-const gearOf = (eq: Equipment | undefined) => ({
-  weapon: eq?.weapon ?? null, armor: eq?.armor ?? null, helmet: eq?.helmet ?? null, shield: eq?.shield ?? null, cape: eq?.cape ?? null,
-  trinket: eq?.trinket ?? null, set: eq ? setBonus(eq)?.mat ?? null : null,
-});
-const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope === "sato" && w.floor > 1 ? `sato:${w.floor}` : w.scope);
-const floorOf = (w: Where): Floor => (w.scope === "sato" ? w.floor : 1);
-const SATO_SEATS: Record<Floor, Placed[]> = { 1: castleInteractive(1), 2: castleInteractive(2), 3: castleInteractive(3) };
-const SATO_CUSHION = CASTLE_DECOR.find((d) => d.id === "kedi-minderi");
-const SOUND_KEY = "gelisim-firtina-sesi";
-// sahnedeki isim etiketleri (çizimden gelen noktalara oturur)
-const TAGS = { cengiz: "Cengiz", aysenur: "Ayşenur", duldul: "Düldül", parrot: "Papağan", gandalf: "Gandalf", gimli: "Gimli", legolas: "Legolas", jon: "Jon Snow", sato: "Şato" };
-const leave = (place: string) => { void fetch("/api/gelisim/konum", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ here: false, place }), keepalive: true }); };
-const SPEED = 3.2; // kare / saniye
-const RESUME_KEY = "gelisim-yer"; // sayfa yenilenince kalınan yer ve konum
-
-// İstanbul saatine göre gece: 21-05 tam gece, akşam ve sabah geçişli
-function nightNow(): number {
-  const parts = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Istanbul", hour: "numeric", minute: "numeric", hourCycle: "h23" }).formatToParts(new Date());
-  const h = Number(parts.find((p) => p.type === "hour")?.value ?? 12) + Number(parts.find((p) => p.type === "minute")?.value ?? 0) / 60;
-  if (h >= 21 || h < 5) return 1;
-  if (h >= 18) return (h - 18) / 3;
-  if (h < 8) return 1 - (h - 5) / 3;
-  return 0;
-}
-
-// oturulabilen eşyalar: oturuş yüksekliği (piksel), eşyanın kendi alanındaki yerler ve oturanın baktığı yön
-// (yataklarda ayakların yönü; baş karşı tarafta). Yataklarda uzanılır; çift kişilik yatakta ve koltukta iki kişi yan yana.
-// h: oturağın üst yüzü (piksel; eşyanın çiziminden) ya da yatağın şilte yüksekliği. Oturanın ayakları yerde, kalçası
-// tam bu yükseklikte durur; yer minderin ön kısmıdır (ayaklar önden sarkar, oturan sırtlığa değil mindere oturur).
-type Seat = { h: number; sleep?: boolean; slots: [number, number][]; face: [number, number] };
-const seatOf = (id: string): Seat | null =>
-  id === "yatak" ? { h: 8, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
-  : id.startsWith("tek-yatak-") ? { h: 7, sleep: true, slots: [[1.08, 0.5]], face: [1, 0] }
-  : id.startsWith("cift-yatak-") ? { h: 8, sleep: true, slots: [[1.08, 0.52], [1.08, 1.48]], face: [1, 0] }
-  : id.startsWith("kose-koltuk-") ? { h: 8, slots: [[0.6, 0.72], [1.5, 0.72], [2.4, 0.72]], face: [0, 1] }
-  : id.startsWith("koltuk-") ? { h: 8, slots: [[0.62, 0.72], [1.38, 0.72]], face: [0, 1] }
-  : id.startsWith("berjer-") ? { h: 6, slots: [[0.5, 0.7]], face: [0, 1] }
-  : id.startsWith("sandalye-") || id.startsWith("calisma-sandalyesi-") ? { h: 8, slots: [[0.5, 0.62]], face: [0, 1] }
-  : id === "taht" ? { h: 9, slots: [[0.7, 0.5]], face: [1, 0] }
-  : id === "bank" || id.startsWith("bahce-banki-") ? { h: 8, slots: [[0.6, 0.66], [1.4, 0.66]], face: [0, 1] }
-  : null;
-const DESK_SEAT = 7; // masada sandalye yoksa taburenin yüksekliği
-type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station" | "hold" | "wardrobe"; label: string; i: number; j: number; itemId?: string; to?: Floor; gearKind?: GearKind; p?: Placed };
-const STATION_LABEL: Record<GearKind, string> = { Zırh: "Zırh askısı", Silah: "Silah rafı", Büyü: "Büyü kürsüsü" };
-// masada oturulan yer (önü) ve oturanın baktığı yön (masaya doğru)
-const deskSeat = (id: string): { slot: [number, number]; face: [number, number] } => {
-  const w = itemById.get(id)?.size[0] ?? 1;
-  return { slot: [w / 2, 1.42], face: [0, -1] };
-};
-// eşyanın kendi alanındaki bir nokta ve yön, dönüşe göre dünyada
-function placeLocal(p: Placed, x: number, y: number): [number, number] {
-  const [W, D] = itemById.get(p.itemId)?.size ?? [1, 1], r = (p.rot ?? 0) & 3;
-  if (r & 2) { x = W - x; y = D - y; }
-  return r & 1 ? [p.tx + y, p.ty + x] : [p.tx + x, p.ty + y];
-}
-/** yatakta başın yönü: ayaklar öne (ekranda aşağı) bakıyorsa baş arkada, yukarıda (1), tersi -1 */
-function lieTilt(p: Placed, [a, b]: [number, number]): 1 | -1 {
-  const r = (p.rot ?? 0) & 3;
-  if (r & 2) { a = -a; b = -b; }
-  return a + b > 0 ? 1 : -1;
-}
-function faceDir(p: Placed, [a, b]: [number, number]): 1 | -1 {
-  const r = (p.rot ?? 0) & 3;
-  if (r & 2) { a = -a; b = -b; }
-  if (r & 1) [a, b] = [b, a];
-  return a - b >= 0 ? 1 : -1;
-}
-const depthOfPlaced = (p: Placed) => { const [w, d] = sizeOf(p.itemId, p.rot); return p.tx + w - 0.5 + p.ty + d - 0.5; };
-/** Canlı konumda gönderilen duruş */
-const poseOf = (h: Hero, desk: StudyTab | null) =>
-  !h.sit ? null : `${desk ? (desk === "kitaplik" ? "read" : "desk") : h.sit.sleep ? "lie" : "sit"}:${Math.round(h.sit.sleep ? h.sit.lift : h.sit.seat ?? DESK_SEAT)}${h.sit.sleep && h.sit.tilt === -1 ? ":-1" : ""}`;
-
-/** Kalkış: oturmadan önce durulan boş kareye dönülür */
-function standUp(h: Hero) {
-  const from = h.sit?.from;
-  if (from) { h.i = from[0]; h.j = from[1]; }
-  h.sit = undefined;
-}
-
-// piyano: kısa bir melodi (dokunuştan sonra çaldığı için tarayıcı izin verir)
-function tune() {
-  try {
-    const a = new AudioContext();
-    [523, 587, 659, 784, 659, 880].forEach((f, k) => {
-      const at = a.currentTime + k * 0.18, o = a.createOscillator(), g = a.createGain();
-      o.type = "triangle"; o.frequency.value = f;
-      g.gain.setValueAtTime(0.0001, at); g.gain.exponentialRampToValueAtTime(0.08, at + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.5);
-      o.connect(g).connect(a.destination); o.start(at); o.stop(at + 0.55);
-    });
-    window.setTimeout(() => void a.close(), 2000);
-  } catch { /* ses yoksa sessiz çalar */ }
-}
-// W A S D ve oklar ekran yönleridir: yukarı = i ve j birlikte azalır
-const KEYS: Record<string, [number, number]> = {
-  w: [-1, -1], arrowup: [-1, -1], s: [1, 1], arrowdown: [1, 1], a: [-1, 1], arrowleft: [-1, 1], d: [1, -1], arrowright: [1, -1],
-};
+import { type Mode, type Near, type Profile, type Remote, type Where, DESK_SEAT, EMOTE_IDS, EMOTE_SOUND, GATE_FRONT, KEYS, PLACE_NAME, RESUME_KEY, SATO_CUSHION, SATO_SEATS, SOUND_KEY, SPEED, STATION_LABEL, TAGS, TARGET_HP, WHEEL, depthOfPlaced, deskSeat, faceDir, floorOf, leave, lieTilt, lookFor, nightNow, placeLocal, placeOf, poseOf, seatOf, standUp, tune, whoOf, gearOf } from "./world-helpers";
+import { Mailbox } from "./mailbox";
 
 // Gelişim: kendi evin (altı oda) ve ortak bahçe. Kamera seni izler; envanterden eşya koyarsın; aynı yerdekiler birbirini canlı görür.
 // startIn: "bahce" ise oyun kişinin kapısının önünde, bahçede başlar
-export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null, initialEquipment = {}, initialTrophies = {}, openWardrobe = false }: {
+export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null, initialEquipment = {}, initialTrophies = {}, openWardrobe = false, initialStyles = {}, progress: initialProgress = null }: {
   me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope; initialStudyTimer?: { label: string; startedAt: string } | null; initialEquipment?: Record<string, Equipment>;
   initialTrophies?: Record<string, WishCat[]>; openWardrobe?: boolean;
+  initialStyles?: Record<string, Style>; progress?: Progress | null;
 }) {
   const meP = profiles.find((p) => p.id === me)!;
   const [xp, setXp] = useState(() => meP.xp ?? xpToLevel(meP.level));
@@ -232,6 +120,49 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const remoteSeen = useRef<Record<string, Set<number>>>({});
   const remoteEffects = useRef<Effect[]>([]);
   const kick = useRef<() => void>(() => {}); // konumu beklemeden gönder
+  // Ay Kapısı: bölüm, dalga, yaratıklar, mermiler; bahçede gece hayaletleri
+  const [gateOpen, setGateOpen] = useState(false);
+  const dungeon = useRef<{ stage: number; wave: number; enemies: Enemy[]; shots: EnemyShot[]; cleared: boolean; claimed: boolean; nextAt: number; startAt: number; lost: number; hazardMsgAt: number }>({ stage: 1, wave: 0, enemies: [], shots: [], cleared: false, claimed: false, nextAt: 0, startAt: 0, lost: 0, hazardMsgAt: 0 });
+  const [intro, setIntro] = useState<number | null>(null); // bölüm giriş kartı
+  // görünüm (unvan, iz, binek) ve karakter hareketleri
+  const [styles, setStyles] = useState<Record<string, Style>>(initialStyles);
+  const stylesRef = useRef(styles); stylesRef.current = styles;
+  const [lookOpen, setLookOpen] = useState(false);
+  const riding = useRef(false);
+  const [rideOn, setRideOn] = useState(false);
+  const rollAt = useRef(-9); // kaçınma: başladığı an (bekleme 1 sn)
+  const superBar = useRef(0); // ortak süper güç: 0-100
+  const [superPct, setSuperPct] = useState(0);
+  const [bubbles, setBubbles] = useState<Record<string, string>>({}); // konuşma balonları (kişinin görünümüne göre: cengiz / aysenur)
+  const [sayOpen, setSayOpen] = useState(false);
+  const [sayText, setSayText] = useState("");
+  const showBubble = (who: string, text: string) => {
+    setBubbles((b) => ({ ...b, [who]: text }));
+    window.setTimeout(() => setBubbles((b) => (b[who] === text ? { ...b, [who]: "" } : b)), 5200);
+  };
+  const [bossBar, setBossBar] = useState<{ name: string; pct: number } | null>(null);
+  const ghosts = useRef<{ enemies: Enemy[]; shots: EnemyShot[]; done: Set<number>; day: string }>({ enemies: [], shots: [], done: new Set(), day: "" });
+  const [dungeonInfo, setDungeonInfo] = useState("");
+  // günlük görevler: şatodaki pano ve dünyadaki yansımalar (kuyu, kupa, aynalar, tüccarın hediyesi)
+  const [quests, setQuests] = useState<Quest[] | null>(null);
+  const [boardOpen, setBoardOpen] = useState(false);
+  const routine = useRef({ water: false, sport: false, skin: false, seals: 0, total: 6, gifts: 0 });
+  const loadQuests = () => api<{ quests: Quest[]; gifts: number }>("/api/gelisim/gorev").then((res) => {
+    if (!Array.isArray(res?.quests)) return;
+    const ok = (id: string) => res.quests.some((q) => q.id === id && q.value >= q.target);
+    routine.current = { water: ok("su"), sport: ok("spor"), skin: ok("cilt"), seals: res.quests.filter((q) => q.value >= q.target).length, total: res.quests.length, gifts: res.gifts };
+    setQuests(res.quests);
+  }, () => undefined);
+  useEffect(() => { void loadQuests(); const id = window.setInterval(() => void loadQuests(), 120_000); return () => window.clearInterval(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const claimReward = async (kind: "zindan" | "hayalet", ref: number) => {
+    try {
+      const res = await api<{ xp: number; first: boolean }>("/api/gelisim/zindan", { body: { kind, ref } });
+      if (res.xp > 0) { window.dispatchEvent(new CustomEvent(XP_EVENT, { detail: res.xp })); setMsg(`+${res.xp} XP${res.first ? " · ilk geçiş!" : ""}`); }
+      else if (kind === "zindan") setMsg("Bu bölümün bugünkü ödülü alınmıştı.");
+    } catch (err) { setMsg(err instanceof Error ? err.message : "Ödül kaydedilemedi."); }
+  };
+  /** Şu an vurulabilecek hedefler: zindanda yaratıklar, bahçede hayaletler, talim katında mankenler */
+  const liveTargets = (w: Where) => (w.scope === "zindan" ? dungeon.current.enemies : w.scope === "bahce" ? ghosts.current.enemies : w.scope === "sato" && w.floor === 2 ? targets.current : []);
   const [wheel, setWheel] = useState(false); // emote çarkı
   const wheelRef = useRef(false);
   wheelRef.current = wheel;
@@ -295,25 +226,73 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const doAttack = () => {
     const h = hero.current, wh = live.current.where;
     if (fade.current || deskSit.current || modalRef.current) return; // masada çalışırken dövüşülmez (odak kilidi bozulmasın)
+    if (riding.current) { setMsg("Binekteyken dövüşülmez: Z ile in."); return; }
     if (h.sit) standUp(h);
     const eq = eqRef.current;
-    const fx = attack(fighter.current, eq, { i: h.i, j: h.j, dir: h.dir }, wh.scope === "sato" && wh.floor === 2 ? targets.current : [], nowSec());
+    const fx = attack(fighter.current, eq, { i: h.i, j: h.j, dir: h.dir }, liveTargets(wh), nowSec());
     if (!fx.length) return;
     effects.current.push(...fx);
-    sfx.swing(); if (fx.some((e) => e.kind === "hasar")) sfx.hit();
+    sfx.swing(); if (fx.some((e) => e.kind === "hasar")) { sfx.hit(); chargeSuper(fx.filter((e) => e.kind === "hasar").length * 6); }
     shareAction("vurus", eq.weapon ?? "yumruk", fx);
   };
   // 1–4: kuşanılan büyüler
   const doCast = (slot: number) => {
     const h = hero.current, wh = live.current.where, eq = eqRef.current;
     if (fade.current || deskSit.current || modalRef.current || !eq.spells[slot]) return;
+    if (riding.current) { setMsg("Binekteyken büyü yapılmaz: Z ile in."); return; }
     if (h.sit) standUp(h);
     const partnerNear = others.current.some((r) => Math.hypot(r.i - h.i, r.j - h.j) < 2.2);
-    const fx = cast(fighter.current, eq, slot, { i: h.i, j: h.j, dir: h.dir }, wh.scope === "sato" && wh.floor === 2 ? targets.current : [], nowSec(), partnerNear);
+    const fx = cast(fighter.current, eq, slot, { i: h.i, j: h.j, dir: h.dir }, liveTargets(wh), nowSec(), partnerNear);
     if (!fx.length) { const s = spellStats(eq.spells[slot]); if (s && fighter.current.mana < s.mana) setMsg("Mana yetmiyor."); return; }
     effects.current.push(...fx);
     sfx.spell(fx[0]?.kind ?? "");
     shareAction("buyu", eq.spells[slot], fx);
+  };
+
+  // ortak süper güç: partner yakındayken vuruşlar barı doldurur; dolunca C ile "İki Kalp Patlaması"
+  const chargeSuper = (amount: number) => {
+    const h = hero.current;
+    if (!others.current.some((r) => Math.hypot(r.i - h.i, r.j - h.j) < 4.5)) return;
+    superBar.current = Math.min(100, superBar.current + amount);
+  };
+  const doSuper = () => {
+    const h = hero.current, wh = live.current.where;
+    if (superBar.current < 100) { setMsg(`Ortak güç %${Math.floor(superBar.current)}: yan yana savaşınca dolar.`); return; }
+    const mate = others.current.find((r) => Math.hypot(r.i - h.i, r.j - h.j) < 4.5);
+    if (!mate) { setMsg("İki Kalp Patlaması için yan yana olun."); return; }
+    superBar.current = 0;
+    const now = nowSec(), ci = (h.i + mate.i) / 2, cj = (h.j + mate.j) / 2, w = (eqRef.current.weapon && weaponStats(eqRef.current.weapon)) || FIST;
+    const dmg = Math.round((w.damage / w.cooldown) * 3 + playerLevel * 4), fx: Effect[] = [
+      { kind: "patlamasi", i: ci, j: cj, dir: 1, at: now, until: now + 1.2, value: 4.5, color: "#e48aa0" },
+      ...[0, 1, 2, 3, 4, 5].map((k): Effect => ({ kind: "iki-kalp", i: ci + Math.cos(k) * 2, j: cj + Math.sin(k) * 2, dir: 1, at: now, until: now + 1.4, color: "#e8486a" })),
+    ];
+    for (const tg of liveTargets(wh)) if (tg.hp > 0 && Math.hypot(tg.i - ci, tg.j - cj) < 4.7) {
+      const v = Math.min(tg.hp, dmg); tg.hp -= v; tg.hitAt = now; if (tg.hp <= 0) { tg.hp = 0; tg.downAt = now; }
+      fx.push({ kind: "hasar", i: tg.i, j: tg.j, dir: 1, at: now, until: now + 0.9, value: v, color: "#ff8ab0" });
+    }
+    effects.current.push(...fx); sfx.chime(); sfx.spell("iki-kalp");
+    shareAction("buyu", "iki-kalp-super", fx);
+  };
+  // Shift / ⤿: kaçınma yuvarlanması (kısa süre dokunulmaz)
+  const doRoll = () => {
+    const h = hero.current, t = nowSec();
+    if (t - rollAt.current < 1 || h.sit || riding.current || fade.current || modalRef.current) return;
+    rollAt.current = t; h.roll = t; sfx.swing();
+  };
+  // Z / 🐴: bahçede bineğe bin ya da in
+  const toggleRide = () => {
+    const st = stylesRef.current[me];
+    if (!riding.current && live.current.where.scope !== "bahce") { setMsg("Bineğe yalnız bahçede binilir."); return; }
+    if (!riding.current && !mountById(st?.mount)) { setMsg("Önce Görünüm'den (K) bir binek seç."); setLookOpen(true); return; }
+    if (hero.current.sit) standUp(hero.current);
+    riding.current = !riding.current; setRideOn(riding.current); sfx.flap();
+  };
+  const sendSay = (text: string) => {
+    const tx = text.trim().replace(/\s+/g, " ").slice(0, 50);
+    setSayOpen(false); setSayText("");
+    if (!tx) return;
+    showBubble(hero.current.who, tx);
+    shareAction("emote", `s:${tx}`, []);
   };
 
   // Q / G: başın üstünde kalp ya da el sallama (karşının ekranında da görünür)
@@ -356,6 +335,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     else if (nb.kind === "mail") setMailOpen(true);
     else if (nb.kind === "wardrobe") { const w = live.current.where; setWardrobe(w.scope === "oda" ? w.owner : me); } // gardırop evin sahibinin dolabı
     else if (nb.kind === "station" && nb.gearKind) setArmory(nb.gearKind);
+    else if (nb.kind === "gate") setGateOpen(true);
+    else if (nb.kind === "board") { setBoardOpen(true); void loadQuests(); }
+    else if (nb.kind === "merchant") setWardrobe(me); // kazanılan dilekler: Dilek Dolabı
     else if (nb.kind === "stairs" && nb.to && !fade.current) {
       const from = floorOf(live.current.where);
       fade.current = { t: 0, to: { scope: "sato", floor: nb.to }, spawn: arrivalAt(nb.to, nb.to > from) };
@@ -389,7 +371,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     return under.length ? Math.max(...under.map(depthOfPlaced)) + 0.02 : undefined;
   };
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
-  const scenePlaced = (w: Where, all: Placed[]) => (w.scope === "sato" ? [] : all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner)));
+  const scenePlaced = (w: Where, all: Placed[]) => (w.scope === "sato" || w.scope === "zindan" ? [] : all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner)));
   const ownerName = where.scope === "oda" ? profiles.find((p) => p.id === where.owner)?.name.split(" ")[0] ?? "" : "";
   const visiting = where.scope === "oda" && where.owner !== me;
   const canEditHere = where.scope === "bahce" || (where.scope === "oda" && !visiting);
@@ -407,6 +389,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (e.ctrlKey || e.metaKey || e.altKey || e.target instanceof Element && e.target.closest("input,textarea,select,[contenteditable=true]")) return;
       if (k === "escape") { if (wheelRef.current) { setWheel(false); return; } if (!e.repeat) shortcutRef.current(k); return; }
       if (modalRef.current) return;
+      if (k === "shift" && !e.repeat) { doRoll(); return; }
+      if (k === "z" && !e.repeat) { e.preventDefault(); toggleRide(); return; }
+      if (k === "c" && !e.repeat) { e.preventDefault(); doSuper(); return; }
+      if ((k === "y" || k === "enter") && !e.repeat) { e.preventDefault(); setSayOpen(true); return; }
+      if (k === "k" && !e.repeat) { e.preventDefault(); setLookOpen((v) => !v); return; }
       if (["r", "x", "t", "o", "v", "m", "e", "h", "b", "+", "=", "-", "0"].includes(k)) {
         e.preventDefault(); if (!e.repeat) shortcutRef.current(k); return;
       }
@@ -431,7 +418,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     try {
       const v = JSON.parse(localStorage.getItem(RESUME_KEY) ?? "null");
       if (!v || typeof v.place !== "string" || typeof v.i !== "number" || typeof v.j !== "number") return;
-      const pl: string = v.place;
+      const pl: string = v.place.startsWith("zindan:") ? "bahce" : v.place; // zindan yarım kaldıysa kapının önünde başlanır
+      if (pl !== v.place) { v.i = GATE_FRONT[0]; v.j = GATE_FRONT[1]; }
       const w: Where | null = pl === "bahce" ? { scope: "bahce" }
         : pl.startsWith("ev:") && profiles.some((p) => p.id === pl.slice(3)) ? { scope: "oda", owner: pl.slice(3) }
         : pl === "sato" ? { scope: "sato", floor: 1 } : /^sato:[23]$/.test(pl) ? { scope: "sato", floor: Number(pl.slice(5)) as Floor } : null;
@@ -463,9 +451,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (placeOf(live.current.where) === place) try { const [si, sj] = h.sit?.from ?? [h.i, h.j]; localStorage.setItem(RESUME_KEY, JSON.stringify({ place, i: si, j: sj, dir: h.dir })); } catch { /* gizli sekme */ }
       try {
         const res = await api<{
-          others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment; action?: Action | null; pose?: string | null; focus?: boolean }[];
+          others: { userId: string; x: number; y: number; dir: number; moving: boolean; equipment?: Equipment & Partial<Style>; action?: Action | null; pose?: string | null; focus?: boolean; mood?: string | null }[];
           unread?: number; timers?: { userId: string; label: string; startedAt: string; reading: boolean }[]; placed?: Placed[]; partnerPlace?: string | null;
-        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined, pose: poseOf(h, deskSit.current), withPlaced } });
+        }>("/api/gelisim/konum", { body: { here: true, place, x: h.i, y: h.j, dir: h.dir, moving: h.moving, action: sent ?? undefined, pose: poseOf(h, deskSit.current), withPlaced, mood: `${h.mood ?? "normal"}${riding.current ? "+at" : ""}` } });
         if (stop) return;
         // kendi eşyaların burada değişir (yolda olan isteği ezmesin); diğerininkiler sunucudan
         if (res.placed) {
@@ -496,10 +484,12 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             const now = nowSec();
             if (act.kind === "emote") {
               if (act.id === "ele") hold = true; else if (act.id === "birak") hold = false;
+              else if (act.id.startsWith("s:")) { showBubble(whoOf(prof?.name ?? ""), act.id.slice(2, 52)); sfx.pop(); }
               else if (EMOTE_IDS.has(act.id)) { emote = { kind: act.id as Emote, at: now }; EMOTE_SOUND[act.id as Emote](); }
               continue;
             }
             if (act.kind === "vurus") { swingAt = now; sfx.swing(true); } else if (act.id !== "isabet") sfx.spell(act.effects?.[0]?.kind ?? "", true);
+            if (act.effects?.some((e) => e.kind === "hasar")) chargeSuper(4); // partnerin isabeti de ortak barı doldurur
             remoteEffects.current.push(...replayEffects(act, now));
             // talim hedefleri ortak: karşının verdiği hasar buradaki hedefin canından da düşer
             for (const e of act.effects ?? []) {
@@ -510,7 +500,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
               if (tg.hp === 0) tg.downAt = now;
             }
           }
-          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, sanitizeEquipment(o.equipment, prof?.level ?? 1)), i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt, emote, hold, sit, study };
+          // görünüm: unvan, iz, binek (karşının seçimi); ruh hâli ve binmiş mi
+          const st = sanitizeStyle(o.equipment, null);
+          if (JSON.stringify(stylesRef.current[o.userId] ?? null) !== JSON.stringify(st)) setStyles((all) => ({ ...all, [o.userId]: st }));
+          const [md, onMount] = (o.mood ?? "normal").split("+");
+          const req = sanitizeEquipment(o.equipment, prof?.level ?? 1);
+          const ride = onMount === "at" && st.mount ? { mount: st.mount, saddle: req.saddle, barding: req.barding } : null;
+          const idleAt = o.moving ? undefined : prev?.idleAt ?? nowSec();
+          return { userId: o.userId, who: whoOf(prof?.name ?? ""), ...lookFor(prof?.level ?? 1, req), trail: st.trail, mood: md, ride, idleAt, i: prev?.i ?? o.x, j: prev?.j ?? o.y, ti: o.x, tj: o.y, dir: o.dir === -1 ? -1 : 1, dist: prev?.dist ?? 0, moving: o.moving, swingAt, emote, hold, sit, study };
         });
       } catch { /* bağlantı koparsa kısa olay geçmişiyle yeniden dener */ }
       finally { inFlight = false; if (again) { again = false; void tick(); } }
@@ -551,16 +548,17 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   // oyun döngüsü: bir kez kurulur, değişen durumu live.current üzerinden okur
   useEffect(() => {
     const cv = canvas.current!, c = cv.getContext("2d")!;
-    let raf = 0, last = 0, lastRoom = "", heard = 0, lastMeow = 0, lastOwl = 0, lastParrot = 0, lastLullaby = 0;
+    let raf = 0, last = 0, lastRoom = "", heard = 0, lastMeow = 0, lastOwl = 0, lastParrot = 0, lastLullaby = 0, lastInfo = "", lastBoss = "", lastIntro: number | null = null, lastSuper = -1;
     const loop = (now: number) => {
       raf = requestAnimationFrame(loop);
       const t = now / 1000, dt = Math.min(0.05, last ? t - last : 0); last = t;
       const { where: wh, placed: all, mode: md, rot: pr } = live.current;
       const scope = wh.scope;
       const here = scenePlaced(wh, all);
-      const { w, d } = SIZE[scope];
+      const zStage = wh.scope === "zindan" ? stageById(wh.stage) : null, zMap = zStage ? stageMap(zStage) : null;
+      const { w, d } = zMap ?? SIZE[scope];
       const floor = floorOf(wh);
-      const blocked = scope === "sato" ? castleBlocked(floor) : blockedSet(scope, here);
+      const blocked = scope === "sato" ? castleBlocked(floor) : scope === "zindan" ? (zMap?.solid ?? new Set<string>()) : blockedSet(scope, here);
       const h = hero.current;
 
       let di = 0, dj = 0;
@@ -572,13 +570,18 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           if (m) { const ai = m.i - h.i, aj = m.j - h.j, ad = Math.hypot(ai, aj); if (ad > 1.1 && ad < 8) { di = ai / ad; dj = aj / ad; } }
         }
       }
+      if (t - rollAt.current < ROLL_TIME && !di && !dj) { di = h.dir; dj = -h.dir; } // yuvarlanma: baktığın yöne
       const len = Math.hypot(di, dj);
       h.moving = len > 0 && !fade.current;
+      if (h.moving) h.idleAt = undefined; else if (h.idleAt === undefined) h.idleAt = t;
       if (h.moving && h.sit) { standUp(h); if (deskSit.current) { deskSit.current = null; setAtDesk(null); } }
       // masa başında: önünde defter/kitap, sayaç açıksa odak ışığı
       h.study = deskSit.current && h.sit ? { reading: deskSit.current === "kitaplik", focus: studyLock.current } : undefined;
       if (h.moving) {
-        const step = (SPEED * gearSpeed(eqRef.current) * dt) / len; // çizme ve muska hızlandırır
+        const mnt = riding.current ? mountById(stylesRef.current[me]?.mount) : null, saddle = mnt && eqRef.current.saddle ? 1.06 : 1;
+        const moodK = h.mood === "enerjik" ? 1.05 : h.mood === "uykulu" ? 0.92 : h.mood === "yorgun" ? 0.94 : 1;
+        const rolling = t - rollAt.current < ROLL_TIME ? 2.8 : 1;
+        const step = (SPEED * gearSpeed(eqRef.current) * (mnt ? mnt.speed * saddle : 1) * moodK * rolling * (hazardAt(zStage, h.i, h.j)?.slow ?? 1) * dt) / len; // binek, çizme ve ruh hâli hızlandırır; ağ ve zehir yavaşlatır
         const free = (i: number, j: number) => {
           const ci = Math.floor(i), cj = Math.floor(j), fi = Math.floor(h.i), fj = Math.floor(h.j);
           if (scope === "oda") {
@@ -586,6 +589,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
             // başka kareye geçerken aynı oda ya da kapı boşluğu olmalı
             if ((ci !== fi || cj !== fj) && ci >= 0 && !houseStep([fi, fj], [ci, cj])) return false;
+          } else if (scope === "zindan") {
+            const atDoor = !!zMap && Math.abs(j - zMap.start[1]) < 1.2 && i < 1; // giriş kapısından bahçeye dönülür
+            if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
           } else if (scope === "sato") {
             const atDoor = floor === 1 && atEntry(cj) && i < 1;
             if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
@@ -617,6 +623,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         } else if (scope === "sato" && floor === 1 && h.i < 0.1 && atEntry(Math.floor(h.j))) {
           // şatodan çıkış: bahçede şato kapısının önü
           fade.current = { t: 0, to: { scope: "bahce" }, spawn: [CASTLE.gate.i + CASTLE.gate.width / 2, CASTLE.j1 + 1.4] };
+        } else if (scope === "zindan" && h.i < 0.1) {
+          fade.current = { t: 0, to: { scope: "bahce" }, spawn: GATE_FRONT }; // kaçış: ödülsüz döner
+        } else if (scope === "zindan" && zMap && dungeon.current.cleared && Math.hypot(h.i - zMap.exit[0], h.j - zMap.exit[1]) < 0.9) {
+          if (!dungeon.current.claimed) { dungeon.current.claimed = true; void claimReward("zindan", dungeon.current.stage); }
+          fade.current = { t: 0, to: { scope: "bahce" }, spawn: GATE_FRONT };
         } else if (scope === "bahce") {
           const k = HOUSES.findIndex((hs) => Math.floor(h.i) === hs.door.i && h.j < hs.door.j + 0.15);
           const owner = profiles[k]?.id;
@@ -633,6 +644,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           if (holdRef.current) { holdRef.current = false; setHolding(false); h.hold = false; }
           sfx.door();
           setWhere(f.to); live.current.where = f.to; h.i = f.spawn[0]; h.j = f.spawn[1];
+          if (f.to.scope === "zindan") {
+            const st = stageById(f.to.stage)!;
+            dungeon.current = { stage: st.id, wave: 0, enemies: spawnWave(st, 0, t + 2.5, f.spawn), shots: [], cleared: false, claimed: false, nextAt: 0, startAt: t, lost: 0, hazardMsgAt: 0 };
+          }
           f.to = null; f.t = 0.25; keys.current.clear(); pad.current = null; cam.current.snap = true;
           recentActions.current = []; remoteEffects.current = [];
           effects.current = []; // uçuştaki mermiler yeni sahneye taşınmaz
@@ -642,7 +657,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         if (!f.to && f.t >= 0.5) fade.current = null;
       }
       const cur = live.current.where;
-      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "sato" ? roomIn(castlePlan(cur.floor), Math.floor(h.i), Math.floor(h.j))?.name ?? "" : "Bahçe";
+      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "sato" ? roomIn(castlePlan(cur.floor), Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "zindan" ? stageById(cur.stage)?.name ?? "" : "Bahçe";
       if (rn && rn !== lastRoom) { lastRoom = rn; setRoomName(rn); }
 
       // kamera: karakteri yumuşakça izler
@@ -684,6 +699,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         const mate = others.current[0];
         if (holdRef.current) { if (!nb) nb = { kind: "hold", label: "Elini bırak", i: h.i, j: h.j }; }
         else if (!nb && mate && !mate.sit && Math.hypot(mate.i - h.i, mate.j - h.j) < 1.5) nb = { kind: "hold", label: "El ele tut", i: mate.i, j: mate.j };
+        if (cur.scope === "sato" && cur.floor === 1) { const dd = Math.hypot(BOARD_AT[0] - h.i, BOARD_AT[1] - h.j); if (dd < 1.6 && dd < best + 0.4) { nb = { kind: "board", label: "Görev panosu", i: BOARD_AT[0], j: BOARD_AT[1] }; best = dd; } }
+        if (cur.scope === "bahce") { const mi = MERCHANT.i0 + 1, mj = MERCHANT.j1 + 0.5, dd = Math.hypot(mi - h.i, mj - h.j); if (dd < 1.6 && dd < best + 0.4) { nb = { kind: "merchant", label: routine.current.gifts ? "🎁 Gezgin tüccar: hediyen var!" : "Gezgin tüccar", i: mi, j: mj }; best = dd; } }
+        if (cur.scope === "bahce") { const dd = Math.hypot(GATE_FRONT[0] - h.i, GATE_FRONT[1] - h.j); if (dd < 1.8 && dd < best + 0.4) { nb = { kind: "gate", label: "Ay Kapısı'na gir", i: GATE_FRONT[0], j: GATE_FRONT[1] }; best = dd; } }
         if (cur.scope === "bahce") HOUSES.forEach((hs) => {
           const mi = hs.door.i + 1.6, mj = hs.door.j + 0.6, dd = Math.hypot(mi - h.i, mj - h.j);
           if (dd < 1.4 && dd < best + 0.2) { nb = { kind: "mail", label: "Posta kutusu", i: mi, j: mj }; best = dd; }
@@ -734,7 +752,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         const [sw, sd] = sizeOf(md.itemId, pr);
         const gx = Math.floor(hv[0] - (sw - 1) / 2), gy = Math.floor(hv[1] - (sd - 1) / 2);
         const around = cur.scope === "oda" ? here : all.filter((p) => p.scope === "bahce");
-        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: cur.scope !== "sato" && canPlace(cur.scope, md.itemId, gx, gy, around, pr) };
+        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: (cur.scope === "oda" || cur.scope === "bahce") && canPlace(cur.scope, md.itemId, gx, gy, around, pr) };
       } else if (hv && (md.kind === "edit" || md.kind === "rotate")) {
         pick = here.find((p) => p.userId === me && inside(p, hv))?.id ?? null;
       }
@@ -764,13 +782,85 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       }
       if (together && t - lastLullaby > 4.5) { lastLullaby = t; sfx.lullaby(); }
       const flying = effects.current;
-      effects.current = stepEffects(flying, cur.scope === "sato" && cur.floor === 2 ? targets.current : [], t);
+      // bahçede gece: mezarlıkta hayaletler çıkar (bugün kovulanlar çıkmaz)
+      if (cur.scope === "bahce") {
+        const g = ghosts.current, day = new Date().toDateString();
+        if (g.day !== day) { g.day = day; g.done = new Set(); g.enemies = []; }
+        if (night.current > 0.55) {
+          for (let k = 0; k < GHOSTS_PER_NIGHT; k++) if (!g.done.has(k) && !g.enemies.some((e) => e.id === `hayalet-${k}`)) {
+            const gh = spawnEnemy("hayalet", 1, GRAVEYARD.i0 + 2 + k * 2, GRAVEYARD.j0 + 3 + (k % 2) * 3, t + k * 0.5); gh.id = `hayalet-${k}`; g.enemies.push(gh);
+          }
+        } else g.enemies = g.enemies.filter((e) => e.hp <= 0);
+      }
+      const foes = liveTargets(cur) as Enemy[];
+      effects.current = stepEffects(flying, liveTargets(cur), t);
       // ok ve büyü mermisi sonradan çarpar: isabet ayrıca gönderilir ki hedefin canı karşıda da düşsün
       const hits = effects.current.filter((e) => e.kind === "hasar" && !flying.includes(e));
       if (hits.length) shareAction("buyu", "isabet", hits);
       remoteEffects.current = stepEffects(remoteEffects.current, cur.scope === "sato" && cur.floor === 2 ? targets.current : [], t);
+      if (cur.scope === "zindan" || cur.scope === "bahce") {
+        const box = cur.scope === "zindan" ? dungeon.current : ghosts.current;
+        // hayaletler yalnız mezarlığa yaklaşanı kovalar; yoksa mezarlıkta süzülür
+        const gc: [number, number] = [GRAVEYARD.i0 + 5, GRAVEYARD.j0 + 5], chase = cur.scope === "zindan" || Math.hypot(h.i - gc[0], h.j - gc[1]) < 9;
+        const cz = cur.scope === "zindan" ? stageMap(stageById(cur.stage)!) : null;
+        const hits = stepEnemies(foes, box.shots, chase ? { i: h.i, j: h.j } : { i: gc[0] + Math.sin(t * 0.3) * 3, j: gc[1] + Math.cos(t * 0.4) * 3 }, dt, t, cz ?? SIZE[cur.scope], cz ? (a, b) => cz.solid.has(`${a},${b}`) : undefined);
+        if (fade.current || t - rollAt.current < ROLL_TIME) hits.length = 0; // yuvarlanırken dokunulmaz
+        for (const raw of hits) {
+          const took = hitPlayer(fgt, eqRef.current, raw);
+          if (took > 0) { effects.current.push(hurtFx(h.i, h.j, took, t)); sfx.hit(); if (cur.scope === "zindan") dungeon.current.lost += took; }
+        }
+        // tehlikeli zemin: lav ve zehir yakar (yarım saniyede bir sayı çıkar)
+        const hz = cur.scope === "zindan" && !fade.current ? hazardAt(stageById(cur.stage), h.i, h.j) : null;
+        if (hz && hz.burn > 0) {
+          const burn = hz.burn * fgt.maxHp * dt; fgt.hp = Math.max(0, fgt.hp - burn); dungeon.current.lost += burn;
+          if (Math.floor(t * 2) !== Math.floor((t - dt) * 2)) effects.current.push(hurtFx(h.i, h.j, Math.max(1, Math.round(hz.burn * fgt.maxHp / 2)), t));
+        }
+        if (hz && t - dungeon.current.hazardMsgAt > 4) { dungeon.current.hazardMsgAt = t; setMsg(hz.label); }
+        // kovulan hayaletin ödülü (gece, günde bir kez)
+        if (cur.scope === "bahce") for (const e of foes) if (e.hp <= 0 && !ghosts.current.done.has(Number(e.id.split("-")[1]))) { const k = Number(e.id.split("-")[1]); ghosts.current.done.add(k); void claimReward("hayalet", k); }
+        box.enemies = pruneDead(foes, t);
+        // yenildin: Ay Kapısı'nın önünde, can yeniden dolu
+        if (fgt.hp <= 0 && !fade.current) {
+          fgt.hp = fgt.maxHp; fgt.mana = fgt.maxMana;
+          setMsg(cur.scope === "zindan" ? "Yenildin! Güçlenip yeniden dene." : "Hayaletler seni kovaladı! Kamp ateşinde dinlen.");
+          fade.current = { t: 0, to: { scope: "bahce" }, spawn: cur.scope === "zindan" ? GATE_FRONT : [CAMPFIRE.i0 + 1, CAMPFIRE.j1 + 2] };
+        }
+        // dalgalar: hepsi düşünce kısa bir aradan sonra sıradaki; son dalgadan sonra portal açılır
+        if (cur.scope === "zindan") {
+          const dg = dungeon.current, st = stageById(dg.stage)!;
+          if (!dg.cleared && dg.enemies.every((e) => e.hp <= 0)) {
+            if (!dg.nextAt) dg.nextAt = t + 1.4;
+            else if (t >= dg.nextAt) {
+              dg.nextAt = 0;
+              if (dg.wave + 1 < st.waves.length) { dg.wave++; dg.enemies = spawnWave(st, dg.wave, t, [h.i, h.j]); sfx.raven(); }
+              else { dg.cleared = true; dg.enemies = []; sfx.chime(); const st2 = starsFor(dg.lost / fgt.maxHp, t - dg.startAt); setMsg(`Bölüm temizlendi! ${"★".repeat(st2)}${"☆".repeat(3 - st2)} · Portal açıldı ✨`); }
+            }
+          }
+          const info = dg.cleared ? "✨ Portal açık: sağdaki kapıya yürü" : `${st.emoji} ${st.name} · Dalga ${dg.wave + 1}/${st.waves.length} · ${dg.enemies.filter((e) => e.hp > 0).length} yaratık`;
+          if (info !== lastInfo) { lastInfo = info; setDungeonInfo(info); }
+          // giriş kartı: bölüme girdikten sonra oyun zamanıyla 8 saniye (oyun duraklarsa kart da bekler)
+          const iv = t - dg.startAt < 8 ? dg.stage : null;
+          if (iv !== lastIntro) { lastIntro = iv; setIntro(iv); }
+          // şef ya da boss sahnedeyse üstte can barı
+          const big = dg.enemies.find((e) => e.hp > 0 && (e.elite || ENEMIES[e.kind].boss));
+          const bb = big ? `${big.elite ?? ENEMIES[big.kind].name}|${Math.ceil((big.hp / big.maxHp) * 50) * 2}` : "";
+          if (bb !== lastBoss) { lastBoss = bb; setBossBar(big ? { name: big.elite ?? ENEMIES[big.kind].name, pct: Math.ceil((big.hp / big.maxHp) * 50) * 2 } : null); }
+        } else if (lastInfo) { lastInfo = ""; setDungeonInfo(""); }
+      } else if (lastInfo) { lastInfo = ""; setDungeonInfo(""); }
+      if (cur.scope !== "zindan" && lastBoss) { lastBoss = ""; setBossBar(null); }
+      if (cur.scope !== "zindan" && lastIntro !== null) { lastIntro = null; setIntro(null); }
       const wpn = (eqRef.current.weapon && weaponStats(eqRef.current.weapon)) || FIST, since = t - fgt.comboAt;
       h.gear = { ...gearOf(eqRef.current), swing: since >= 0 && since < wpn.cooldown ? since / wpn.cooldown : 0 };
+      const myStyle = stylesRef.current[me];
+      h.trail = myStyle?.trail ?? null;
+      if (riding.current && cur.scope !== "bahce") { riding.current = false; setRideOn(false); }
+      h.ride = riding.current && myStyle?.mount ? { mount: myStyle.mount, saddle: eqRef.current.saddle, barding: eqRef.current.barding } : null;
+      h.mood = moodOf(routine.current, night.current);
+      // ortak süper güç: yan yanayken dövüş alanında yavaşça da dolar
+      const nearMate = others.current.some((r) => Math.hypot(r.i - h.i, r.j - h.j) < 4.5);
+      if (nearMate && (cur.scope === "zindan" || (cur.scope === "sato" && cur.floor === 2) || ghosts.current.enemies.some((g) => g.hp > 0))) superBar.current = Math.min(100, superBar.current + dt * 1.5);
+      const sp = Math.floor(superBar.current / 5) * 5;
+      if (sp !== lastSuper) { lastSuper = sp; setSuperPct(sp); }
       h.shield = fgt.shield > 0;
       for (const r of others.current) if (r.gear) r.gear = { ...r.gear, swing: r.swingAt !== undefined && t - r.swingAt < 0.35 ? (t - r.swingAt) / 0.35 : 0 };
       const targetState = cur.scope === "sato" && cur.floor === 2
@@ -783,6 +873,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         placed: scenePlaced(cur, all), heroes: [h, ...others.current], ghost, pick, cat: catState,
         night: night.current, music: music.current, floor: cur.scope === "sato" ? cur.floor : undefined, weather: weather.current, moment: moment.current.on,
         targetState, effects: [...effects.current, ...remoteEffects.current], now: t,
+        enemies: cur.scope === "zindan" ? dungeon.current.enemies : cur.scope === "bahce" ? ghosts.current.enemies : undefined,
+        enemyShots: cur.scope === "zindan" ? dungeon.current.shots : cur.scope === "bahce" ? ghosts.current.shots : undefined,
+        stage: cur.scope === "zindan" ? cur.stage : undefined, portalOpen: cur.scope === "zindan" && dungeon.current.cleared, routine: routine.current,
         mailHeart: liveUnread.current > 0 ? Math.max(0, profiles.findIndex((p) => p.id === me)) : null,
       });
       // gök gürültüsü: her şimşekten sonra bir kez, uzaklığa göre gecikmeli; içeride boğuk
@@ -846,7 +939,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     const scope = wh.scope;
     if (md.kind === "walk" && !fullTried.current && fullRef.current === "off") { fullTried.current = true; void enterFull(); return; } // ilk tık: tam ekran
     if (md.kind === "walk") { doAttack(); return; } // yürürken tık: silah vuruşu
-    if (scope === "sato") return; // şatoya eşya konmaz
+    if (scope === "sato" || scope === "zindan") return; // şatoya ve zindana eşya konmaz
     if (md.kind === "place") {
       const it = itemById.get(md.itemId)!;
       const pr = live.current.rot;
@@ -957,7 +1050,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     return () => { document.removeEventListener("fullscreenchange", onChange); };
   }, []);
 
-  modalRef.current = !!(study || mailOpen || armory || wardrobe);
+  modalRef.current = !!(study || mailOpen || armory || wardrobe || gateOpen || boardOpen || lookOpen || sayOpen);
   useEffect(() => { if (study || mailOpen || armory || invOpen) { keys.current.clear(); pad.current = null; } }, [study, mailOpen, armory, invOpen]);
   const toggleRotate = () => {
     if (mode.kind === "place") setRot((v) => (v + 1) % 4);
@@ -1010,7 +1103,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         <nav className={`gw-tools${toolsOpen ? " is-open" : ""}`} aria-label="Oyun araçları" onPointerDown={(e) => e.stopPropagation()} onPointerMove={(e) => e.stopPropagation()}>
           <button type="button" className="btn gw-tools-toggle" aria-expanded={toolsOpen} aria-controls="gw-tool-list" aria-label="Oyun araçlarını aç veya kapat" onClick={() => setToolsOpen((v) => !v)}>☰ <span className="gw-tools-label">Araçlar</span></button>
           <div className="gw-tool-list" id="gw-tool-list">
-            <p className="gw-tool-location">{where.scope === "bahce" ? `🌳 Ortak bahçe · ${weatherName}` : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName}` : `🏠 Evin · ${roomName}`}</p>
+            <p className="gw-tool-location">{where.scope === "zindan" ? `🌕 Ay Kapısı · ${roomName}` : where.scope === "bahce" ? `🌳 Ortak bahçe · ${weatherName}` : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName}` : `🏠 Evin · ${roomName}`}</p>
             {canEditHere && <button type="button" className={`btn gw-tool ${mode.kind === "rotate" ? "btn-primary" : "btn-ghost"}`} aria-pressed={mode.kind === "rotate"} aria-keyshortcuts="R" onClick={toggleRotate} title="Eşyayı döndür (R)"><span>↻ {mode.kind === "rotate" ? "Döndürmeyi bitir" : "Döndür"}</span><kbd>R</kbd></button>}
             {canEditHere && <button type="button" className={`btn gw-tool ${mode.kind === "edit" ? "btn-primary" : "btn-ghost"}`} aria-pressed={mode.kind === "edit"} aria-keyshortcuts="X" onClick={toggleRemove} title="Eşyayı envantere geri al (X)"><span>{mode.kind === "edit" ? "Kaldırmayı bitir" : "Eşya kaldır"}</span><kbd>X</kbd></button>}
             <button type="button" className={`btn gw-tool ${studyTimer ? "btn-primary gw-study-chip" : "btn-ghost"}${locked ? " is-locked" : ""}`} aria-keyshortcuts="T" onClick={toggleStudy} title="Çalışma paneli (T)"><span>⏱ {studyTimer ? <>{studyTimer.label} <span className="num">{formatClock(Math.max(0, (clock - new Date(studyTimer.startedAt).getTime()) / 1000))}</span></> : "Çalışma"}</span><kbd>T</kbd></button>
@@ -1026,14 +1119,27 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
             </div>
             <button type="button" className="btn btn-ghost gw-tool" aria-keyshortcuts="Q" onClick={() => doEmote("kalp")} title="Başının üstünde kalp (Q)"><span>💗 Kalp</span><kbd>Q</kbd></button>
             <button type="button" className={`btn gw-tool ${wheel ? "btn-primary" : "btn-ghost"}`} aria-keyshortcuts="G" aria-expanded={wheel} onClick={() => setWheel((v) => !v)} title="Emote çarkı (G)"><span>😊 Emote</span><kbd>G</kbd></button>
+            <button type="button" className={`btn gw-tool ${lookOpen ? "btn-primary" : "btn-ghost"}`} aria-keyshortcuts="K" onClick={() => setLookOpen(true)} title="Unvan, iz ve binek (K)"><span>🎭 Görünüm</span><kbd>K</kbd></button>
+            <button type="button" className={`btn gw-tool ${rideOn ? "btn-primary" : "btn-ghost"}`} aria-keyshortcuts="Z" aria-pressed={rideOn} onClick={toggleRide} title="Bineğe bin / in (Z)"><span>🐴 {rideOn ? "İn" : "Bin"}</span><kbd>Z</kbd></button>
+            <button type="button" className="btn btn-ghost gw-tool" aria-keyshortcuts="Y" onClick={() => setSayOpen(true)} title="Konuş (Y)"><span>💬 Konuş</span><kbd>Y</kbd></button>
             <button type="button" className={`btn gw-tool ${fxOn ? "btn-primary" : "btn-ghost"}`} aria-pressed={fxOn} onClick={() => { const v = !fxOn; setFxOn(v); setSfx(v); try { localStorage.setItem("gelisim-efekt", v ? "1" : "0"); } catch { /* yok */ } }} title="Efekt sesleri"><span>{fxOn ? "🔔" : "🔕"} Efektler</span></button>
             <button type="button" className="btn btn-ghost gw-tool" aria-expanded={helpOpen} aria-keyshortcuts="H" onClick={() => setHelpOpen((v) => !v)}><span>Kısayollar</span><kbd>H</kbd></button>
-            {helpOpen && <p className="gw-tool-help">WASD / oklar: yürü<br />F: etkileşim · J / tık: saldırı<br />1–4: büyü · tekerlek: yakınlaştır<br />Q: kalp · G: emote çarkı (1–8)<br />F: yan yanayken el ele tut<br />Esc: pencereyi / işlemi kapat</p>}
+            {helpOpen && <p className="gw-tool-help">WASD / oklar: yürü<br />F: etkileşim · J / tık: saldırı<br />1–4: büyü · tekerlek: yakınlaştır<br />Q: kalp · G: emote çarkı (1–8)<br />Shift: kaçın · Z: bin/in · C: İki Kalp<br />Y: konuş · K: görünüm<br />F: yan yanayken el ele tut<br />Esc: pencereyi / işlemi kapat</p>}
           </div>
         </nav>
         {(locked || atDesk || near) && <p className="gw-interaction" role="status">{locked ? "🔒 Çalışıyorsun · F: paneli aç" : atDesk ? "F: çalışma panelini aç · yürüyünce kalkarsın" : `F: ${near?.label}`}</p>}
         <canvas ref={canvas} className="gw-canvas" role="img" aria-label={where.scope === "bahce" ? "Ortak bahçe" : where.scope === "sato" ? "Şato" : "Ev"} />
-        {(Object.entries(TAGS) as [string, string][]).map(([k, label]) => (
+        {profiles.slice(0, 2).map((p) => {
+          const who = whoOf(p.name), lv = p.id === me ? playerLevel : p.level, tier = levelTier(lv), title = titleById(styles[p.id]?.title);
+          return (
+            <span key={who} ref={(el) => { tagRefs.current[who] = el; }} className={`hall-tag gw-name is-${who} tier-${tier.k}`} style={{ display: "none" }} aria-hidden="true" title={`Sv. ${lv} · ${tier.name}`}>
+              <span className="gw-name-row"><i className="gw-lv-badge" aria-hidden="true">{tier.icon}</i>{p.name.split(" ")[0]}<small className="gw-lv-num">{lv}</small></span>
+              {title && <small className="gw-name-title">{title.name}</small>}
+              {bubbles[who] && <span className="gw-say">{bubbles[who]}</span>}
+            </span>
+          );
+        })}
+        {(Object.entries(TAGS) as [string, string][]).filter(([k]) => k !== "cengiz" && k !== "aysenur").map(([k, label]) => (
           <span key={k} ref={(el) => { tagRefs.current[k] = el; }} className={`hall-tag is-${k}${k === "sato" ? " is-house" : ""}`} style={{ display: "none" }} aria-hidden="true">
             {label}
           </span>
@@ -1046,6 +1152,36 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         {mode.kind === "edit" && <p className="gw-tip">Geri almak istediğin eşyaya dokun</p>}
         {mode.kind === "rotate" && <p className="gw-tip">Döndürmek istediğin eşyaya dokun</p>}
         {msg && <p className="gw-msg" role="status">{msg}</p>}
+        {dungeonInfo && <p className="gw-dungeon-chip" role="status">{dungeonInfo}</p>}
+        {(superPct > 0 || others.current.length > 0) && (
+          <button type="button" className={`gw-super${superPct >= 100 ? " is-full" : ""}`} onPointerDown={(e) => e.stopPropagation()} onClick={doSuper} aria-label={`Ortak güç yüzde ${superPct}${superPct >= 100 ? ": C ile İki Kalp Patlaması" : ""}`} title="İki Kalp Patlaması (C): yan yana savaşınca dolar">
+            <span className="gw-super-label">💞 {superPct >= 100 ? "C: İki Kalp!" : "Ortak güç"}</span>
+            <span className="gw-super-bar"><span style={{ width: `${superPct}%` }} /></span>
+          </button>
+        )}
+        {sayOpen && (
+          <form className="gw-say-form" onPointerDown={(e) => e.stopPropagation()} onSubmit={(e) => { e.preventDefault(); sendSay(sayText); }}>
+            <input className="input" autoFocus maxLength={50} value={sayText} onChange={(e) => setSayText(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") { setSayOpen(false); setSayText(""); } }} placeholder="Bir şey söyle..." aria-label="Söylenecek söz" />
+            <div className="gw-say-quick">
+              {["Seni seviyorum ❤️", "Hadi zindana! ⚔️", "Su içtin mi? 💧", "Buraya gel 👋", "Harikasın ✨", "Mola verelim ☕"].map((q) => <button key={q} type="button" className="chip" onClick={() => sendSay(q)}>{q}</button>)}
+            </div>
+          </form>
+        )}
+        {bossBar && (
+          <div className="gw-boss" role="status" aria-label={`${bossBar.name}: canı yüzde ${bossBar.pct}`}>
+            <b>👑 {bossBar.name}</b>
+            <span className="gw-boss-bar"><span style={{ width: `${bossBar.pct}%` }} /></span>
+          </div>
+        )}
+        {intro && (() => { const st = stageById(intro); return st ? (
+          <div className="gw-intro" role="status">
+            <span className="gw-intro-emoji" aria-hidden="true">{st.emoji}</span>
+            <small>Bölüm {st.id} · Sv. {st.level}</small>
+            <h2>{st.name}</h2>
+            <p>{st.story}</p>
+            <p className="gw-intro-tip">💡 {st.tip}</p>
+          </div>
+        ) : null; })()}
         {partnerAt && <p className="gw-partner-chip" role="status">💞 {profiles.find((p) => p.id !== me)?.name.split(" ")[0]} {PLACE_NAME(partnerAt)}</p>}
         {holding && <p className="gw-hold-chip" role="status">🤝 El ele · F ile bırak</p>}
         {wheel && (
@@ -1128,6 +1264,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         {padBtn([1, 1], "Aşağı", "down", "▼")}
         <button type="button" className="gw-pad-btn act" aria-label={near ? near.label : "Etkileşim"} onPointerDown={(e) => { e.preventDefault(); interact(); }}>✋</button>
         <button type="button" className="gw-pad-btn atk" aria-label="Saldır" onPointerDown={(e) => { e.preventDefault(); doAttack(); }}>⚔</button>
+        <button type="button" className="gw-pad-btn roll" aria-label="Kaçın (yuvarlan)" onPointerDown={(e) => { e.preventDefault(); doRoll(); }}>⤿</button>
+        <button type="button" className="gw-pad-btn ride" aria-label={rideOn ? "Binekten in" : "Bineğe bin"} onPointerDown={(e) => { e.preventDefault(); toggleRide(); }}>🐴</button>
         <button type="button" className="gw-pad-btn emo" aria-label="Emote çarkı" onPointerDown={(e) => { e.preventDefault(); setWheel((v) => !v); }}>😊</button>
         <div className="gw-pad-spells">
           {[0, 1, 2, 3].map((k) => <button key={k} type="button" className="gw-pad-btn spell" aria-label={`Büyü ${k + 1}`} disabled={!myEq.spells[k]} onPointerDown={(e) => { e.preventDefault(); doCast(k); }}>{k + 1}</button>)}
@@ -1135,50 +1273,29 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       </div>
       {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} />}
       {wardrobe && <WishWardrobe key={wardrobe} me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} />}
+      {boardOpen && <QuestBoard quests={quests} onClose={() => setBoardOpen(false)} />}
+      {lookOpen && <AppearancePanel style={styles[me] ?? { title: null, trail: null, mount: null }} progress={initialProgress ?? { level: playerLevel, stats: null, cleared: [] }} onSaved={(st) => setStyles((all) => ({ ...all, [me]: st }))} onClose={() => setLookOpen(false)} />}
+      {gateOpen && <DungeonPanel level={playerLevel} power={powerOf(myEq)} onClose={() => setGateOpen(false)} onEnter={(stage) => { setGateOpen(false); const st = stageById(stage); if (st && !fade.current) fade.current = { t: 0, to: { scope: "zindan", stage }, spawn: stageMap(st).start }; }} />}
       {armory && <ArmoryPanel kind={armory} level={playerLevel} equipment={myEq} busy={equipBusy} onToggle={onEquip} onClose={() => setArmory(null)} />}
       {mailOpen && <Mailbox onClose={() => { setMailOpen(false); setUnread(0); }} partner={profiles.find((p) => p.id !== me)?.name.split(" ")[0] ?? "Sevgilin"} />}
     </div>
   );
 }
 
-type Note = { id: string; body: string; createdAt: string; mine: boolean; read: boolean };
+/** İsim etiketi kademesi: seviye rozetleriyle aynı eşikler (badges.ts "Seviye" izi) */
+const LEVEL_TIERS: [number, string, string][] = [[1, "🌱", "Çaylak"], [3, "🧭", "Yola Çıkış"], [6, "🥾", "Yolcu"], [10, "⭐", "Çift Hane"], [12, "🛡️", "Şövalye"], [20, "⚔️", "Kahraman"], [30, "🔥", "Efsane"], [45, "📜", "Destan"], [60, "🐉", "Ejderha Lordu"], [75, "🌟", "Yıldız Bekçisi"], [90, "👑", "Ölümsüz"], [100, "💎", "Zirve"]];
+function levelTier(level: number) {
+  let k = 0;
+  LEVEL_TIERS.forEach(([need], i) => { if (level >= need) k = i; });
+  return { k, icon: LEVEL_TIERS[k][1], name: LEVEL_TIERS[k][2] };
+}
 
-// Posta kutusu: gelen ve giden notlar, yeni not yazma
-function Mailbox({ onClose, partner }: { onClose: () => void; partner: string }) {
-  const [notes, setNotes] = useState<Note[] | null>(null);
-  const [text, setText] = useState("");
-  const [err, setErr] = useState<string | null>(null);
-  const [sending, setSending] = useState(false);
-  const load = () => api<{ notes: Note[] }>("/api/gelisim/notlar").then((r) => setNotes(r.notes), (e) => setErr(e instanceof Error ? e.message : "Yüklenemedi."));
-  useEffect(() => { load(); }, []);
-  useEffect(() => { const k = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); }; window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
-  const send = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!text.trim()) return;
-    setSending(true); setErr(null);
-    try { await api("/api/gelisim/notlar", { body: { body: text.trim() } }); setText(""); await load(); }
-    catch (er) { setErr(er instanceof Error ? er.message : "Gönderilemedi."); }
-    setSending(false);
-  };
-  return (
-    <div className="modal-backdrop" role="presentation" onClick={onClose}>
-      <div className="modal gw-mail" role="dialog" aria-modal="true" aria-labelledby="mail-title" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-        <h2 id="mail-title">💌 Posta kutusu</h2>
-        <form className="stack" onSubmit={send}>
-          <label className="field-label" htmlFor="mail-text">{partner} için bir not bırak</label>
-          <textarea id="mail-text" className="input" rows={3} maxLength={500} value={text} onChange={(e) => setText(e.target.value)} placeholder="Bugün seni çok düşündüm..." />
-          <div className="row"><button type="submit" className="btn btn-primary" disabled={sending || !text.trim()}>Kutuya bırak</button><button type="button" className="btn btn-ghost" onClick={onClose}>Kapat</button></div>
-        </form>
-        {err && <p className="form-error">{err}</p>}
-        <ul className="gw-notes">
-          {notes === null ? <li className="muted">Yükleniyor...</li> : notes.length === 0 ? <li className="muted">Kutu henüz boş.</li> : notes.map((n) => (
-            <li key={n.id} className={n.mine ? "is-mine" : n.read ? undefined : "is-new"}>
-              <small>{n.mine ? `Sen → ${partner}` : `${partner} → sen`} · {new Date(n.createdAt).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}{!n.mine && !n.read ? " · yeni" : ""}</small>
-              <p>{n.body}</p>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
+/** Ruh hâli: bugünkü rutinden. Spor yaptıysan enerjik, çoğu görev tamamsa mutlu, gece ve az görev varsa uykulu, öğleden sonra su yoksa yorgun */
+function moodOf(r: { water: boolean; sport: boolean; seals: number; total: number }, night: number): string {
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Istanbul", hour: "numeric", hourCycle: "h23" }).format(new Date()));
+  if (r.seals >= Math.max(4, r.total - 1)) return "mutlu";
+  if (r.sport) return "enerjik";
+  if (night > 0.7 && r.seals < 3) return "uykulu";
+  if (!r.water && hour >= 15) return "yorgun";
+  return "normal";
 }

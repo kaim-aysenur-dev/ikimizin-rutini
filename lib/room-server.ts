@@ -6,7 +6,7 @@ import { levelOf } from "./xp";
 
 export type Profile = { id: string; name: string };
 import { type Action } from "./combat-sync";
-export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean; action?: Action | null; pose?: string | null };
+export type Presence = { userId: string; x: number; y: number; dir: number; moving: boolean; action?: Action | null; pose?: string | null; mood?: string | null };
 export type PresenceOut = Presence & { equipment: Record<string, unknown> };
 // place: "bahce" ya da "ev:<ev sahibinin kimliği>"; yalnız aynı yerdekiler birbirini görür
 
@@ -65,21 +65,21 @@ export async function syncPresence(user: { id: string; accountId: string }, plac
   if (p) {
     const action = p.action ? JSON.stringify(p.action) : null;
     await sql()`
-      insert into garden_presence (user_id, place, x, y, dir, moving, action, pose, updated_at) values (${user.id}, ${place}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, ${action}::jsonb, ${p.pose ?? null}, now())
+      insert into garden_presence (user_id, place, x, y, dir, moving, action, pose, mood, updated_at) values (${user.id}, ${place}, ${p.x}, ${p.y}, ${p.dir}, ${p.moving}, ${action}::jsonb, ${p.pose ?? null}, ${p.mood ?? null}, now())
       on conflict (user_id) do update set place = excluded.place, x = excluded.x, y = excluded.y, dir = excluded.dir, moving = excluded.moving,
-        action = case when garden_presence.place = excluded.place then coalesce(excluded.action, garden_presence.action) else excluded.action end, pose = excluded.pose, updated_at = now()`;
+        action = case when garden_presence.place = excluded.place then coalesce(excluded.action, garden_presence.action) else excluded.action end, pose = excluded.pose, mood = excluded.mood, updated_at = now()`;
   } else {
     await sql()`delete from garden_presence where user_id = ${user.id}`;
   }
   const rows = await sql()`
-    select g.user_id, g.x, g.y, g.dir, g.moving, g.action, g.pose, e.armor, e.helmet, e.legs, e.shield, e.cape, e.gloves, e.boots, e.trinket, e.weapon, e.spells
+    select g.user_id, g.x, g.y, g.dir, g.moving, g.action, g.pose, g.mood, e.title, e.trail, e.mount, e.saddle, e.barding, e.armor, e.helmet, e.legs, e.shield, e.cape, e.gloves, e.boots, e.trinket, e.weapon, e.spells
     from garden_presence g join users u on u.id = g.user_id left join equipment e on e.user_id = g.user_id
     where u.account_id = ${user.accountId} and g.user_id <> ${user.id} and g.place = ${place}
       and g.updated_at > now() - case when g.moving then interval '6 seconds' else interval '90 seconds' end`;
   // duran kişi uzun süre görünür kalır: sekme arka plandayken tarayıcı zamanlayıcıyı dakikada bire düşürebilir
   return rows.map((r) => ({
-    userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving, action: r.action ?? null, pose: r.pose ?? null,
-    equipment: { armor: r.armor ?? null, helmet: r.helmet ?? null, legs: r.legs ?? null, shield: r.shield ?? null, cape: r.cape ?? null, gloves: r.gloves ?? null, boots: r.boots ?? null, trinket: r.trinket ?? null, weapon: r.weapon ?? null, spells: r.spells ?? [] },
+    userId: r.user_id, x: r.x, y: r.y, dir: r.dir, moving: r.moving, action: r.action ?? null, pose: r.pose ?? null, mood: r.mood ?? null,
+    equipment: { armor: r.armor ?? null, title: r.title ?? null, trail: r.trail ?? null, mount: r.mount ?? null, saddle: r.saddle ?? null, barding: r.barding ?? null, helmet: r.helmet ?? null, legs: r.legs ?? null, shield: r.shield ?? null, cape: r.cape ?? null, gloves: r.gloves ?? null, boots: r.boots ?? null, trinket: r.trinket ?? null, weapon: r.weapon ?? null, spells: r.spells ?? [] },
   }));
 }
 

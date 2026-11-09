@@ -4,9 +4,14 @@ import { duldul, parrot } from "./companions";
 import { lights } from "./env";
 import { type Origin, type Part, at, box, setFlip, shade, tile } from "./iso";
 import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, lerpFree, line, poly, px, rect, rnd, sprite } from "./pixel";
-import { type Area, CASTLE, type Floor, FRONT_DOOR, GARDEN_SEATS, HOUSES, PERCH, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, innerWalls, sizeOf } from "./room";
+import { type Area, CASTLE, type Floor, FRONT_DOOR, GARDEN_SEATS, HOUSES, MOON_GATE, PERCH, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, innerWalls, sizeOf } from "./room";
 import { above, ground, sky, snowfall, structures } from "./garden-draw";
 import { type Weather } from "./gelisim-weather";
+import { type Enemy, type EnemyShot, stageById } from "./dungeon";
+import { type Routine, WORLD } from "./world-state";
+import { arenaProps, drawArena, drawEnemy, drawEnemyShot, drawMoonGate, drawPortal, themeParticles } from "./monster-draw";
+import { THEMES } from "./dungeon-themes";
+import { stageMap } from "./dungeon-map";
 import { type RoomItem, isFlat, itemById } from "./room-items";
 import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
@@ -15,12 +20,19 @@ import { type Effect, shotAt } from "./combat";
 import { STAND_F, walkFrame } from "./anim";
 import { armorStats } from "./combat-stats";
 import { MATS } from "./gear";
+import { mountById, trailById } from "./character";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
 export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number; seat?: number; stool?: boolean; tilt?: number }; study?: { reading: boolean; focus: boolean };
   gear?: { weapon: string | null; armor?: string | null; helmet?: string | null; shield?: string | null; cape?: string | null; trinket?: string | null; set?: string | null; swing?: number }; shield?: boolean; // elde silah, kuşanılan zırh (miğfer, kalkan görünür), savuruş (0..1), kalkan büyüsü
-  emote?: { kind: Emote; at: number }; hold?: boolean }; // başın üstünde kısa emote; el ele tutuşma
+  emote?: { kind: Emote; at: number }; hold?: boolean; // başın üstünde kısa emote; el ele tutuşma
+  trail?: string | null; // yürürken arkada kalan iz (character.ts TRAILS)
+  ride?: { mount: string; saddle?: string | null; barding?: string | null } | null; // binekte
+  roll?: number; // kaçınma yuvarlanmasının başladığı an
+  mood?: string; // ruh hâli: enerjik, mutlu, yorgun, uykulu
+  idleAt?: number; // en son durduğu an (bekleme animasyonları)
+};
 export type Emote = "kalp" | "el" | "gul" | "opucuk" | "sasir" | "uyku" | "dans" | "saril";
 /** Emote'un ekranda kalma süresi (sn) */
 export const emoteLife = (k: Emote) => (k === "dans" ? 3.6 : k === "saril" ? 3 : 2.2);
@@ -45,6 +57,11 @@ export type SceneState = {
   music: { i: number; j: number; t0: number } | null; // piyanodan yükselen notalar
   weather?: Weather; // bugünün havası (bahçede yağmur, sis, kar ya da açık gök)
   moment?: boolean; // ikiniz kamp ateşinde oturuyorsunuz: kayan yıldızlar sıklaşır
+  enemies?: Enemy[]; // zindandaki yaratıklar ya da bahçedeki gece hayaletleri
+  enemyShots?: EnemyShot[];
+  stage?: number; // zindan bölümü
+  portalOpen?: boolean; // bölüm temizlendi: çıkış portalı açık
+  routine?: Routine; // bugünkü rutin: kuyu, ayna, kupa, pano, tüccar
 };
 
 // oturuş: kalça alçakta, dizler önde (yatak, koltuk, bank)
@@ -348,6 +365,7 @@ const KIT = { faceI, faceJ, archI, archJ, stoneI, stoneJ, gothicWindow, torch, b
 // rot: 0 düz, 1 aynalı, 2 ters (180°), 3 ters ve aynalı. Ters çizimde eşyanın parçaları yeni önüne göre sıralanır.
 function drawItem(c: Ctx, o: Origin, p: { itemId: string; tx: number; ty: number; rot?: number }, t: number) {
   const it = itemById.get(p.itemId); if (!it) return;
+  if (WORLD.skin && p.itemId === "ayna") { const [x, y] = at(o, p.tx + 0.5, p.ty + 0.5); for (let k = 0; k < 4; k++) if (Math.floor(t * 3 + k) % 4 === 0) px(c, x - 3 + k * 2, y - 18 - (k % 2) * 4, "#fff6c8"); lights.push({ x, y: y - 16, r: 14, color: "255,240,200" }); }
   const r = (p.rot ?? 0) & 3;
   if (!r) { it.draw(c, o, p.tx, p.ty, t); return; }
   const mirror = (r & 1) === 1, n = lights.length;
@@ -435,6 +453,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   lights.length = 0;
   nightNow = s.night;
   const weather: Weather = s.weather ?? "firtina";
+  if (s.routine) Object.assign(WORLD, s.routine);
   flashNow = weather === "firtina" ? stormFlash(t) : 0;
   const o = s.cam;
   const W = c.canvas.width, Hc = c.canvas.height;
@@ -457,6 +476,14 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     const { w, d } = SIZE.oda;
     for (let j = 0; j < d; j++) list.push({ key: w + j + 0.55, box: area(w, j, 0, 1), draw: () => box(c, o, w - 0.1, j, 0.2, 1, 6, faces, 0, false) });
     for (let i = 0; i < w; i++) list.push({ key: i + d + 0.55, box: area(i, d, 1, 0), draw: () => box(c, o, i, d - 0.1, 1, 0.2, 6, faces, 0, false) });
+  } else if (s.scope === "zindan") {
+    const stg = stageById(s.stage ?? 1) ?? stageById(1)!, mp = stageMap(stg);
+    drawArena(c, o, t, stg);
+    for (const p of arenaProps(stg)) list.push({ key: p.i + p.j, box: area(p.i - 0.5, p.j - 0.5, 1, 1), draw: () => p.draw(c, o, t) });
+    list.push({ key: mp.exit[0] + mp.exit[1] - 0.4, box: dot(mp.exit[0], mp.exit[1]), draw: () => drawPortal(c, o, t, !!s.portalOpen, mp.exit) });
+    const { w: aw, d: ad } = mp, fr = shade(THEMES[stg.theme].wall, 0.12, 0.22);
+    for (let j = 0; j < ad; j++) list.push({ key: aw + j + 0.55, box: area(aw, j, 0, 1), draw: () => box(c, o, aw - 0.1, j, 0.2, 1, 7, fr, 0, false) });
+    for (let i = 0; i < aw; i++) list.push({ key: i + ad + 0.55, box: area(i, ad, 1, 0), draw: () => box(c, o, i, ad - 0.1, 1, 0.2, 7, fr, 0, false) });
   } else if (s.scope === "sato") {
     c.fillStyle = "#0a0a14"; c.fillRect(0, 0, W, Hc);
     const floor = s.floor ?? 1;
@@ -470,6 +497,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       list.push({ key: d.tx + w - 0.5 + d.ty + dd - 0.5, box: area(d.tx, d.ty, w, dd), draw: () => drawDecor(c, o, d, t, di) });
     }
     for (const wl of castleWalls(floor)) list.push({ key: wl.i + wl.j + 0.5, box: wallBox(wl), draw: () => innerWall(c, o, wl, castleWallFaces(wl.hall), 18) });
+    if (floor === 2 && WORLD.sport) list.push({ key: 15.5 + 7.5, box: dot(15.5, 7.5), draw: () => trophy(c, o, 15.5, 7.5, t) });
     if (floor === 2) for (const tg of TARGETS) {
       const st = s.targetState?.[tg.id];
       list.push({ key: tg.i + tg.j, box: dot(tg.i, tg.j), draw: () => drawTarget(c, o, tg, t, st?.hit ?? 0, st?.hp ?? 1) });
@@ -488,6 +516,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     ground(c, o, t, weather);
     for (const p of s.placed) if (flat(p.itemId)) drawItem(c, o, p, t);
     structures((key, draw) => list.push({ key, draw }), c, o, t, KIT, s.heroes, flashNow);
+    list.push({ key: MOON_GATE.i0 + MOON_GATE.j1, draw: () => drawMoonGate(c, o, MOON_GATE.i0, MOON_GATE.j0, t, s.night) });
     for (const p of GARDEN_SEATS) list.push({ key: depthOf(p), draw: () => drawItem(c, o, p, t) });
     list.push({ key: Math.min(CASTLE.i0 + CASTLE.j1, CASTLE.i1 + CASTLE.j0), draw: () => { const a = castleOutside(c, o, t, KIT, flashNow); anchors.push({ key: "sato", x: a[0], y: a[1] }); } });
     person(GATE_GUARD.key, GATE_GUARD.who, GATE_GUARD.i, GATE_GUARD.j, GATE_GUARD.dir);
@@ -518,16 +547,24 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     const [w, d] = sizeOf(p.itemId, p.rot);
     list.push({ key: depthOf(p), box: area(p.tx, p.ty, w, d), draw: () => drawItem(c, o, p, t) });
   }
+  drawTrails(c, o, t);
   for (const h of s.heroes) {
     // oturan, oturduğu eşyanın hemen önünde çizilir (yoksa koltuk ya da yatak üstünü örter)
     list.push({ key: Math.max(h.i + h.j, h.sit?.depth ?? 0), box: h.sit ? dot(h.i, h.j, 1, 2) : dot(h.i, h.j), draw: () => {
       const [x, y] = at(o, h.i, h.j);
-      if (!h.sit) rect(c, x - 5, y - 1, 10, 2, "rgba(0,0,0,0.3)");
+      const mount = h.ride && !h.sit ? mountById(h.ride.mount) : null;
+      if (!h.sit && !mount) rect(c, x - 5, y - 1, 10, 2, "rgba(0,0,0,0.3)");
+      if (h.trail && h.moving) emitTrail(h, t);
+      if (mount) drawMount(c, x, y, h.dir, mount, h.ride!, h.moving ? h.dist : 0, t);
+      const rideLift = mount ? (mount.kind === "kurt" ? 9 : 12) : 0;
+      const rollK = h.roll !== undefined && t - h.roll < ROLL_TIME ? (t - h.roll) / ROLL_TIME : -1;
+      if (rollK >= 0) { c.save(); c.translate(x, y - 8); c.rotate(h.dir * rollK * Math.PI * 2); c.translate(-x, -(y - 8)); }
       // oturur ve uzanırken ayaktan pozuna yumuşakça geçer
       const k = h.sit ? (h.sit.at === undefined ? 1 : ease((t - h.sit.at) / (h.sit.sleep ? 0.45 : 0.28))) : 0;
       const lift = Math.round((h.sit?.lift ?? 0) * k);
       const dance = h.emote?.kind === "dans" && !h.sit && t - h.emote.at < emoteLife("dans") ? t - h.emote.at : -1;
-      let pose: CharState["pose"] = h.moving ? walkFrame(h.dist) : dance >= 0 ? walkFrame(dance * 14) : STAND;
+      let pose: CharState["pose"] = mount ? seatPose(6) : h.moving ? walkFrame(h.dist) : dance >= 0 ? walkFrame(dance * 14) : STAND;
+      const idle = !h.moving && !h.sit && !mount && dance < 0 && h.idleAt !== undefined ? t - h.idleAt : 0;
       if (h.sit) {
         const target = h.sit.sleep ? liePose(h.sit.tilt ?? 1, k >= 1 && Math.sin(t * 1.6) > 0.55) : seatPose(h.sit.seat ?? 6);
         pose = k >= 1 ? target : lerpFree(STAND_F, target, k);
@@ -539,7 +576,9 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         rect(c, sx - 1, y - sh - 1, 9, 3, P.ink); rect(c, sx, y - sh, 7, 1, "#a87a50");
         rect(c, sx, y - sh + 1, 1, sh - 1, "#6b4a35"); rect(c, sx + 6, y - sh + 1, 1, sh - 1, "#6b4a35"); rect(c, sx + 1, y - 3, 5, 1, "#6b4a35");
       }
-      const a = drawCharacter(c, { who: h.who, x, y: y - lift - hop, dir: ddir, pose, outfit: h.outfit, tint: h.tint, blink: (h.sit?.sleep && k >= 1) || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
+      // uykulu karakter arada esner; yorgun omuzları düşük yürür (bir piksel aşağı)
+      const droop = h.mood === "yorgun" && h.moving ? 1 : 0, look = idle > 6 && Math.floor(idle / 4) % 3 === 1 ? (-ddir as 1 | -1) : ddir;
+      const a = drawCharacter(c, { who: h.who, x, y: y - lift - hop - rideLift + droop, dir: look, pose, outfit: h.outfit, tint: h.tint, blink: (h.sit?.sleep && k >= 1) || (t + (h.who === "cengiz" ? 0 : 1.7)) % 4 < 0.12 });
       if (h.sit?.sleep && k >= 1) {
         // battaniye: kalçadan ayaklara
         // eğik yatakta battaniye bacaklarla birlikte biraz aşağı (ya da yukarı) kayar
@@ -549,8 +588,12 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         rect(c, d > 0 ? bx : bx + 9, hy - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
         for (let q = 0; q < 3; q++) px(c, bx + 2 + q * 3, hy - 3 + (q % 2), "rgba(255,255,255,0.35)");
       }
+      if (rollK >= 0) c.restore();
+      if (rollK >= 0) for (let q = 0; q < 3; q++) { const qq = (rollK + q * 0.3) % 1; px(c, x - h.dir * (4 + q * 3), y - Math.round(qq * 4), `rgba(200,190,170,${(0.6 * (1 - qq)).toFixed(2)})`); } // toz
       wornGear(c, a, h.who, h.dir, h.gear, h.sit, t, h.dist);
-      if (!h.sit && h.gear?.weapon) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
+      if (idle > 6) idleProps(c, a, h, idle, t);
+      if (h.mood) moodAbove(c, a.head, h.mood, t, h.who === "cengiz" ? 0 : 2.3);
+      if (!h.sit && !mount && h.gear?.weapon && !(idle > 6 && h.who === "aysenur" && Math.floor(idle / 8) % 2 === 0)) drawHeld(c, h.gear.weapon, a.hand, h.dir, h.gear.swing ?? 0);
       if (h.emote && t - h.emote.at < emoteLife(h.emote.kind)) emoteAbove(c, a.head, h.emote.kind, t - h.emote.at, h.dir);
       if (h.shield) for (let k = 0; k < 20; k++) { const ang = t * 2 + (k / 20) * Math.PI * 2; px(c, Math.round(x + Math.cos(ang) * 10), Math.round(y - 10 + Math.sin(ang) * 6), k % 2 ? "#f3d48a" : "rgba(255,255,255,0.5)"); }
       if (h.sit?.sleep && k >= 1) for (let k = 0; k < 3; k++) {
@@ -569,6 +612,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
       anchors.push({ key: "duldul", x: a.head[0], y: a.head[1] + 2 });
     } });
   }
+  for (const en of s.enemies ?? []) list.push({ key: en.i + en.j, box: dot(en.i, en.j), draw: () => drawEnemy(c, o, en, t) });
   const now = s.now ?? t;
   for (const e of s.effects ?? []) {
     if (e.kind === "hasar" || e.kind === "sifa-sayi") continue;
@@ -577,6 +621,7 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
   }
   depthOrder(list).forEach((d) => d.draw());
   if (s.scope === "bahce" && above(c, o, t, s.heroes, s.night, weather)) anchors.push({ key: "sfx:kuzgun", x: 0, y: 0 });
+  for (const sh of s.enemyShots ?? []) drawEnemyShot(c, o, sh, t);
 
   // el ele: iki elin buluştuğu yerde kenetlenmiş eller; sarılma: aralarında büyük atan kalp
   if (s.heroes.length >= 2) {
@@ -625,8 +670,10 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
 
   // karanlık: içeride loş, dışarıda fırtınalı alacakaranlık; gece daha da koyu
   const outside = s.scope === "bahce";
-  c.fillStyle = outside ? `rgba(12,16,38,${(0.42 + 0.3 * s.night).toFixed(3)})` : `rgba(8,6,20,${(0.32 + 0.2 * s.night).toFixed(3)})`;
+  const dungeonTheme = s.scope === "zindan" ? THEMES[(stageById(s.stage ?? 1) ?? stageById(1)!).theme] : null;
+  c.fillStyle = outside ? `rgba(12,16,38,${(0.42 + 0.3 * s.night).toFixed(3)})` : dungeonTheme ? dungeonTheme.dark : `rgba(8,6,20,${(0.32 + 0.2 * s.night).toFixed(3)})`;
   c.fillRect(0, 0, W, Hc);
+  if (dungeonTheme) themeParticles(c, W, Hc, t, dungeonTheme.particles);
   if (outside) {
     const { w, d } = SIZE.bahce;
     for (let k = 0; k < 26; k++) {
@@ -905,4 +952,98 @@ function facingArrow(c: Ctx, o: Origin, g: { itemId: string; tx: number; ty: num
   const tip: V = [p1[0] + ux * 3, p1[1] + uy * 3], back: V = [p1[0] - ux * 3, p1[1] - uy * 3];
   line(c, p0, back, 2, color);
   poly(c, [tip, [back[0] - uy * 4, back[1] + ux * 4], [back[0] + uy * 4, back[1] - ux * 4]], color);
+}
+
+/** Bugün spor yapıldı: arenada kaidesinde parlayan altın kupa */
+function trophy(c: Ctx, o: Origin, i: number, j: number, t: number) {
+  const [x, y] = at(o, i, j);
+  rect(c, x - 5, y - 6, 10, 6, P.ink); rect(c, x - 4, y - 5, 8, 4, "#5a5864");
+  rect(c, x - 1, y - 11, 2, 5, "#d8a840"); rect(c, x - 5, y - 19, 10, 8, P.ink); rect(c, x - 4, y - 18, 8, 6, "#e2b45a"); rect(c, x - 3, y - 18, 2, 6, "#f8dc88");
+  px(c, x - 6, y - 17, "#d8a840"); px(c, x + 5, y - 17, "#d8a840"); px(c, x - 6, y - 16, "#d8a840"); px(c, x + 5, y - 16, "#d8a840");
+  for (let k = 0; k < 5; k++) { const an = t * 2 + k * 1.25; px(c, Math.round(x + Math.cos(an) * 9), Math.round(y - 15 + Math.sin(an) * 4), "#fff6c8"); }
+  lights.push({ x, y: y - 15, r: 22, color: "255,210,120" });
+}
+
+/* ------------------------- iz, binek, ruh hâli, bekleme ------------------------- */
+
+export const ROLL_TIME = 0.32; // kaçınma yuvarlanması (sn)
+
+type TrailBit = { i: number; j: number; at: number; col: string; kind: string; seed: number };
+const trailBits: TrailBit[] = [];
+const lastEmit = new Map<string, number>();
+/** Yürüyen karakterin ayağının dibine iz parçası bırakır (karakter başına saniyede ~16) */
+function emitTrail(h: Hero, t: number) {
+  const tr = trailById(h.trail); if (!tr) return;
+  const key = h.who + tr.id;
+  if (t - (lastEmit.get(key) ?? 0) < 0.06) return;
+  lastEmit.set(key, t);
+  trailBits.push({ i: h.i + (Math.random() - 0.5) * 0.3, j: h.j + (Math.random() - 0.5) * 0.3, at: t, col: tr.colors[Math.floor(Math.random() * tr.colors.length)], kind: tr.id, seed: Math.random() });
+  if (trailBits.length > 220) trailBits.splice(0, trailBits.length - 220);
+}
+function drawTrails(c: Ctx, o: Origin, t: number) {
+  for (let k = trailBits.length - 1; k >= 0; k--) {
+    const b = trailBits[k], age = t - b.at, life = b.kind === "golge" ? 1.2 : 0.9;
+    if (age > life || age < 0) { if (age > life) trailBits.splice(k, 1); continue; }
+    const q = age / life, [x0, y0] = at(o, b.i, b.j), a = (1 - q).toFixed(2);
+    const rise = b.kind === "yaprak" || b.kind === "kan" ? -q * 2 : q * (b.kind === "ates" ? 14 : 8);
+    const x = Math.round(x0 + Math.sin(age * 6 + b.seed * 9) * (b.kind === "yaprak" ? 3 : 1.5)), y = Math.round(y0 - 2 - rise);
+    c.save(); c.globalAlpha = 1 - q;
+    if (b.kind === "kalp") sprite(c, SMALL_HEART, x - 2, y - 4, { o: P.ink, x: b.col });
+    else if (b.kind === "yildiz" || b.kind === "buz") { px(c, x, y, b.col); px(c, x - 1, y, b.col); px(c, x + 1, y, b.col); px(c, x, y - 1, b.col); px(c, x, y + 1, b.col); }
+    else if (b.kind === "golge") { c.fillStyle = b.col; c.beginPath(); c.arc(x, y, 2 + q * 3, 0, Math.PI * 2); c.fill(); }
+    else if (b.kind === "yaprak") { rect(c, x, y, 2, 1, b.col); px(c, x + 1, y + 1, b.col); }
+    else { rect(c, x, y, 1, b.kind === "ates" ? 2 : 1, b.col); if (b.kind === "gokkusagi") px(c, x + 1, y, b.col); }
+    c.restore();
+    void a;
+  }
+}
+
+/** Binek: at ya da kurt; yürürken bacaklar oynar, yele ve kuyruk sallanır. Eyer ve at zırhı malzeme renginde */
+function drawMount(c: Ctx, x: number, y: number, d: 1 | -1, m: NonNullable<ReturnType<typeof mountById>>, ride: NonNullable<Hero["ride"]>, dist: number, t: number) {
+  const step = Math.sin(dist * 0.9), bob = Math.round(Math.abs(step) * 1.2), pal = (id?: string | null) => (id ? MATS.find((mt) => id.endsWith(`-${mt.id}`)) : undefined);
+  const sd = pal(ride.saddle), br = pal(ride.barding), wolf = m.kind === "kurt";
+  const len = wolf ? 8 : 9, by = y - (wolf ? 9 : 11) - bob, hx = x + d * (len + 1);
+  rect(c, x - 8, y - 1, 16, 2, "rgba(0,0,0,0.3)");
+  // bacaklar
+  const legs = wolf ? [-6, -3, 4, 7] : [-6, -3, 5, 8];
+  legs.forEach((lx, k) => { const sw = Math.round((k % 2 ? step : -step) * 2); const lxx = x + d * lx + sw; rect(c, lxx, by + 4, 2, y - by - 4, P.ink); rect(c, lxx, by + 4, 1, y - by - 5, m.dark); rect(c, lxx, y - 1, 2, 1, wolf ? m.dark : "#2a1c16"); });
+  // gövde
+  rect(c, x - len - 1, by - 1, len * 2 + 2, 7, P.ink); rect(c, x - len, by, len * 2, 5, m.body); rect(c, x - len, by + 4, len * 2, 1, m.dark);
+  // boyun ve baş
+  if (wolf) { rect(c, hx - 3, by - 4, 6, 6, P.ink); rect(c, hx - 2, by - 3, 4, 4, m.body); rect(c, hx + d * 3 - (d > 0 ? 0 : 2), by - 1, 3, 2, m.body); px(c, hx - d, by - 5, m.body); px(c, hx + d, by - 5, m.body); }
+  else { line(c, [x + d * (len - 2), by + 1], [hx, by - 7], 3, P.ink); line(c, [x + d * (len - 2), by + 1], [hx, by - 7], 2, m.body); rect(c, hx - 2, by - 10, 5, 4, P.ink); rect(c, hx - 1, by - 9, 4, 3, m.body); rect(c, hx + d * 3 - (d > 0 ? 0 : 2), by - 8, 3, 2, m.body); px(c, hx, by - 11, m.body); }
+  px(c, hx + d, wolf ? by - 2 : by - 9, m.eyes ?? P.ink);
+  // yele ve kuyruk
+  const sway = Math.round(Math.sin(t * 6 + dist) * 1);
+  if (!wolf) for (let k = 0; k < 5; k++) px(c, x + d * (len - 3 - k * 0.6) + sway, by - 5 + k, m.mane);
+  line(c, [x - d * len, by + 1], [x - d * (len + 4), by + 6 + sway], wolf ? 2 : 1, m.mane);
+  if (m.id === "kabus") for (let k = 0; k < 4; k++) { const q = (t * 1.5 + k / 4) % 1; px(c, x - d * (len + 2) + Math.round(Math.sin(q * 6) * 2), by + 6 - Math.round(q * 10), `rgba(232,48,74,${(1 - q).toFixed(2)})`); }
+  // at zırhı: gövdede plakalar, başta alınlık
+  if (br) { rect(c, x - len, by, len * 2, 3, br.base); for (let k = -len + 2; k < len; k += 4) px(c, x + k, by + 1, br.dk); rect(c, x - len, by + 3, len * 2, 1, br.dk); if (!wolf) rect(c, hx - 1, by - 9, 3, 1, br.lt); else rect(c, hx - 1, by - 3, 3, 1, br.lt); }
+  // eyer ve üzengi
+  const sc = sd?.base ?? "#6a4226";
+  rect(c, x - 4, by - 2, 8, 3, P.ink); rect(c, x - 3, by - 2, 6, 2, sc); px(c, x - d * 3, by - 3, sd?.dk ?? "#4a3220"); px(c, x + d * 3, by - 3, sd?.dk ?? "#4a3220");
+  rect(c, x, by + 2, 1, 4, "#4a3224"); px(c, x, by + 6, "#9aa0ae");
+  if (sd) px(c, x, by - 2, sd.gem);
+}
+
+/** Ruh hâli: başın üstünde arada beliren küçük işaret (enerjik şimşek, mutlu kalp, yorgun ter damlası, uykulu z) */
+function moodAbove(c: Ctx, [hx, hy]: V, mood: string, t: number, phase: number) {
+  const cyc = (t + phase) % 7;
+  if (cyc > 1.6) return;
+  const q = cyc / 1.6, y = Math.round(hy - 4 - q * 6), x = hx + 6;
+  c.save(); c.globalAlpha = q < 0.2 ? q * 5 : 1 - Math.max(0, q - 0.6) * 2.5;
+  if (mood === "enerjik") { px(c, x + 1, y - 3, "#ffe040"); px(c, x, y - 2, "#ffe040"); px(c, x, y - 1, "#ffe040"); px(c, x + 1, y - 1, "#ffe040"); px(c, x + 1, y, "#ffe040"); px(c, x, y + 1, "#ffe040"); }
+  else if (mood === "mutlu") sprite(c, SMALL_HEART, x - 2, y - 3, { o: P.ink, x: "#e48aa0" });
+  else if (mood === "yorgun") { px(c, x, y - 2, "#8ad0ff"); rect(c, x - 1, y - 1, 3, 2, "#8ad0ff"); px(c, x, y + 1, "#5a9ad8"); }
+  else if (mood === "uykulu") { rect(c, x, y - 2, 3, 1, "#c8b8ff"); px(c, x + 1, y - 1, "#c8b8ff"); rect(c, x, y, 3, 1, "#c8b8ff"); }
+  c.restore();
+}
+
+/** Bekleme animasyonları: Ayşenur kitap okur, Cengiz kılıcını parlatır; ikisi de arada etrafa bakar ve esner */
+function idleProps(c: Ctx, a: { head: V; hand: V; hip: V }, h: Hero, idle: number, t: number) {
+  const phase = Math.floor(idle / 8) % 2, [hx, hy] = a.head;
+  if (h.who === "aysenur" && phase === 0) studyProps(c, a.hip[0], a.hip[1] + 9, h.dir, { reading: true, focus: false }, t);
+  if (h.who === "cengiz" && phase === 0 && h.gear?.weapon && Math.floor(t * 3) % 3 === 0) { const [sx, sy] = a.hand; px(c, sx + h.dir * 3, sy - 6, "#ffffff"); px(c, sx + h.dir * 2, sy - 5, "#fff6c8"); px(c, sx + h.dir * 4, sy - 7, "#fff6c8"); }
+  if (phase === 1 && idle % 8 < 1.2) { rect(c, hx + h.dir * 2, hy + 7, 2, 2, P.ink); if (h.mood === "uykulu") for (let k = 0; k < 2; k++) px(c, hx + 6 + k * 3, hy - 2 - k * 3, "#c8b8ff"); } // esneme
 }

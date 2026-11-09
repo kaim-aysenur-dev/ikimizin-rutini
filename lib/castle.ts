@@ -6,6 +6,7 @@ import { type Origin, at, box, shade, tile } from "./iso";
 import { type Ctx, type V, P, disc, line, poly, px, rect, rnd } from "./pixel";
 import { ARMORY_HALLS, CASTLE, CASTLE_ENTRY, type Floor, HALLS, type Placed, SIZE, STAIRS, TRAINING_HALLS, castlePlan, roomIn, stairsTarget, stepIn, wallsOf } from "./room";
 import { isFlat, itemById } from "./room-items";
+import { WORLD } from "./world-state";
 
 /* ---------------------------------- dekor ---------------------------------- */
 
@@ -23,6 +24,17 @@ const flame = (c: Ctx, x: number, y: number, t: number, s = 1) => {
 };
 
 export const PROPS: Record<string, Prop> = {
+  // günlük görev panosu: parşömenler, tamamlanan her görev için kırmızı mühür
+  "gorev-panosu": { id: "gorev-panosu", size: [1, 1], draw: (c, o, i, j, t) => {
+    const [x, y] = at(o, i + 0.5, j + 0.5);
+    rect(c, x - 1, y - 30, 2, 30, P.woodDk); rect(c, x - 9, y - 30, 18, 14, P.ink); rect(c, x - 8, y - 29, 16, 12, "#6a4a30");
+    for (let k = 0; k < WORLD.total; k++) {
+      const px0 = x - 7 + (k % 3) * 5, py0 = y - 28 + Math.floor(k / 3) * 6;
+      rect(c, px0, py0, 4, 5, "#e8dcc0"); px(c, px0 + 1, py0 + 1, "#a89870"); px(c, px0 + 2, py0 + 2, "#a89870");
+      if (k < WORLD.seals) { px(c, px0 + 2, py0 + 3, "#a8242a"); px(c, px0 + 1, py0 + 3, "#c8343a"); px(c, px0 + 2, py0 + 4, "#a8242a"); }
+    }
+    if (WORLD.seals >= WORLD.total && Math.floor(t * 2) % 2) px(c, x + 8, y - 31, "#fff6c8");
+  } },
   // büyük salonun ortasında taş halkalı şenlik ateşi
   "senlik-atesi": { id: "senlik-atesi", size: [2, 2], draw: (c, o, i, j, t) => {
     for (let k = 0; k < 10; k++) { const a = (k / 10) * Math.PI * 2; box(c, o, i + 1 + Math.cos(a) * 0.8 - 0.15, j + 1 + Math.sin(a) * 0.8 - 0.15, 0.3, 0.3, 4, STONE); }
@@ -215,7 +227,9 @@ export const CASTLE_DECOR: Decor[] = [
   D("dus-gri", 35, 16), D("havluluk-lacivert", 35, 19), D("ayna", 24, 14, 1), D("lavabo-gri", 24, 15, 1), D("saksi-agaci-fikus", 24, 23), D("saksi-agaci-fikus", 35, 23),
 ];
 
-CASTLE_DECOR.push(D("merdiven-yukari", 12, 1));
+CASTLE_DECOR.push(D("merdiven-yukari", 12, 1), D("gorev-panosu", 13, 0));
+/** Görev panosunun önü (F ile açılır) */
+export const BOARD_AT: [number, number] = [13.5, 1.4];
 
 // 2. kat: talim katı (hedefler TARGETS'ta). Arena mankenlerin ekseni i = 6, büyü odası i = 28, balkon i = 9.
 const TRAINING_DECOR: Decor[] = [

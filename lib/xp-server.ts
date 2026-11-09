@@ -4,7 +4,7 @@ import { sql } from "./db";
 import { streakAndDays } from "./overview";
 import { XP, type Stats } from "./xp";
 
-type Counts = { checks: number; meals: number; yoga: number; sport: number; studyXp: number; wishXp: number };
+type Counts = { checks: number; meals: number; yoga: number; sport: number; studyXp: number; wishXp: number; battleXp: number };
 
 // since: seviye sıfırlama anı (users.xp_since); öncesindeki kayıtlar sayılmaz. days: yalnız o günler (birlikte bonusu)
 const counts = async (userId: string, since: string | null, days?: string[]): Promise<Counts> => {
@@ -25,7 +25,10 @@ const counts = async (userId: string, since: string | null, days?: string[]): Pr
       -- kazanılan dilek görevleri: lib/wishes.ts TIERS.xp ile aynı (ortak dilek ikinize de); birlikte bonusuna girmez
       (select coalesce(sum(case w.tier when 'yaygin' then 100 when 'nadir' then 250 when 'destansi' then 600 else 1200 end), 0) from wishes w
         where ${only}::date[] is null and w.status in ('kazanildi', 'alindi') and (${since}::timestamptz is null or w.earned_at >= ${since})
-          and (w.user_id = ${userId} or (w.shared and w.user_id in (select id from users where account_id = (select account_id from users where id = ${userId})))))::int as "wishXp"`;
+          and (w.user_id = ${userId} or (w.shared and w.user_id in (select id from users where account_id = (select account_id from users where id = ${userId})))))::int as "wishXp",
+      -- Ay Kapısı bölümleri ve gece hayaletleri (lib/battle-server.ts); birlikte bonusuna girmez
+      (select coalesce(sum(xp), 0) from battle_rewards where user_id = ${userId} and ${only}::date[] is null
+        and (${since}::timestamptz is null or created_at >= ${since}))::int as "battleXp"`;
   return r as Counts;
 };
 // rozetler için ek sayaçlar: spor dakikası, cilt günlüğü, su günleri, aktif gün, evdeki ve bahçedeki eşyalar, çalışma dakikası ve sayfa
@@ -45,7 +48,7 @@ const extras = async (userId: string, since: string | null, sinceDay: string | n
     decor: r.decor as number, garden: r.garden as number, studyMin: r.study_min as number, pages: r.pages as number,
   };
 };
-const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport + c.studyXp + c.wishXp;
+const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport + c.studyXp + c.wishXp + c.battleXp;
 
 export type Adventure = { xp: number; stats: Stats; meToday: boolean; partnerToday: boolean; partnerName: string | null };
 

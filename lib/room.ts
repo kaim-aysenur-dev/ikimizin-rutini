@@ -3,9 +3,9 @@
 import { type Scope, isFlat, itemById } from "./room-items";
 
 /** Yürünen yerler: kişinin evi, ortak bahçe ve ortak şato (şatoya eşya konmaz) */
-export type Area = Scope | "sato";
+export type Area = Scope | "sato" | "zindan";
 
-export const SIZE: Record<Area, { w: number; d: number }> = { oda: { w: 28, d: 20 }, bahce: { w: 56, d: 54 }, sato: { w: 36, d: 24 } };
+export const SIZE: Record<Area, { w: number; d: number }> = { oda: { w: 28, d: 20 }, bahce: { w: 56, d: 54 }, sato: { w: 36, d: 24 }, zindan: { w: 32, d: 24 } }; // zindan: en büyük bölüm haritasının sınırı (bölümler dungeon-stages.ts)
 
 /* ------------------------------ kat planları ------------------------------- */
 
@@ -192,6 +192,8 @@ export const LANTERNS: [number, number][] = [
 ];
 export const OWL_TREE: [number, number] = [13, 43];
 export const PERCH: [number, number] = [10.5, 19.5]; // papağanın tüneği
+export const MERCHANT: Rect = { i0: 23, j0: 36, i1: 25, j1: 38 }; // gezgin tüccarın arabası: kazanılan dilekler burada bekler
+export const MOON_GATE: Rect = { i0: 10, j0: 47, i1: 13, j1: 49 }; // Ay Kapısı: zindana açılır, önü koru yolunda
 export const RAVEN_TREES: [number, number][] = [[8, 47], [16, 51], [42, 48]];
 export const TREES: [number, number][] = [
   // şatonun çevresi (kuzey şerit)
@@ -231,7 +233,7 @@ export function isPath(i: number, j: number): boolean {
 /** Bahçede sabit engeller: şato şeridi, binalar, su, mezar taşları, ağaçlar, fenerler */
 export function gardenSolid(i: number, j: number): boolean {
   if (j < CASTLE.j1) return true;
-  if (HOUSES.some((h) => inRect(i, j, h)) || [CHAPEL, FORGE, MILL, WELL, CAMPFIRE, ANGEL].some((r) => inRect(i, j, r))) return true;
+  if (HOUSES.some((h) => inRect(i, j, h)) || [CHAPEL, FORGE, MILL, WELL, CAMPFIRE, ANGEL, MOON_GATE, MERCHANT].some((r) => inRect(i, j, r))) return true;
   if (inStream(i, j) || SWAMP_POOLS.some((r) => inRect(i, j, r))) return true;
   if (GARDEN_SEATS.some((p) => footprint(p.itemId, p.tx, p.ty, p.rot).some(([a, b]) => a === i && b === j))) return true;
   return [TOMBS, TREES, LANTERNS].some((list) => list.some(([a, b]) => a === i && b === j));

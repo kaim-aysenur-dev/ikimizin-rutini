@@ -8,23 +8,26 @@ import { UUID_RE } from "@/lib/skin";
 
 // duruş: oturuyor / uzanıyor / masada / kitaplıkta ve yüksekliği (ör. "lie:8")
 const POSE_RE = /^(sit|lie|desk|read):\d{1,2}(:-1)?$/;
+// ruh hâli (rutinden); "+at" ile biten: bineğe binmiş
+const MOODS = new Set(["enerjik", "yorgun", "uykulu", "mutlu", "normal", "enerjik+at", "yorgun+at", "uykulu+at", "mutlu+at", "normal+at"]);
 
 // Canlı konum: bahçede, şatoda ya da bir evde. Kendi konumunu yaz, aynı yerdeki diğerini al. here: false ise ayrıldın.
 export const POST = withUser(async (req, user) => {
   const body = await readJson(req);
-  const { here, place, x, y, dir, moving, action, pose, withPlaced } = body ?? {};
+  const { here, place, x, y, dir, moving, action, pose, withPlaced, mood } = body ?? {};
   // son saldırı ya da büyü: yalnız biçimi doğruysa saklanır (diğer kişi efekti oynatır)
   const act = parseActionHistory(action);
   const isHouse = typeof place === "string" && place.startsWith("ev:") && UUID_RE.test(place.slice(3));
   const isCastle = place === "sato" || place === "sato:2" || place === "sato:3";
-  if (place !== "bahce" && !isCastle && !isHouse) return jsonError(400, "Geçersiz yer.");
+  const isDungeon = typeof place === "string" && /^zindan:[1-9]\d?$/.test(place);
+  if (place !== "bahce" && !isCastle && !isHouse && !isDungeon) return jsonError(400, "Geçersiz yer.");
   if (here === false) return jsonOk({ others: await syncPresence(user, place as string, null) });
-  const { w, d } = SIZE[isHouse ? "oda" : isCastle ? "sato" : "bahce"];
+  const { w, d } = SIZE[isHouse ? "oda" : isCastle ? "sato" : isDungeon ? "zindan" : "bahce"];
   if (typeof x !== "number" || typeof y !== "number" || !(x >= -1 && x <= w + 1 && y >= -1 && y <= d + 1) || (dir !== 1 && dir !== -1)) {
     return jsonError(400, "Geçersiz konum.");
   }
   const [others, unread, timers, placed, where] = await Promise.all([
-    syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act, pose: typeof pose === "string" && POSE_RE.test(pose) ? pose : null }), unreadNotes(user.id), partnerTimers(user),
+    syncPresence(user, place as string, { x, y, dir, moving: moving === true, action: act, pose: typeof pose === "string" && POSE_RE.test(pose) ? pose : null, mood: typeof mood === "string" && MOODS.has(mood) ? mood : null }), unreadNotes(user.id), partnerTimers(user),
     withPlaced === true ? placedOf(user.accountId) : null, // diğerinin koyduğu eşyalar birkaç saniyede bir eşitlenir
     withPlaced === true ? partnerPlace(user) : undefined, // partner başka yerdeyse pusula
   ]);

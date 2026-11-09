@@ -286,6 +286,16 @@ function legsOf(c: Ctx, m: Mat) {
   rect(c, 5, 3, 14, 5, INK); rect(c, 6, 4, 12, 3, m.dk); px(c, 12, 5, m.gem); // kemer
   for (const ox of [5, 13]) { rect(c, ox, 7, 6, 15, INK); rect(c, ox + 1, 8, 4, 13, m.base); rect(c, ox + 1, 13, 4, 2, m.lt); rect(c, ox + 1, 19, 4, 1, m.dk); } // diz plakası
 }
+function saddleOf(c: Ctx, m: Mat) {
+  poly(c, [[3, 12], [6, 7], [18, 7], [21, 12], [19, 16], [5, 16]], INK, 1); poly(c, [[3, 12], [6, 7], [18, 7], [21, 12], [19, 16], [5, 16]], m.base);
+  rect(c, 6, 8, 12, 2, m.lt); rect(c, 4, 4, 4, 5, INK); rect(c, 5, 5, 2, 4, m.dk); rect(c, 17, 5, 4, 4, INK); rect(c, 18, 6, 2, 3, m.dk); // kaş ve arka
+  line(c, [11, 16], [11, 21], 1, "#4a3224"); rect(c, 9, 20, 5, 2, INK); rect(c, 10, 20, 3, 1, "#9aa0ae"); px(c, 12, 11, m.gem); // üzengi
+}
+function bardingOf(c: Ctx, m: Mat) {
+  poly(c, [[2, 8], [12, 4], [22, 8], [22, 18], [12, 21], [2, 18]], INK, 1); poly(c, [[2, 8], [12, 4], [22, 8], [22, 18], [12, 21], [2, 18]], m.base);
+  for (let k = 0; k < 3; k++) rect(c, 4, 9 + k * 4, 16, 1, m.dk); rect(c, 11, 5, 2, 15, m.lt); disc(c, 12, 12, 2, m.gem); // plakalar ve arma
+  rect(c, 1, 17, 22, 2, INK); for (let k = 0; k < 6; k++) rect(c, 2 + k * 4, 19, 2, 2, m.dk); // saçak
+}
 function bootsOf(c: Ctx, m: Mat) {
   for (const ox of [2, 12]) {
     rect(c, ox + 1, 4, 7, 15, INK); rect(c, ox + 2, 5, 5, 13, m.base); rect(c, ox + 1, 16, 10, 5, INK); rect(c, ox + 2, 17, 8, 3, m.base);
@@ -321,6 +331,8 @@ const TEMPLATES: Tmpl[] = [
   { id: "pelerin", noun: "Pelerin", kind: "Zırh", owner: "İkiniz", off: 2, desc: "Rüzgârda dalgalanan bir pelerin.", draw: (c, m) => capeOf(c, m) },
   { id: "eldiven", noun: "Eldiven", kind: "Zırh", owner: "İkiniz", off: 4, desc: "Parmakları koruyan eldivenler.", draw: (c, m) => glovesOf(c, m) },
   { id: "bacaklik", noun: "Bacaklık", kind: "Zırh", owner: "İkiniz", off: 5, desc: "Dizleri ve bacakları saran plakalar.", draw: (c, m) => legsOf(c, m) },
+  { id: "eyer", noun: "Eyer", kind: "Zırh", owner: "İkiniz", off: 3, desc: "Bineğin sırtına; binince daha hızlı koşar.", draw: (c, m) => saddleOf(c, m) },
+  { id: "at-zirhi", noun: "At Zırhı", kind: "Zırh", owner: "İkiniz", off: 7, desc: "Bineğe giydirilen plakalı zırh.", draw: (c, m) => bardingOf(c, m) },
   { id: "cizme", noun: "Çizme", kind: "Zırh", owner: "İkiniz", off: 6, desc: "Adımları hafifleten çizmeler.", draw: (c, m) => bootsOf(c, m) },
   { id: "buyuk-kilic", noun: "İki Elli Kılıç", kind: "Silah", owner: "Cengiz", off: 7, desc: "İki elle kavranan dev bir kılıç.", draw: (c, m) => greatsword(c, m) },
 ];

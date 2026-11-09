@@ -2,11 +2,11 @@
 // bir silah ve en çok 4 büyü. Hem tarayıcı hem sunucu kullanır.
 import { GEAR, type GearKind, TRINKETS } from "./gear";
 
-export const WEAR_SLOTS = ["armor", "helmet", "legs", "shield", "cape", "gloves", "boots", "trinket"] as const;
+export const WEAR_SLOTS = ["armor", "helmet", "legs", "shield", "cape", "gloves", "boots", "trinket", "saddle", "barding"] as const;
 export type WearSlot = (typeof WEAR_SLOTS)[number];
-export const SLOT_NAME: Record<WearSlot, string> = { armor: "Göğüs", helmet: "Kask", legs: "Bacak", shield: "Kalkan", cape: "Pelerin", gloves: "Eldiven", boots: "Çizme", trinket: "Takı" };
+export const SLOT_NAME: Record<WearSlot, string> = { armor: "Göğüs", helmet: "Kask", legs: "Bacak", shield: "Kalkan", cape: "Pelerin", gloves: "Eldiven", boots: "Çizme", trinket: "Takı", saddle: "Eyer", barding: "At zırhı" };
 export type Equipment = Record<WearSlot, string | null> & { weapon: string | null; spells: string[] };
-export const NO_EQUIPMENT: Equipment = { armor: null, helmet: null, legs: null, shield: null, cape: null, gloves: null, boots: null, trinket: null, weapon: null, spells: [] };
+export const NO_EQUIPMENT: Equipment = { armor: null, helmet: null, legs: null, shield: null, cape: null, gloves: null, boots: null, trinket: null, saddle: null, barding: null, weapon: null, spells: [] };
 export const SPELL_SLOTS = 4;
 
 const byId = new Map(GEAR.map((g) => [g.id, g]));
@@ -25,6 +25,8 @@ export function slotOf(id: string): WearSlot | null {
   if (id.startsWith("eldiven-")) return "gloves";
   if (id.startsWith("cizme-")) return "boots";
   if (id.startsWith("bacaklik-")) return "legs";
+  if (id.startsWith("eyer-")) return "saddle";
+  if (id.startsWith("at-zirhi-")) return "barding";
   return "armor";
 }
 
@@ -89,10 +91,10 @@ if (process.env.NODE_ENV !== "production") {
   console.assert(toggleEquip(full, "sifa").spells.length === 3, "kuşanılmış büyü çıkarılır");
   console.assert(toggleEquip(NO_EQUIPMENT, "tunik").armor === "tunik" && eq(toggleEquip(NO_EQUIPMENT, "yok"), NO_EQUIPMENT), "zırh ve bilinmeyen eşya");
   // yuvalar
-  const set = [["migfer-demir", "helmet"], ["kalkan-demir", "shield"], ["pelerin-demir", "cape"], ["eldiven-demir", "gloves"], ["cizme-demir", "boots"], ["bacaklik-demir", "legs"], ["ikimizin-yuzugu", "trinket"], ["gogusluk-demir", "armor"]] as const;
+  const set = [["migfer-demir", "helmet"], ["kalkan-demir", "shield"], ["pelerin-demir", "cape"], ["eldiven-demir", "gloves"], ["cizme-demir", "boots"], ["bacaklik-demir", "legs"], ["eyer-demir", "saddle"], ["at-zirhi-demir", "barding"], ["ikimizin-yuzugu", "trinket"], ["gogusluk-demir", "armor"]] as const;
   console.assert(set.every(([id, slot]) => byId.has(id) && slotOf(id) === slot), "her giyilen kendi yuvasında");
   const all = set.reduce((e2, [id]) => toggleEquip(e2, id), NO_EQUIPMENT);
-  console.assert(worn(all).length === 8, "sekiz yuva aynı anda giyilir");
+  console.assert(worn(all).length === 10, "on yuva aynı anda giyilir");
   const old = sanitizeEquipment({ armor: "migfer-demir" }, 100);
   console.assert(old.helmet === "migfer-demir" && old.armor === null, "eski kayıtta miğfer kask yuvasına geçer");
   const bow = toggleEquip(toggleEquip(NO_EQUIPMENT, "kalkan-demir"), "yay-demir");

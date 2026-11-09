@@ -4,7 +4,8 @@ import { requireUser } from "@/lib/auth/session";
 import { todayIstanbul } from "@/lib/dates";
 import { placedOf, profilesOf } from "@/lib/room-server";
 import { sanitizeEquipment } from "@/lib/equipment";
-import { equipmentOf } from "@/lib/equipment-server";
+import { equipmentOf, stylesOf } from "@/lib/equipment-server";
+import { battleLog } from "@/lib/battle-server";
 import { myTimer } from "@/lib/study-server";
 import { trophiesOf } from "@/lib/wishes-server";
 import { levelOf } from "@/lib/xp";
@@ -16,7 +17,7 @@ export default async function Page({ searchParams }: PageProps<"/gelisim">) {
   const user = await requireUser();
   const { dolap } = await searchParams; // ?dolap=1: Dilek Dolabı açık gelir (Bugün kartından)
   const today = todayIstanbul();
-  const [profiles, placed, timer, equipped] = await Promise.all([profilesOf(user.accountId), placedOf(user.accountId), myTimer(user.id), equipmentOf(user.accountId)]);
+  const [profiles, placed, timer, equipped, styles, log, mine] = await Promise.all([profilesOf(user.accountId), placedOf(user.accountId), myTimer(user.id), equipmentOf(user.accountId), stylesOf(user.accountId), battleLog(user.id, today), adventure(user.id, user.accountId, today)]);
   // iki profilin seviyesi: zırh rengi ve envanter kilidi
   const withLevel = await Promise.all(profiles.map(async (p) => { const xp = (await adventure(p.id, user.accountId, today)).xp; return { ...p, xp, level: levelOf(xp).level }; }));
   // kuşanılanlar: seviyesi yetmeyen ya da artık olmayan eşyalar düşer
@@ -26,7 +27,7 @@ export default async function Page({ searchParams }: PageProps<"/gelisim">) {
   return (
     <main className="main gw-main">
       <h1 className="sr-only">Gelişim</h1>
-      <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} initialStudyTimer={timer} initialEquipment={initialEquipment} initialTrophies={initialTrophies} openWardrobe={dolap === "1"} />
+      <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} initialStudyTimer={timer} initialEquipment={initialEquipment} initialTrophies={initialTrophies} openWardrobe={dolap === "1"} initialStyles={styles} progress={{ level: levelOf(mine.xp).level, stats: mine.stats, cleared: log.cleared }} />
     </main>
   );
 }

@@ -1315,3 +1315,69 @@ button.xp-badge:hover {
 .gw-armory-slots { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 8px; }
 .gw-armory-slots .chip { border: 0; padding: 5px 9px; font: 600 12px/1 var(--body); color: var(--px-cream); background: var(--px-stone); box-shadow: 0 0 0 2px var(--px-ink); cursor: pointer; }
 .gw-armory-slots .chip.is-on { background: var(--px-rose); }
+
+/* Ay Kapısı: bölüm listesi ve güç karşılaştırması; zindan durum şeridi */
+.gw-dungeon-emoji { display: grid; place-items: center; width: 48px; height: 48px; font-size: 26px; background: #1a1420; box-shadow: 0 0 0 2px var(--px-ink); }
+.gw-power { font-weight: 700; }
+.gw-power.is-ok { color: #3e8a4e; }
+.gw-power.is-warn { color: #b07a1e; }
+.gw-power.is-hard { color: #b8342a; }
+.gw-dungeon-chip { position: absolute; z-index: 3; top: 12px; left: 50%; transform: translateX(-50%); margin: 0; padding: 6px 12px; background: rgb(14 12 24 / .88); color: #f3d48a; font-size: 13px; box-shadow: 0 0 0 2px var(--px-ink); pointer-events: none; }
+
+/* görev panosu: parşömen satırları ve kırmızı mühür */
+.gw-quests { max-width: 460px; }
+.gw-quest-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
+.gw-quest-list li { display: grid; grid-template-columns: 40px 1fr auto; align-items: center; gap: 10px; padding: 8px 10px; background: #f4e6c4; box-shadow: 0 0 0 2px #b8955a; }
+.gw-quest-list li.is-done { background: #ecdcb4; }
+.gw-quest-emoji { font-size: 24px; text-align: center; }
+.gw-quest-bar { height: 6px; margin: 4px 0 2px; background: #d8c49a; box-shadow: 0 0 0 1px #8a6a3a; }
+.gw-quest-bar span { display: block; height: 100%; background: #6aa86a; }
+.gw-seal { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: #a8242a; color: #f4d8a0; font-weight: 700; box-shadow: 0 0 0 2px #6a1418, inset 0 -3px 0 rgb(0 0 0 / .25); transform: rotate(-12deg); }
+
+/* zindan: bölüm giriş kartı ve şef/boss can barı */
+.gw-intro { position: absolute; z-index: 6; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(420px, calc(100% - 40px)); padding: 18px 20px; text-align: center; background: rgb(14 10 22 / .9); color: #f4e6c4; box-shadow: 0 0 0 2px var(--px-ink), 0 0 0 4px #635335; pointer-events: none; animation: gw-intro-in .4s ease both; }
+.gw-intro h2 { margin: 2px 0 8px; font-size: 20px; color: #f3d48a; }
+.gw-intro p { margin: 0 0 8px; font-size: 13px; line-height: 1.5; }
+.gw-intro small { color: #c8b48a; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.gw-intro-emoji { display: block; font-size: 34px; }
+.gw-intro-tip { color: #9fe8ae; }
+@keyframes gw-intro-in { from { opacity: 0; transform: translate(-50%, -46%); } to { opacity: 1; transform: translate(-50%, -50%); } }
+@media (prefers-reduced-motion: reduce) { .gw-intro { animation: none; } }
+.gw-boss { position: absolute; z-index: 4; top: 46px; left: 50%; transform: translateX(-50%); width: min(360px, calc(100% - 220px)); display: grid; gap: 4px; text-align: center; color: #f3d48a; font-size: 13px; pointer-events: none; }
+.gw-boss-bar { display: block; height: 8px; background: #2a1420; box-shadow: 0 0 0 2px var(--px-ink); }
+.gw-boss-bar span { display: block; height: 100%; background: linear-gradient(#e8304a, #a81a2e); transition: width .2s; }
+
+/* isim etiketi: seviye kademesine göre çerçeve, solda kademe rozeti, sağda seviye; altında unvan; üstünde konuşma balonu */
+.hall-tag.gw-name { display: grid; justify-items: center; gap: 1px; padding: 2px 7px 3px; overflow: visible; }
+.gw-name-row { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.gw-lv-badge { font-style: normal; font-size: 11px; line-height: 1; filter: drop-shadow(0 1px 0 rgb(0 0 0 / .6)); }
+.gw-lv-num { padding: 0 3px; font-size: 9px; line-height: 13px; color: #1a1426; background: #c8b48a; }
+.gw-name-title { font-size: 9px; line-height: 1.2; color: #f3d48a; letter-spacing: .02em; white-space: nowrap; }
+.hall-tag.gw-name.tier-0, .hall-tag.gw-name.tier-1, .hall-tag.gw-name.tier-2 { background: rgb(14 12 24 / .85); }
+.hall-tag.gw-name.tier-3, .hall-tag.gw-name.tier-4 { background: linear-gradient(#24304a, #1a2238); box-shadow: 0 0 0 1px #6f86d6; }
+.hall-tag.gw-name.tier-5, .hall-tag.gw-name.tier-6 { background: linear-gradient(#3a2a1a, #2a1e12); box-shadow: 0 0 0 1px #c8784a; }
+.hall-tag.gw-name.tier-7, .hall-tag.gw-name.tier-8 { background: linear-gradient(#3a2448, #24163a); box-shadow: 0 0 0 1px #a898e8; }
+.hall-tag.gw-name.tier-9, .hall-tag.gw-name.tier-10 { background: linear-gradient(#4a3a12, #2e240a); box-shadow: 0 0 0 1px #e2b45a, 0 0 6px rgb(226 180 90 / .55); }
+.hall-tag.gw-name.tier-11 { background: linear-gradient(#1e3a4a, #122634); box-shadow: 0 0 0 1px #bfe6f5, 0 0 8px rgb(191 230 245 / .7); animation: gw-tag-glow 2.4s ease-in-out infinite; }
+.hall-tag.gw-name.tier-5 .gw-lv-num, .hall-tag.gw-name.tier-6 .gw-lv-num { background: #e8a070; }
+.hall-tag.gw-name.tier-7 .gw-lv-num, .hall-tag.gw-name.tier-8 .gw-lv-num { background: #c8b8ff; }
+.hall-tag.gw-name.tier-9 .gw-lv-num, .hall-tag.gw-name.tier-10 .gw-lv-num, .hall-tag.gw-name.tier-11 .gw-lv-num { background: #f3d48a; }
+@keyframes gw-tag-glow { 50% { box-shadow: 0 0 0 1px #ffffff, 0 0 12px rgb(191 230 245 / .9); } }
+@media (prefers-reduced-motion: reduce) { .hall-tag.gw-name.tier-11 { animation: none; } }
+.gw-say { position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); max-width: 180px; width: max-content; padding: 4px 8px; font-size: 11px; line-height: 1.35; white-space: normal; text-align: center; color: #1a1426; background: #f4f0e4; box-shadow: 0 0 0 2px var(--px-ink); animation: gw-wheel-in .16s ease-out both; }
+.gw-say::after { content: ""; position: absolute; top: 100%; left: 50%; margin-left: -3px; border: 3px solid transparent; border-top-color: #f4f0e4; }
+
+/* ortak süper güç barı ve konuşma kutusu */
+.gw-super { position: absolute; z-index: 4; left: 12px; bottom: 14px; display: grid; gap: 3px; width: 150px; padding: 5px 7px; border: 0; text-align: left; cursor: pointer; color: #f4c4d2; font-size: 11px; background: rgb(14 12 24 / .85); box-shadow: 0 0 0 2px var(--px-ink); }
+.gw-super-bar { display: block; height: 6px; background: #2a1420; }
+.gw-super-bar span { display: block; height: 100%; background: linear-gradient(90deg, #e48aa0, #e8486a); transition: width .3s; }
+.gw-super.is-full { color: #fff; animation: gw-tag-glow 1s ease-in-out infinite; }
+.gw-say-form { position: absolute; z-index: 7; left: 50%; bottom: 60px; transform: translateX(-50%); width: min(420px, calc(100% - 24px)); display: grid; gap: 6px; padding: 8px; background: rgb(14 12 24 / .92); box-shadow: 0 0 0 2px var(--px-ink); }
+.gw-say-quick { display: flex; flex-wrap: wrap; gap: 5px; }
+.gw-say-quick .chip { border: 0; padding: 4px 8px; font: 600 11px/1.2 var(--body); color: var(--px-cream); background: var(--px-stone); box-shadow: 0 0 0 1px var(--px-ink); cursor: pointer; }
+.gw-pad-btn.roll { grid-column: 3; grid-row: 3; background: #3a5a4a; }
+.gw-pad-btn.ride { grid-column: 1; grid-row: 3; background: #6a4a2a; }
+.gw-pad { grid-template-rows: repeat(4, 48px); }
+.gw-pad-btn.emo { grid-column: 2; grid-row: 3; }
+.gw-pad-spells { grid-column: 1 / 4; grid-row: 4; }
+.gw-titles { max-height: 52vh; }

@@ -4,10 +4,11 @@ import { lights } from "./env";
 import { type Origin, at, box, shade, tile } from "./iso";
 import { type Ctx, type V, P, disc, line, poly, px, rect, rnd } from "./pixel";
 import {
-  ANGEL, BRIDGES, CAMPFIRE, CHAPEL, CASTLE, FORGE, GRAVEYARD, GROVE, LANTERNS, MILL, OWL_TREE, PLAZA, RAVEN_TREES, ROAD,
+  ANGEL, BRIDGES, CAMPFIRE, CHAPEL, CASTLE, FORGE, GRAVEYARD, GROVE, LANTERNS, MERCHANT, MILL, OWL_TREE, PLAZA, RAVEN_TREES, ROAD,
   SIZE, STREAM, SWAMP, SWAMP_POOLS, TOMBS, WELL, gardenSolid, inRectAt, inStream, isPath,
 } from "./room";
 import { type Weather } from "./gelisim-weather";
+import { WORLD } from "./world-state";
 
 type Kit = {
   archJ: (c: Ctx, o: Origin, j: number, i0: number, i1: number, y0: number, y1: number, color: string, peak?: number) => void;
@@ -137,7 +138,8 @@ export function structures(push: Push, c: Ctx, o: Origin, t: number, k: Kit, her
   push(front(CHAPEL), () => chapel(c, o, t, k, flash));
   push(front(FORGE), () => forge(c, o, t));
   push(front(MILL), () => mill(c, o, t));
-  push(WELL.i0 + WELL.j0 + 1.5, () => well(c, o));
+  push(WELL.i0 + WELL.j0 + 1.5, () => well(c, o, t));
+  push(MERCHANT.i0 + MERCHANT.j1, () => merchant(c, o, t));
   const near = heroes.filter((h) => Math.hypot(h.i - (CAMPFIRE.i0 + 1), h.j - (CAMPFIRE.j0 + 1)) < 2.8).length;
   push(CAMPFIRE.i0 + CAMPFIRE.j0 + 1.5, () => campfire(c, o, t, near));
   push(ANGEL.i0 + ANGEL.j0 + 1.5, () => angel(c, o, t));
@@ -249,16 +251,42 @@ function mill(c: Ctx, o: Origin, t: number) {
   disc(c, hx, hy, 2, INK);
 }
 
-function well(c: Ctx, o: Origin) {
+function well(c: Ctx, o: Origin, t: number) {
   const r = WELL, ci = r.i0 + 1, cj = r.j0 + 1;
   box(c, o, r.i0 + 0.2, r.j0 + 0.2, 1.6, 1.6, 8, shade("#5a5864", 0.14, 0.26));
-  tile(c, o, r.i0 + 0.45, r.j0 + 0.45, "#0e1420", 1.1, 1.1);
+  // bugünün su hedefi tutunca kuyu ağzına kadar dolar ve mavi parlar
+  const full = WORLD.water, wave = Math.sin(t * 3) > 0;
+  tile(c, o, r.i0 + 0.45, r.j0 + 0.45, full ? (wave ? "#3a8ac8" : "#2a7ab8") : "#0e1420", 1.1, 1.1);
+  if (full) { const [wx, wy] = lift(at(o, ci, cj), 8); lights.push({ x: wx, y: wy, r: 22, color: "110,180,255" }); for (let q = 0; q < 3; q++) if (Math.floor(t * 2 + q) % 3 === 0) px(c, wx - 3 + q * 3, wy - 2 - q, "#e8f4ff"); }
   const top = (i: number, j: number) => lift(at(o, i, j), 8);
   for (const p of [top(r.i0 + 0.3, cj), top(r.i1 - 0.3, cj)]) rect(c, p[0] - 1, p[1] - 14, 2, 14, P.woodDk);
   const [lx, ly] = top(r.i0 + 0.3, cj), [rx, ry] = top(r.i1 - 0.3, cj);
   line(c, [lx, ly - 12], [rx, ry - 12], 1, P.woodLt);
   poly(c, [[lx - 3, ly - 14], [rx + 3, ry - 14], [Math.round((lx + rx) / 2), Math.round((ly + ry) / 2) - 22]], "#4a2a22");
   const [bx, by] = top(ci, cj); line(c, [bx, by - 12], [bx, by - 5], 1, "#8a7a6a"); rect(c, bx - 2, by - 5, 4, 3, "#5a3a26");
+}
+
+/** Gezgin tüccarın arabası: kazanılmış (henüz alınmamış) dilek varsa üstünde zıplayan hediye kutusu */
+function merchant(c: Ctx, o: Origin, t: number) {
+  const r = MERCHANT, cf = shade("#6a4a30", 0.12, 0.26);
+  box(c, o, r.i0 + 0.1, r.j0 + 0.2, 1.8, 1.6, 9, cf, 3);
+  for (const [a, b] of [[r.i0 + 0.3, r.j1 - 0.2], [r.i1 - 0.2, r.j1 - 0.2]] as V[]) { const [x, y] = at(o, a, b); disc(c, x, y - 3, 3, INK); disc(c, x, y - 3, 2, "#4a3020"); } // tekerlekler
+  // çizgili tente
+  const p = (i: number, j: number, z: number) => lift(at(o, i, j), z);
+  poly(c, [p(r.i0, r.j0 + 0.1, 24), p(r.i1, r.j0 + 0.1, 24), p(r.i1, r.j1, 18), p(r.i0, r.j1, 18)], INK, 1);
+  for (let k = 0; k < 4; k++) poly(c, [p(r.i0 + k * 0.5, r.j0 + 0.1, 24), p(r.i0 + (k + 1) * 0.5, r.j0 + 0.1, 24), p(r.i0 + (k + 1) * 0.5, r.j1, 18), p(r.i0 + k * 0.5, r.j1, 18)], k % 2 ? "#e8dcc0" : "#8a1f36");
+  for (const [a, b] of [[r.i0, r.j1], [r.i1, r.j1]] as V[]) { const [x, y] = at(o, a, b); rect(c, x - 1, y - 18, 1, 15, P.woodDk); }
+  // tezgâhta kavanozlar ve fener
+  const [tx, ty] = p(r.i0 + 1, r.j0 + 1, 12);
+  for (let k = 0; k < 3; k++) { rect(c, tx - 6 + k * 4, ty - 4, 3, 4, INK); rect(c, tx - 5 + k * 4, ty - 3, 1, 3, ["#5a9ad8", "#d8485a", "#9fe8ae"][k]); }
+  const [lx, ly] = p(r.i1 - 0.1, r.j1 - 0.1, 16); rect(c, lx - 1, ly, 3, 4, "#f0b860"); lights.push({ x: lx, y: ly + 2, r: 16, color: "255,190,110" });
+  if (WORLD.gifts > 0) {
+    const hop = Math.round(Math.abs(Math.sin(t * 3)) * 3), [gx, gy] = p(r.i0 + 0.9, r.j0 + 0.9, 14 + hop);
+    rect(c, gx - 5, gy - 8, 10, 8, INK); rect(c, gx - 4, gy - 7, 8, 6, "#d8485a"); rect(c, gx - 1, gy - 7, 2, 6, "#f3d48a"); rect(c, gx - 4, gy - 5, 8, 1, "#f3d48a");
+    px(c, gx - 2, gy - 9, "#f3d48a"); px(c, gx + 1, gy - 9, "#f3d48a"); px(c, gx - 3, gy - 10, "#f3d48a"); px(c, gx + 2, gy - 10, "#f3d48a"); // fiyonk
+    for (let k = 0; k < 4; k++) { const an = t * 2 + k * 1.6; px(c, Math.round(gx + Math.cos(an) * 9), Math.round(gy - 4 + Math.sin(an) * 5), "#fff6c8"); }
+    lights.push({ x: gx, y: gy - 4, r: 20, color: "255,200,120" });
+  }
 }
 
 function campfire(c: Ctx, o: Origin, t: number, near: number) {
