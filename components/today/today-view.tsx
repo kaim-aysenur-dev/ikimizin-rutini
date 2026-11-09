@@ -34,15 +34,25 @@ type Props = {
   meals: PlanMeal[];
   mealChecks: Meal[];
   water: { tracked: boolean; initial: number; target: number; glassMl: number; sportDay: boolean };
-  workout: { planned: boolean; title: string; count: number; done: boolean };
+  workout: {
+    planned: boolean; title: string; count: number; done: boolean;
+    planTypeId: string | null; types: { id: string; name: string }[]; sessions: { id: string; typeId: string | null; note: string }[];
+  };
   streak: { current: number; todayComplete: boolean };
 };
+
+// planlı antrenmandan açılan oturumun notu (hızlı tür kayıtlarından ayırmak için)
+const PLAN_NOTE = "Antrenman planı";
 
 export function TodayView({ today, week, items, initialChecks, meals, mealChecks, water, workout, streak }: Props) {
   const { checked, setDone, error, clearError } = useChecks(initialChecks);
   const [mealsDone, setMealsDone] = useState(() => new Set<Meal>(mealChecks));
   const [glasses, setGlasses] = useState(water.initial);
   const [workoutDone, setWorkoutDone] = useState(workout.done);
+  // bugünkü spor oturumları: her biri XP ve haftalık hedef sayar
+  const [sessions, setSessions] = useState(workout.sessions);
+  const [sportBusy, setSportBusy] = useState(false);
+  const planSession = sessions.find((s) => s.note === PLAN_NOTE);
   const [localError, setLocalError] = useState<string | null>(null);
   const clearLocal = useCallback(() => setLocalError(null), []);
   useDayRollover(today);
@@ -86,15 +96,49 @@ export function TodayView({ today, week, items, initialChecks, meals, mealChecks
     }
   }
 
+  // planlı antrenman: işaretleyince bir spor oturumu da açılır (+XP), geri alınca silinir
   async function toggleWorkout() {
-    const next = !workoutDone;
+    if (sportBusy) return;
+    const next = !(workoutDone || !!planSession);
+    setSportBusy(true);
     setWorkoutDone(next);
     try {
+      if (next && !planSession && workout.planTypeId) {
+        const { id } = await api<{ id: string }>("/api/sport/sessions", { body: { day: today, typeId: workout.planTypeId, note: PLAN_NOTE } });
+        setSessions((s) => [...s, { id, typeId: workout.planTypeId, note: PLAN_NOTE }]);
+        gainXp(XP.sport);
+      } else if (!next && planSession) {
+        await api(`/api/sport/sessions/${planSession.id}`, { method: "DELETE" });
+        setSessions((s) => s.filter((x) => x.id !== planSession.id));
+        gainXp(-XP.sport);
+      }
       await api("/api/sport/activity", { method: "PUT", body: { day: today, workoutDone: next } });
     } catch (err) {
       setWorkoutDone(!next);
       setLocalError(err instanceof Error ? err.message : "Kaydedilemedi.");
     }
+    setSportBusy(false);
+  }
+
+  // hızlı "yaptım": spor türüne bir oturum (+XP); tekrar basınca bugünkü kaydı geri alır
+  async function toggleType(typeId: string) {
+    if (sportBusy) return;
+    const existing = [...sessions].reverse().find((s) => s.typeId === typeId && s.note !== PLAN_NOTE);
+    setSportBusy(true);
+    try {
+      if (existing) {
+        await api(`/api/sport/sessions/${existing.id}`, { method: "DELETE" });
+        setSessions((s) => s.filter((x) => x.id !== existing.id));
+        gainXp(-XP.sport);
+      } else {
+        const { id } = await api<{ id: string }>("/api/sport/sessions", { body: { day: today, typeId } });
+        setSessions((s) => [...s, { id, typeId, note: "" }]);
+        gainXp(XP.sport);
+      }
+    } catch (err) {
+      setLocalError(err instanceof Error ? err.message : "Kaydedilemedi.");
+    }
+    setSportBusy(false);
   }
 
   if (total === 0 && !weekly.length && !asNeeded.length) {
@@ -206,7 +250,7 @@ export function TodayView({ today, week, items, initialChecks, meals, mealChecks
         </div>
       </section>
 
-      {workout.planned && (
+      {(workout.planned || workout.types.length > 0) && (
         <section className="slot-block" aria-labelledby="slot-spor">
           <div className="slot-head">
             <h2 id="slot-spor" className="tag tag-sport">
@@ -216,17 +260,33 @@ export function TodayView({ today, week, items, initialChecks, meals, mealChecks
               Antrenman kaydı <ChevronRight size={14} />
             </Link>
           </div>
-          <div className={`step${workoutDone ? " is-done" : ""}`}>
-            <button type="button" className="step-main" aria-pressed={workoutDone} onClick={toggleWorkout}>
-              <span className="step-check" aria-hidden="true">
-                {workoutDone ? <Check size={16} strokeWidth={3} /> : <Dumbbell size={15} />}
-              </span>
-              <span className="step-text">
-                <span className="step-title">{workout.title || "Antrenman"}</span>
-                <span className="step-sub">{workout.count} hareket · setleri Antrenman kaydı sayfasında gir</span>
-              </span>
-            </button>
-          </div>
+          {workout.planned && (
+            <div className={`step${workoutDone || planSession ? " is-done" : ""}`}>
+              <button type="button" className="step-main" aria-pressed={workoutDone || !!planSession} onClick={toggleWorkout} disabled={sportBusy}>
+                <span className="step-check" aria-hidden="true">
+                  {workoutDone || planSession ? <Check size={16} strokeWidth={3} /> : <Dumbbell size={15} />}
+                </span>
+                <span className="step-text">
+                  <span className="step-title">{workout.title || "Antrenman"}</span>
+                  <span className="step-sub">{workout.count} hareket · yapınca dokun, +{XP.sport} XP · setleri Antrenman kaydı sayfasında gir</span>
+                </span>
+              </button>
+            </div>
+          )}
+          {workout.types.filter((t) => !(workout.planned && t.id === workout.planTypeId)).map((t) => {
+            const done = sessions.some((s) => s.typeId === t.id && s.note !== PLAN_NOTE);
+            return (
+              <div key={t.id} className={`step${done ? " is-done" : ""}`}>
+                <button type="button" className="step-main" aria-pressed={done} onClick={() => toggleType(t.id)} disabled={sportBusy}>
+                  <span className="step-check" aria-hidden="true">{done ? <Check size={16} strokeWidth={3} /> : <Dumbbell size={15} />}</span>
+                  <span className="step-text">
+                    <span className="step-title">{t.name}</span>
+                    <span className="step-sub">{done ? "Bugün yapıldı · geri almak için dokun" : `Yaptıysan dokun, +${XP.sport} XP`}</span>
+                  </span>
+                </button>
+              </div>
+            );
+          })}
         </section>
       )}
 

@@ -8,6 +8,7 @@ import { getMealChecks, getNutritionDays, getPlanForWeekday, getWaterSettings, w
 import { getOverallStreak } from "@/lib/overview";
 import { getCheckKeys, getRoutine } from "@/lib/skin";
 import { getActivity, getWorkoutPlan } from "@/lib/sport";
+import { listTypes, sessionsOn } from "@/lib/sport-activities";
 import { wishOverview } from "@/lib/wishes-server";
 
 export const metadata: Metadata = { title: "Bugün" };
@@ -27,7 +28,7 @@ export default async function TodayPage() {
   const today = todayIstanbul();
   const wd = weekdayIndex(today);
   const week = weekDays(weekStart(today));
-  const [items, checks, meals, mealChecks, nutritionDay, water, waterFrom, workoutPlan, activity, streak, { wishes }] = await Promise.all([
+  const [items, checks, meals, mealChecks, nutritionDay, water, waterFrom, workoutPlan, activity, streak, { wishes }, types, todaySessions] = await Promise.all([
     getRoutine(user.id),
     getCheckKeys(user.id, week[0]!, week[6]!),
     getPlanForWeekday(user.id, wd),
@@ -39,6 +40,8 @@ export default async function TodayPage() {
     getActivity(user.id, today, today),
     getOverallStreak(user.id, today),
     wishOverview(user, today),
+    listTypes(user.id),
+    sessionsOn(user.id, today),
   ]);
   const workoutToday = workoutPlan.items.filter((i) => i.weekday === wd);
   const sportDay = workoutToday.length > 0;
@@ -72,6 +75,10 @@ export default async function TodayPage() {
           title: workoutPlan.titles[wd] ?? "",
           count: workoutToday.length,
           done: activity[0]?.workoutDone ?? false,
+          // planlı antrenman "Ağırlık" gibi set kaydedilen türe yazılır; yoksa ilk türe
+          planTypeId: (types.find((t) => t.logsSets) ?? types[0])?.id ?? null,
+          types: types.map((t) => ({ id: t.id, name: t.name })),
+          sessions: todaySessions,
         }}
         streak={{ current: streak.current, todayComplete: streak.todayComplete }}
       />

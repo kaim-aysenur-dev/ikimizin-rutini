@@ -142,6 +142,12 @@ export async function createSession(userId: string, s: SessionInput): Promise<st
   return row!.id;
 }
 
+/** O günün oturumları (Bugün sayfasındaki spor satırları için) */
+export async function sessionsOn(userId: string, day: string): Promise<{ id: string; typeId: string | null; note: string }[]> {
+  const rows = await sql()`select id, type_id, note from sport_sessions where user_id = ${userId} and day = ${day} order by created_at`;
+  return rows.map((r) => ({ id: r.id as string, typeId: (r.type_id as string) ?? null, note: r.note as string }));
+}
+
 export async function deleteSession(userId: string, id: string): Promise<boolean> {
   const rows = await sql()`delete from sport_sessions where id = ${id} and user_id = ${userId} returning id`;
   return rows.length > 0;
