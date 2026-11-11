@@ -202,12 +202,17 @@ export function VideoLibrary({ today, videos, types }: Props) {
                         </div>
                       ) : (
                         <div className="row video-actions">
-                          <a href={youtubeWatchUrl(v.youtubeId)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm grow" onClick={() => open(v.id)}>
+                          {/* süresi girilmemiş video teknik anlatımdır: "Yaptım" spor oturumu ve XP yazmasın */}
+                          <a href={youtubeWatchUrl(v.youtubeId)} target="_blank" rel="noopener noreferrer" className="btn btn-ghost btn-sm grow" onClick={() => v.minutes && open(v.id)}>
                             <ExternalLink size={15} aria-hidden="true" /> YouTube&apos;da aç
                           </a>
-                          <button type="button" className="btn btn-primary btn-sm grow" onClick={() => done(v)}>
-                            <Check size={15} strokeWidth={3} aria-hidden="true" /> Yaptım
-                          </button>
+                          {v.minutes ? (
+                            <button type="button" className="btn btn-primary btn-sm grow" onClick={() => done(v)}>
+                              <Check size={15} strokeWidth={3} aria-hidden="true" /> Yaptım
+                            </button>
+                          ) : (
+                            <span className="muted small grow">Teknik videosu</span>
+                          )}
                         </div>
                       )}
                     </div>

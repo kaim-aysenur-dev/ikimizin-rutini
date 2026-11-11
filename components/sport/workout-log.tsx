@@ -2,6 +2,7 @@
 
 import { STEP_GOAL, formatKm, stepsKm } from "@/lib/sport-shared";
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Check, Plus, Timer, Trash } from "lucide-react";
 import { useTimers } from "@/components/timers";
@@ -37,7 +38,7 @@ export function WorkoutLog({ day, title, planned, exercises, sets, previous, act
     <div className="stack">
       <WorkoutDone day={day} title={title} hasPlan={planned.length > 0} initial={activity?.workoutDone ?? false} />
 
-      {planned.map((p) => (
+      {planned.map((p) => isSession(p) ? <SessionCard key={p.id} item={p} /> : (
         <ExerciseLog
           key={p.id}
           day={day}
@@ -83,6 +84,28 @@ export function WorkoutLog({ day, title, planned, exercises, sets, previous, act
 
       <ActivityCard day={day} activity={activity} />
     </div>
+  );
+}
+
+// shortcut: 1 set, ağırlıksız ve dinlenmesiz plan satırı "seans" sayılır (kickbox dersi gibi); set formu anlamsız.
+// Planda ayrı bir "seans" alanı olursa ona geçilmeli.
+const isSession = (p: PlanItem) => p.sets === 1 && p.weightKg === null && p.restSeconds === 0;
+
+/** Seans (ör. kickbox dersi): set girilmez, "Spor yaptım" ile kaydedilir */
+function SessionCard({ item }: { item: PlanItem }) {
+  return (
+    <section className="card stack" aria-label={item.exerciseName}>
+      <header>
+        <h3>{item.exerciseName}</h3>
+        <p className="muted small">{item.reps || "Seans"}{item.note ? ` · ${item.note}` : ""}</p>
+      </header>
+      <p className="muted small">Bu bir seans; set girilmez. Bitince &ldquo;Spor yaptım&rdquo; ile kaydet.</p>
+      <div>
+        <Link href="/spor" className="btn btn-quiet">
+          Spor yaptım
+        </Link>
+      </div>
+    </section>
   );
 }
 
