@@ -43,6 +43,29 @@ export const FRONT_DOOR = { i: 0, j: 2 };
 
 export const HOUSE_PLAN: Plan<RoomId> = { ...SIZE.oda, rooms: ROOMS, doors: DOORS };
 
+/* ------------------------------ evin katları ------------------------------ */
+// Ev seviyeyle büyür: her kat aynı kat planında (duvarlar ve kapılar aynı yerde), odaların adı ve havası farklı.
+// Hol'deki iki merdiven katları bağlar: (6,0) üst kata, (6,4) bodrum ve çatıya. Yeni kat için buraya bir kayıt eklemek yeter.
+export type HouseFloor = 0 | 1 | 2 | 3;
+export type HouseFloorInfo = { floor: HouseFloor; name: string; level: number; rooms: Record<RoomId, string> };
+export const HOUSE_FLOORS: HouseFloorInfo[] = [
+  { floor: 1, name: "Zemin kat", level: 1, rooms: { hol: "Giriş holü", salon: "Salon", yatak: "Yatak odası", mutfak: "Mutfak", banyo: "Banyo", calisma: "Çalışma odası" } },
+  { floor: 2, name: "Üst kat", level: 10, rooms: { hol: "Üst kat holü", salon: "Kütüphane", yatak: "Oyun odası", mutfak: "Giyinme odası", banyo: "Misafir odası", calisma: "Sanat atölyesi" } },
+  { floor: 0, name: "Bodrum", level: 20, rooms: { hol: "Bodrum holü", salon: "Şarap mahzeni", yatak: "Spor salonu", mutfak: "Kiler", banyo: "Hamam", calisma: "Hazine odası" } },
+  { floor: 3, name: "Çatı katı", level: 30, rooms: { hol: "Çatı holü", salon: "Gözlemevi", yatak: "Kış bahçesi", mutfak: "Müzik odası", banyo: "Okuma köşesi", calisma: "Çatı terası" } },
+];
+export const floorInfo = (f: number) => HOUSE_FLOORS.find((x) => x.floor === f) ?? HOUSE_FLOORS[0];
+export const roomNameAt = (floor: number, i: number, j: number) => { const r = roomAt(i, j); return r ? floorInfo(floor).rooms[r.id] : ""; };
+export type HouseStair = { floor: HouseFloor; i: number; j: number; to: HouseFloor; up: boolean; spawn: [number, number] };
+export const HOUSE_STAIRS: HouseStair[] = [
+  { floor: 1, i: 6, j: 0, to: 2, up: true, spawn: [6.9, 2.6] }, { floor: 2, i: 6, j: 0, to: 1, up: false, spawn: [6.9, 2.6] },
+  { floor: 1, i: 6, j: 4, to: 0, up: false, spawn: [6.9, 6.6] }, { floor: 0, i: 6, j: 4, to: 1, up: true, spawn: [6.9, 6.6] },
+  { floor: 2, i: 6, j: 4, to: 3, up: true, spawn: [6.9, 6.6] }, { floor: 3, i: 6, j: 4, to: 2, up: false, spawn: [6.9, 6.6] },
+];
+const stairCells = (floor: number): [number, number][] => HOUSE_STAIRS.filter((s) => s.floor === floor).flatMap((s) => [[s.i, s.j], [s.i + 1, s.j], [s.i, s.j + 1], [s.i + 1, s.j + 1]] as [number, number][]);
+/** Merdivenler yürünmez (önünde durup F ile çıkılır) */
+export const houseSolid = (floor: number) => new Set(stairCells(floor).map(([a, b]) => `${a},${b}`));
+
 // Şato: altı salon. Kapılar iki kare geniş; giriş büyük salonun sol duvarında.
 export const HALLS: Room<HallId>[] = [
   { id: "buyuk-salon", name: "Büyük salon", i0: 0, j0: 0, i1: 14, j1: 12 },
@@ -242,7 +265,7 @@ export function gardenSolid(i: number, j: number): boolean {
 /* -------------------------------- yerleştirme ------------------------------- */
 
 // rot: 0-3; tek sayılarda eşya yan döner (eni ve boyu yer değiştirir), 2 ve 3 tersidir
-export type Placed = { id: string; itemId: string; scope: Scope; tx: number; ty: number; userId: string; rot?: number };
+export type Placed = { id: string; itemId: string; scope: Scope; tx: number; ty: number; userId: string; rot?: number; floor?: number }; // floor: evin katı (yoksa 1)
 
 /** Döndürmeye göre eşyanın kapladığı en ve boy */
 export function sizeOf(itemId: string, rot = 0): [number, number] {
@@ -276,15 +299,19 @@ export function footprint(itemId: string, tx: number, ty: number, rot = 0): [num
 }
 
 // kapıların önü ve boşlukları boş kalmalı ki geçilebilsin
-function keepClear(scope: Scope): [number, number][] {
-  if (scope === "oda") return [[FRONT_DOOR.i, FRONT_DOOR.j], [FRONT_DOOR.i + 1, FRONT_DOOR.j], ...DOORS.flat()];
+function keepClear(scope: Scope, floor = 1): [number, number][] {
+  if (scope === "oda") {
+    // merdivenler ve önleri de boş kalır
+    const front: [number, number][] = HOUSE_STAIRS.filter((s) => s.floor === floor).map((s) => [Math.floor(s.spawn[0]), Math.floor(s.spawn[1])]);
+    return [...(floor === 1 ? [[FRONT_DOOR.i, FRONT_DOOR.j], [FRONT_DOOR.i + 1, FRONT_DOOR.j]] as [number, number][] : []), ...DOORS.flat(), ...stairCells(floor), ...front];
+  }
   const gate: [number, number][] = [];
   for (let k = 0; k < CASTLE.gate.width; k++) gate.push([CASTLE.gate.i + k, CASTLE.j1], [CASTLE.gate.i + k, CASTLE.j1 + 1]);
   return [...HOUSES.flatMap((h) => [[h.door.i, h.door.j], [h.door.i, h.door.j + 1]] as [number, number][]), ...gate];
 }
 
 /** Bu kareye konabilir mi: sahne içinde, tek odada, engel ve kapı önünde değil, başka eşyayla çakışmıyor */
-export function canPlace(scope: Scope, itemId: string, tx: number, ty: number, placed: Placed[], rot = 0): boolean {
+export function canPlace(scope: Scope, itemId: string, tx: number, ty: number, placed: Placed[], rot = 0, floor = 1): boolean {
   const it = itemById.get(itemId);
   if (!it || it.scope !== scope || !Number.isInteger(tx) || !Number.isInteger(ty)) return false;
   const { w, d } = SIZE[scope];
@@ -293,14 +320,16 @@ export function canPlace(scope: Scope, itemId: string, tx: number, ty: number, p
   if (scope === "oda" && new Set(cells.map(([a, b]) => roomAt(a, b)?.id)).size !== 1) return false;
   if (scope === "bahce" && cells.some(([a, b]) => gardenSolid(a, b))) return false;
   // halının üstüne mobilya konabilir; halı da halıyla değil yalnız kendi gibilerle çakışır
-  const busy = new Set(placed.filter((p) => p.scope === scope && isFlat(p.itemId) === isFlat(itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty, p.rot).map(([a, b]) => `${a},${b}`)));
-  keepClear(scope).forEach(([a, b]) => busy.add(`${a},${b}`));
+  const busy = new Set(placed.filter((p) => p.scope === scope && isFlat(p.itemId) === isFlat(itemId) && (scope !== "oda" || (p.floor ?? 1) === floor)).flatMap((p) => footprint(p.itemId, p.tx, p.ty, p.rot).map(([a, b]) => `${a},${b}`)));
+  keepClear(scope, floor).forEach(([a, b]) => busy.add(`${a},${b}`));
   return cells.every(([a, b]) => !busy.has(`${a},${b}`));
 }
 
 /** Yürürken çarpılan kareler (eşyalar; halı gibi düz olanlar hariç) */
-export function blockedSet(scope: Scope, placed: Placed[]): Set<string> {
-  return new Set(placed.filter((p) => p.scope === scope && !isFlat(p.itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty, p.rot).map(([a, b]) => `${a},${b}`)));
+export function blockedSet(scope: Scope, placed: Placed[], floor = 1): Set<string> {
+  const s = new Set(placed.filter((p) => p.scope === scope && !isFlat(p.itemId)).flatMap((p) => footprint(p.itemId, p.tx, p.ty, p.rot).map(([a, b]) => `${a},${b}`)));
+  if (scope === "oda") houseSolid(floor).forEach((k) => s.add(k));
+  return s;
 }
 
 // kendi kendini denetler
@@ -322,5 +351,8 @@ if (process.env.NODE_ENV !== "production") {
     console.assert(HOUSES.every((h) => open(h.door.i, h.door.j)) && open(CASTLE.gate.i, CASTLE.j1) && open(27, 45) && open(6, 45) && !open(20, 45), "bahçe kapıları ve köprüler");
     console.assert(TREES.every(([a, b]) => !isPath(a, b) || b < CASTLE.j1) && LANTERNS.every(([a, b]) => !isPath(a, b)), "ağaç ve fener yolda değil");
   }
+  console.assert(HOUSE_FLOORS.every((f) => HOUSE_STAIRS.some((s) => s.floor === f.floor)) && HOUSE_STAIRS.every((s) => HOUSE_STAIRS.some((b) => b.floor === s.to && b.to === s.floor && b.i === s.i && b.j === s.j)), "her katın merdiveni karşılıklı");
+  console.assert(!canPlace("oda", "komodin", 6, 0, [], 0, 2) && canPlace("oda", "komodin", 4, 1, [], 0, 2) && canPlace("oda", "komodin", 0, 2, [], 0, 2) && !canPlace("oda", "komodin", 0, 2, [], 0, 1), "merdiven önü boş; ön kapı yalnız zemin katta");
+  console.assert(canPlace("oda", "komodin", 10, 2, [{ id: "a", itemId: "komodin", scope: "oda", tx: 10, ty: 2, userId: "u", floor: 1 }], 0, 2), "başka kattaki eşya engel değil");
   console.assert(maxCopies("hali") === 10 && maxCopies("sandalye-meşe") === 12 && maxCopies("piyano-siyah") === 2, "adet sınırı");
 }

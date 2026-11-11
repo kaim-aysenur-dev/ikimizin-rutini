@@ -10,8 +10,8 @@ import type { WishCat } from "./wishes";
 export const vitrine: { cats: WishCat[] } = { cats: [] };
 
 export type Scope = "oda" | "bahce";
-export type Cat = "Salon" | "Yatak odası" | "Mutfak" | "Banyo" | "Çalışma" | "Dekor" | "Bitki" | "Halı" | "Bahçe";
-export const CATS: Cat[] = ["Salon", "Yatak odası", "Mutfak", "Banyo", "Çalışma", "Dekor", "Bitki", "Halı", "Bahçe"];
+export type Cat = "Salon" | "Yatak odası" | "Mutfak" | "Banyo" | "Çalışma" | "Dekor" | "Bitki" | "Halı" | "Kütüphane" | "Eğlence" | "Spor" | "Sanat" | "Mahzen" | "Gözlemevi" | "Müzik" | "Bahçe";
+export const CATS: Cat[] = ["Salon", "Yatak odası", "Mutfak", "Banyo", "Çalışma", "Dekor", "Bitki", "Halı", "Kütüphane", "Eğlence", "Spor", "Sanat", "Mahzen", "Gözlemevi", "Müzik", "Bahçe"];
 export type RoomItem = { id: string; level: number; name: string; scope: Scope; size: [number, number]; cat?: Cat; draw: (c: Ctx, o: Origin, i: number, j: number, t: number) => void };
 
 const WOOD = shade("#8c6448"), WOOD_DK = shade("#6b4a35"), STONE = shade("#7d7884"), GOLD = shade("#d8a840");
@@ -623,16 +623,203 @@ const GENERATED: RoomItem[] = order.map(({ tp, p }, k) => ({
   draw: (c: Ctx, o: Origin, i: number, j: number, t: number) => tp.draw(c, o, i, j, t, p.c),
 }));
 
+/* ---------------- katlar için yeni eşyalar (kütüphane, eğlence, spor, sanat, mahzen, gözlemevi, müzik) ----------------
+   Ayrı listede durur ki eski eşyaların seviyesi kaymasın. Seviyeler 8..100 arasına yayılır; yeni şablon sona eklenir. */
+const METALS: Pal[] = [{ name: "Pirinç", c: "#c89a3e" }, { name: "Gümüş", c: "#b8bcc8" }, { name: "Bakır", c: "#b8683a" }];
+const FELTS: Pal[] = [{ name: "Yeşil", c: "#2f6a3e" }, { name: "Bordo", c: "#7a2434" }, { name: "Lacivert", c: "#26386a" }];
+const STONES: Pal[] = [{ name: "Mermer", c: "#e0dcd4" }, { name: "Granit", c: "#7d7884" }, { name: "Yeşim", c: "#5a9a7a" }];
+const books = (c: Ctx, x: number, y: number, n: number) => { const cols = ["#a8454e", "#2f3b6b", "#4f7a4f", "#c89a3e", "#6b4a8a", "#e6d3a8"]; for (let k = 0; k < n; k++) rect(c, x + k * 2, y - (k % 3 === 1 ? 1 : 0), 2, 4 + (k % 3 === 1 ? 1 : 0), cols[(k * 7 + x) % cols.length]); };
+// eşyanın üstündeki ince yüzey (keçe, harita, satranç karesi): z yüksekliğinde düz kutu
+const ztile = (c: Ctx, o: Origin, i: number, j: number, col: string, w: number, d: number, z: number) => box(c, o, i, j, w, d, 1, shade(col, 0, 0.2), z - 1, false);
+const FLOOR_TEMPLATES: GenTmpl[] = [
+  // Kütüphane
+  { id: "okuma-koltugu", noun: "Okuma Koltuğu", cat: "Kütüphane", scope: "oda", size: [1, 1], pals: FAB, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.12, j + 0.18, 0.76, 0.7, 6, shade(p)); box(c, o, i + 0.12, j + 0.12, 0.76, 0.2, 17, shade(p, 0.1, 0.3));
+    box(c, o, i + 0.12, j + 0.12, 0.76, 0.12, 2, shade(p, 0.25), 17, false); // kulaklı tepe
+    box(c, o, i + 0.12, j + 0.18, 0.13, 0.7, 10, shade(p, 0.1, 0.3)); box(c, o, i + 0.75, j + 0.18, 0.13, 0.7, 10, shade(p, 0.1, 0.3));
+    const [x, y] = at2(o, i + 0.8, j + 0.75); rect(c, x - 2, y - 13, 5, 1, "#e6d3a8"); rect(c, x - 2, y - 12, 5, 1, "#a8454e"); // kolçakta açık kitap
+    void t;
+  } },
+  { id: "kitap-kulesi", noun: "Kitap Kulesi", cat: "Kütüphane", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.1, j + 0.1, 0.8, 0.8, 38, shade(p));
+    for (let r = 0; r < 4; r++) { const [x, y] = at2(o, i + 0.5, j + 0.9); books(c, x - 6, y - 10 - r * 8, 6); }
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 3, y - 41, 6, 2, "#c89a3e"); // tepe pervazı
+  } },
+  { id: "kutuphane-merdiveni", noun: "Kütüphane Merdiveni", cat: "Kütüphane", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    for (const a of [0.2, 0.75]) box(c, o, i + a, j + 0.6, 0.06, 0.06, 26, shade(p, 0, 0.3), 0, false);
+    for (let k = 0; k < 5; k++) box(c, o, i + 0.2, j + 0.6 - k * 0.1, 0.61, 0.08, 1, shade(p, 0.2), 4 + k * 5, false);
+    const [x, y] = at2(o, i + 0.5, j + 0.9); rect(c, x - 3, y, 2, 2, "#2a2533"); rect(c, x + 2, y, 2, 2, "#2a2533"); // tekerler
+  } },
+  { id: "harita-masasi", noun: "Harita Masası", cat: "Kütüphane", scope: "oda", size: [2, 1], pals: WOODS, draw: (c, o, i, j, t, p) => {
+    for (const [a, b] of [[0.15, 0.15], [1.78, 0.15], [0.15, 0.78], [1.78, 0.78]]) box(c, o, i + a, j + b, 0.08, 0.08, 9, shade(p, 0, 0.3), 0, false);
+    box(c, o, i + 0.05, j + 0.08, 1.9, 0.84, 2, shade(p), 9);
+    ztile(c, o, i + 0.25, j + 0.2, "#e6d3a8", 1.5, 0.6, 11);
+    const [x, y] = at2(o, i + 1, j + 0.5); line(c, [x - 8, y - 12], [x + 6, y - 14], 1, "#a8454e"); px(c, x + 6, y - 14, "#d8485a"); rect(c, x - 4, y - 13, 3, 1, "#4f7a4f"); rect(c, x + 2, y - 12, 2, 1, "#3a9aa0");
+    if (Math.floor(t) % 4 === 0) px(c, x - 8, y - 12, "#fff6c8");
+  } },
+  { id: "kure", noun: "Dünya Küresi", cat: "Kütüphane", scope: "oda", size: [1, 1], pals: METALS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.4, j + 0.4, 0.2, 0.2, 9, shade(p, 0, 0.3));
+    const [x, y] = at2(o, i + 0.5, j + 0.5), r = 5, sp = Math.floor(t * 2) % 4;
+    disc(c, x, y - 17, r, "#3a6a9a"); rect(c, x - 3 + sp % 3, y - 19, 3, 2, "#5f9a5a"); rect(c, x - 1 - sp % 2, y - 15, 2, 2, "#5f9a5a");
+    line(c, [x - 6, y - 12], [x + 5, y - 22], 1, p);
+  } },
+  // Eğlence
+  { id: "bilardo", noun: "Bilardo Masası", cat: "Eğlence", scope: "oda", size: [3, 2], pals: FELTS, draw: (c, o, i, j, _t, p) => {
+    for (const [a, b] of [[0.2, 0.2], [2.7, 0.2], [0.2, 1.7], [2.7, 1.7]]) box(c, o, i + a, j + b, 0.12, 0.12, 9, shade("#3a2a28"), 0, false);
+    box(c, o, i + 0.1, j + 0.1, 2.8, 1.8, 3, shade("#5a3a28"), 9);
+    ztile(c, o, i + 0.25, j + 0.25, p, 2.5, 1.5, 12);
+    const balls = [["#f3f0e8", 0.8, 1], ["#d8485a", 2, 0.7], ["#f0c040", 2.2, 0.95], ["#2f3b6b", 2.05, 1.2], ["#1a1418", 2.35, 1.1]] as const;
+    for (const [col, a, b] of balls) { const [x, y] = at2(o, i + a, j + b); rect(c, x - 1, y - 13, 2, 2, col); }
+    const [s1, s2] = [at2(o, i + 0.2, j + 1.4), at2(o, i + 0.9, j + 1.05)]; line(c, [s1[0], s1[1] - 13], [s2[0], s2[1] - 13], 1, "#c8a070");
+  } },
+  { id: "dart-tahtasi", noun: "Dart Tahtası", cat: "Eğlence", scope: "oda", size: [1, 1], pals: [{ name: "Klasik", c: "#1a1418" }], draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.45, j + 0.45, 0.1, 0.1, 18, shade("#5a4a3a"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); disc(c, x, y - 24, 6, p); disc(c, x, y - 24, 4, "#a8454e"); disc(c, x, y - 24, 2, "#2f6a3e"); px(c, x, y - 24, "#f0c040");
+    line(c, [x + 1, y - 24], [x + 4, y - 27], 1, "#e6d3a8");
+  } },
+  { id: "oyun-masasi", noun: "Satranç Masası", cat: "Eğlence", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.42, j + 0.42, 0.16, 0.16, 8, shade(p, 0, 0.3)); box(c, o, i + 0.12, j + 0.12, 0.76, 0.76, 2, shade(p), 8);
+    for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) ztile(c, o, i + 0.18 + a * 0.16, j + 0.18 + b * 0.16, (a + b) % 2 ? "#2a2533" : "#e6d3a8", 0.16, 0.16, 10);
+    const [x, y] = at2(o, i + 0.4, j + 0.4); rect(c, x, y - 14, 1, 3, "#f3f0e8"); const [x2, y2] = at2(o, i + 0.65, j + 0.6); rect(c, x2, y2 - 14, 1, 3, "#1a1418");
+  } },
+  { id: "kart-masasi", noun: "Kart Masası", cat: "Eğlence", scope: "oda", size: [2, 2], pals: FELTS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.85, j + 0.85, 0.3, 0.3, 9, shade("#3a2a28"));
+    box(c, o, i + 0.15, j + 0.15, 1.7, 1.7, 2, shade("#5a3a28"), 9); ztile(c, o, i + 0.3, j + 0.3, p, 1.4, 1.4, 11);
+    const [x, y] = at2(o, i + 1, j + 1); for (let k = 0; k < 4; k++) rect(c, x - 7 + k * 4, y - 13 + (k % 2), 3, 4, k % 2 ? "#f3f0e8" : "#e8d8c8");
+    rect(c, x + 6, y - 14, 3, 2, "#c89a3e"); if (Math.floor(t * 2) % 3 === 0) px(c, x + 7, y - 15, "#fff6c8"); // jeton yığını
+  } },
+  // Spor
+  { id: "agirlik-seti", noun: "Ağırlık Seti", cat: "Spor", scope: "oda", size: [2, 1], pals: METALS, draw: (c, o, i, j, _t, p) => {
+    for (const a of [0.1, 1.75]) box(c, o, i + a, j + 0.3, 0.15, 0.4, 14, shade("#2a2533"), 0, false);
+    box(c, o, i + 0.1, j + 0.35, 1.8, 0.3, 2, shade("#3a3346"), 3);
+    const [x1, y1] = at2(o, i + 0.15, j + 0.5), [x2, y2] = at2(o, i + 1.85, j + 0.5); line(c, [x1, y1 - 14], [x2, y2 - 14], 1, p);
+    for (const [x, y] of [[x1, y1], [x2, y2]]) { rect(c, x - 2, y - 18, 4, 8, "#1a1418"); rect(c, x - 1, y - 17, 2, 6, "#3a3346"); }
+  } },
+  { id: "boks-torbasi", noun: "Boks Torbası", cat: "Spor", scope: "oda", size: [1, 1], pals: [{ name: "Kırmızı", c: "#a8454e" }, { name: "Siyah", c: "#2a2533" }], draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.45, j + 0.45, 0.1, 0.1, 40, shade("#5a4a3a"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5), sw = Math.round(Math.sin(t * 2) * 1);
+    line(c, [x, y - 40], [x + sw, y - 34], 1, "#9aa0ae"); rect(c, x - 4 + sw, y - 34, 8, 18, P.ink); rect(c, x - 3 + sw, y - 33, 6, 16, p); rect(c, x - 3 + sw, y - 26, 6, 1, "#1a1418");
+  } },
+  { id: "yoga-mati", noun: "Yoga Matı", cat: "Spor", scope: "oda", size: [1, 2], pals: TONES, draw: (c, o, i, j, _t, p) => {
+    tile(c, o, i + 0.15, j + 0.1, p, 0.7, 1.8); tile(c, o, i + 0.15, j + 1.7, shade(p).left, 0.7, 0.2);
+  } },
+  { id: "talim-mankeni", noun: "Talim Mankeni", cat: "Spor", scope: "oda", size: [1, 1], pals: [{ name: "Saman", c: "#c8a070" }], draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 2, shade("#5a4a3a"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 1, y - 14, 2, 12, "#6b4a35"); rect(c, x - 4, y - 24, 8, 10, P.ink); rect(c, x - 3, y - 23, 6, 8, p);
+    rect(c, x - 7, y - 21, 14, 2, "#6b4a35"); disc(c, x, y - 28, 3, p); rect(c, x - 2, y - 20, 4, 1, "#a8454e");
+  } },
+  // Sanat
+  { id: "sovale", noun: "Şövale", cat: "Sanat", scope: "oda", size: [1, 1], pals: [{ name: "Gün batımı", c: "#e8a33a" }, { name: "Deniz", c: "#3a9aa0" }, { name: "Gece", c: "#2f3b6b" }], draw: (c, o, i, j, _t, p) => {
+    const [x, y] = at2(o, i + 0.5, j + 0.5); line(c, [x - 5, y], [x, y - 30], 1, "#8c6448"); line(c, [x + 5, y], [x, y - 30], 1, "#8c6448"); line(c, [x, y - 2], [x, y - 28], 1, "#6b4a35");
+    rect(c, x - 7, y - 27, 14, 12, P.ink); rect(c, x - 6, y - 26, 12, 10, p); rect(c, x - 6, y - 19, 12, 3, "#4f7a4f"); disc(c, x + 2, y - 22, 2, "#fff6c8");
+    rect(c, x - 7, y - 15, 14, 1, "#6b4a35");
+  } },
+  { id: "heykel", noun: "Heykel", cat: "Sanat", scope: "oda", size: [1, 1], pals: STONES, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.25, j + 0.25, 0.5, 0.5, 10, shade("#5a5662"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 3, y - 26, 6, 14, P.ink); rect(c, x - 2, y - 25, 4, 12, p); disc(c, x, y - 29, 3, p); rect(c, x + 2, y - 24, 3, 2, p);
+    px(c, x - 1, y - 30, shade(p).left);
+  } },
+  { id: "comlek-carki", noun: "Çömlek Çarkı", cat: "Sanat", scope: "oda", size: [1, 1], pals: [{ name: "Kil", c: "#b8683a" }], draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.2, j + 0.2, 0.6, 0.6, 8, shade("#6b4a35"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5), s = Math.floor(t * 6) % 2; rect(c, x - 4, y - 10, 8, 1, "#3a3346");
+    rect(c, x - 2, y - 15, 4, 5, p); rect(c, x - 3 + s, y - 13, 1, 1, shade(p).left); rect(c, x - 1, y - 16, 2, 1, "#5a3a28");
+  } },
+  // Mahzen
+  { id: "sarap-fucisi", noun: "Şarap Fıçısı", cat: "Mahzen", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.15, j + 0.3, 0.7, 0.5, 3, shade("#3a2a28"));
+    const [x, y] = at2(o, i + 0.5, j + 0.55); disc(c, x, y - 11, 7, P.ink); disc(c, x, y - 11, 6, p); for (const r of [6, 3]) { rect(c, x - r, y - 11, r * 2, 1, "#3a3346"); }
+    rect(c, x - 1, y - 6, 2, 2, "#c89a3e");
+  } },
+  { id: "fici-yigini", noun: "Fıçı Yığını", cat: "Mahzen", scope: "oda", size: [2, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    for (const [a, z] of [[0.5, 0], [1.5, 0], [1, 12]] as const) { const [x, y] = at2(o, i + a, j + 0.55); disc(c, x, y - 7 - z, 6, P.ink); disc(c, x, y - 7 - z, 5, p); rect(c, x - 5, y - 7 - z, 10, 1, "#3a3346"); }
+  } },
+  { id: "kiler-rafi", noun: "Kiler Rafı", cat: "Mahzen", scope: "oda", size: [2, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.05, j + 0.1, 1.9, 0.6, 28, shade(p));
+    const [x, y] = at2(o, i + 1, j + 0.7), jar = ["#c8461e", "#f0c040", "#5fae6e", "#a8454e", "#e6d3a8"];
+    for (let r = 0; r < 3; r++) for (let k = 0; k < 5; k++) { rect(c, x - 12 + k * 5, y - 9 - r * 8, 3, 4, jar[(k + r) % 5]); px(c, x - 11 + k * 5, y - 10 - r * 8, "#e6d3a8"); }
+    rect(c, x - 14, y - 30, 4, 4, "#e6d3a8"); // asılı sarımsak
+  } },
+  { id: "hazine-sandigi", noun: "Hazine Sandığı", cat: "Mahzen", scope: "oda", size: [1, 1], pals: METALS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.15, j + 0.25, 0.7, 0.5, 8, shade("#6b4a35"));
+    box(c, o, i + 0.15, j + 0.25, 0.7, 0.5, 3, shade("#7a5a40"), 8, false);
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 6, y - 14, 12, 1, p); rect(c, x - 1, y - 12, 2, 3, p);
+    for (let k = 0; k < 3; k++) if (Math.floor(t * 2 + k) % 4 === 0) px(c, x - 4 + k * 4, y - 15, "#fff6c8");
+    lights.push({ x, y: y - 14, r: 10, color: "240,200,90" });
+  } },
+  // Gözlemevi
+  { id: "buyuk-teleskop", noun: "Büyük Teleskop", cat: "Gözlemevi", scope: "oda", size: [2, 2], pals: METALS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.6, j + 0.6, 0.8, 0.8, 3, shade("#3a3346"));
+    const [x, y] = at2(o, i + 1, j + 1); line(c, [x - 4, y - 3], [x, y - 12], 1, "#2a2533"); line(c, [x + 4, y - 3], [x, y - 12], 1, "#2a2533");
+    for (let k = 0; k < 4; k++) rect(c, x - 2 + k * 3, y - 14 - k * 3, 4 - (k === 3 ? 1 : 0), 4, k === 3 ? "#1a1418" : p);
+    if (Math.floor(t * 1.5) % 3 === 0) px(c, x + 12, y - 25, "#ffffff");
+  } },
+  { id: "yildiz-haritasi", noun: "Yıldız Haritası", cat: "Gözlemevi", scope: "oda", size: [1, 1], pals: [{ name: "Gece", c: "#1a2448" }], draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.4, j + 0.4, 0.2, 0.2, 10, shade("#6b4a35"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 8, y - 26, 16, 12, P.ink); rect(c, x - 7, y - 25, 14, 10, p);
+    const st = [[-5, -23], [-2, -20], [2, -22], [5, -18], [0, -17]]; st.forEach(([a, b], k) => px(c, x + a, y + b, Math.floor(t * 2 + k) % 3 ? "#f3f0e8" : "#f0c040"));
+    line(c, [x - 5, y - 23], [x - 2, y - 20], 1, "rgba(240,240,255,0.35)"); line(c, [x - 2, y - 20], [x + 2, y - 22], 1, "rgba(240,240,255,0.35)");
+  } },
+  { id: "gok-kuresi", noun: "Gök Küresi", cat: "Gözlemevi", scope: "oda", size: [1, 1], pals: METALS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.35, j + 0.35, 0.3, 0.3, 8, shade("#3a3346"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5), a = t * 0.8;
+    for (let k = 0; k < 3; k++) { const r = 6 - k; line(c, [x - r * Math.cos(a + k), y - 18 - r * Math.sin(a + k) * 0.5], [x + r * Math.cos(a + k), y - 18 + r * Math.sin(a + k) * 0.5], 1, p); }
+    disc(c, x, y - 18, 2, "#f0c040");
+  } },
+  // Müzik
+  { id: "lavta", noun: "Lavta", cat: "Müzik", scope: "oda", size: [1, 1], pals: WOODS, draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 2, shade("#3a3346"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); disc(c, x, y - 9, 5, P.ink); disc(c, x, y - 9, 4, p); disc(c, x, y - 10, 1, "#1a1418");
+    line(c, [x, y - 13], [x + 2, y - 24], 2, shade(p).left); rect(c, x + 1, y - 26, 3, 2, "#3a2a28");
+  } },
+  { id: "davul", noun: "Davul", cat: "Müzik", scope: "oda", size: [1, 1], pals: [{ name: "Kırmızı", c: "#a8454e" }, { name: "Lacivert", c: "#2f3b6b" }], draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.2, j + 0.2, 0.6, 0.6, 9, shade(p));
+    ztile(c, o, i + 0.22, j + 0.22, "#e6d3a8", 0.56, 0.56, 9);
+    const [x, y] = at2(o, i + 0.5, j + 0.5); for (let k = -2; k <= 2; k++) line(c, [x + k * 2, y - 2], [x + k * 2 + 1, y - 8], 1, "#c89a3e");
+    line(c, [x + 4, y - 12], [x + 8, y - 16], 1, "#c8a070");
+  } },
+  { id: "telli-arp", noun: "Arp", cat: "Müzik", scope: "oda", size: [1, 1], pals: METALS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 3, shade("#6b4a35"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); line(c, [x - 4, y - 3], [x - 4, y - 28], 2, p); line(c, [x - 4, y - 28], [x + 5, y - 22], 2, p); line(c, [x + 5, y - 22], [x - 2, y - 3], 2, p);
+    for (let k = 0; k < 4; k++) line(c, [x - 3 + k * 2, y - 5], [x - 3 + k * 2, y - 25 + k * 1.5], 1, Math.floor(t * 4 + k) % 5 === 0 ? "#fff6c8" : "#e6d3a8");
+  } },
+  // Kış bahçesi ve hamam
+  { id: "limon-agaci", noun: "Limon Ağacı", cat: "Bitki", scope: "oda", size: [1, 1], pals: [{ name: "Saksıda", c: "#b8683a" }], draw: (c, o, i, j, _t, p) => {
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 6, shade(p));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 1, y - 14, 2, 8, "#6b4a35"); disc(c, x, y - 20, 7, "#2f5a37"); disc(c, x - 2, y - 22, 4, "#3a6a40");
+    for (const [a, b] of [[-4, -19], [3, -22], [1, -16], [-1, -25]]) rect(c, x + a, y + b, 2, 2, "#f0d040");
+  } },
+  { id: "kurna", noun: "Hamam Kurnası", cat: "Banyo", scope: "oda", size: [1, 1], pals: STONES, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.15, j + 0.15, 0.7, 0.7, 9, shade(p));
+    ztile(c, o, i + 0.25, j + 0.25, Math.floor(t * 2) % 2 ? "#6aa8c8" : "#7ab8d8", 0.5, 0.5, 9);
+    const [x, y] = at2(o, i + 0.5, j + 0.2); rect(c, x - 1, y - 16, 2, 4, "#c89a3e"); px(c, x, y - 11 + (Math.floor(t * 6) % 2), "#bfe0f0");
+  } },
+  { id: "gumus-tas", noun: "Hamam Tası", cat: "Banyo", scope: "oda", size: [1, 1], pals: METALS, draw: (c, o, i, j, t, p) => {
+    box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 2, shade("#7d7884"));
+    const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 4, y - 7, 8, 3, P.ink); rect(c, x - 3, y - 7, 6, 2, p); px(c, x - 1, y - 7, "#ffffff");
+    if (Math.floor(t * 1.2) % 3 === 0) { px(c, x - 1, y - 11, "rgba(255,255,255,0.5)"); px(c, x + 1, y - 13, "rgba(255,255,255,0.4)"); } // buhar
+  } },
+];
+const fOrder: { tp: GenTmpl; p: Pal }[] = [];
+const fMaxV = Math.max(...FLOOR_TEMPLATES.map((tp) => tp.pals.length));
+for (let v = 0; v < fMaxV; v++) for (const tp of FLOOR_TEMPLATES) if (v < tp.pals.length) fOrder.push({ tp, p: tp.pals[v] });
+const FLOOR_ITEMS: RoomItem[] = fOrder.map(({ tp, p }, k) => ({
+  id: `${tp.id}-${p.name.toLocaleLowerCase("tr").replace(/[^a-z0-9ğüşıöç]/g, "")}`,
+  level: Math.min(100, 8 + Math.floor((k * 92) / Math.max(1, fOrder.length - 1))),
+  name: tp.pals.length > 1 ? `${p.name} ${tp.noun}` : tp.noun,
+  scope: tp.scope, size: tp.size, cat: tp.cat,
+  draw: (c: Ctx, o: Origin, i: number, j: number, t: number) => tp.draw(c, o, i, j, t, p.c),
+}));
+
 const HANDMADE_CAT: Record<string, Cat> = {
   "bilgisayar-masasi": "Çalışma", "odul-vitrini": "Dekor", yatak: "Yatak odası", komodin: "Yatak odası", ayna: "Yatak odası", hali: "Halı", kitaplik: "Çalışma", masa: "Çalışma", saksi: "Bitki",
   sandik: "Dekor", "zirh-askisi": "Dekor", "silah-rafi": "Dekor", "kedi-minderi": "Dekor", kazan: "Dekor", yumurta: "Dekor", somine: "Salon", taht: "Salon",
 };
 for (const it of HANDMADE) it.cat = it.scope === "bahce" ? "Bahçe" : HANDMADE_CAT[it.id] ?? "Dekor";
 
-export const ROOM_ITEMS: RoomItem[] = [...HANDMADE, ...GENERATED].sort((a, b) => a.level - b.level);
+export const ROOM_ITEMS: RoomItem[] = [...HANDMADE, ...GENERATED, ...FLOOR_ITEMS].sort((a, b) => a.level - b.level);
 
 /** Yerde düz duran (üstünden yürünen) eşyalar: halılar, piknik örtüsü */
-export const isFlat = (id: string) => id === "hali" || id.startsWith("hali-") || id.startsWith("buyuk-hali-") || id.startsWith("piknik-");
+export const isFlat = (id: string) => id.startsWith("yoga-mati-") || id === "hali" || id.startsWith("hali-") || id.startsWith("buyuk-hali-") || id.startsWith("piknik-");
 
 export const itemById = new Map(ROOM_ITEMS.map((it) => [it.id, it]));
 

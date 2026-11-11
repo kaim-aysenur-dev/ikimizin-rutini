@@ -17,7 +17,7 @@ import { type Quest, QuestBoard } from "@/components/gelisim/quest-board";
 import { type Origin, toTile } from "@/lib/iso";
 import { formatClock } from "@/lib/slots";
 import { isDesk, isShelf } from "@/lib/study";
-import { CAMPFIRE, GRAVEYARD, MERCHANT, OWL_TREE, PERCH, CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, footprint, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn, GARDEN_SEATS } from "@/lib/room";
+import { CAMPFIRE, GRAVEYARD, MERCHANT, OWL_TREE, PERCH, CASTLE, CASTLE_ENTRY, FRONT_DOOR, type Floor, HOUSES, type Placed, SIZE, STAIRS, arrivalAt, atEntry, atGate, blockedSet, canPlace, castlePlan, footprint, gardenSolid, houseStep, maxCopies, roomAt, roomIn, sizeOf, stairsTarget, stepIn, GARDEN_SEATS, HOUSE_STAIRS, type HouseFloor, floorInfo, roomNameAt } from "@/lib/room";
 import { ARMORY_STATIONS, BOARD_AT, castleBlocked } from "@/lib/castle";
 import { type Equipment, NO_EQUIPMENT, sanitizeEquipment, toggleEquip } from "@/lib/equipment";
 import { FIST, gearSpeed, spellStats, trinketStats, weaponStats } from "@/lib/combat-stats";
@@ -35,7 +35,7 @@ import type { Wish, WishCat } from "@/lib/wishes";
 import { levelOf, xpToLevel } from "@/lib/xp";
 import { XP_EVENT } from "@/components/xp-badge";
 
-import { type Mode, type Near, type Profile, type Remote, type Where, DESK_SEAT, EMOTE_IDS, EMOTE_SOUND, GATE_FRONT, KEYS, PLACE_NAME, RESUME_KEY, SATO_CUSHION, SATO_SEATS, SOUND_KEY, SPEED, STATION_LABEL, TAGS, TARGET_HP, WHEEL, depthOfPlaced, deskSeat, faceDir, floorOf, leave, lieTilt, lookFor, nightNow, placeLocal, placeOf, poseOf, seatOf, standUp, tune, whoOf, gearOf } from "./world-helpers";
+import { type Mode, type Near, type Profile, type Remote, type Where, DESK_SEAT, EMOTE_IDS, EMOTE_SOUND, GATE_FRONT, KEYS, PLACE_NAME, RESUME_KEY, SATO_CUSHION, SATO_SEATS, SOUND_KEY, SPEED, STATION_LABEL, TAGS, TARGET_HP, WHEEL, depthOfPlaced, deskSeat, faceDir, floorOf, houseFloorOf, leave, lieTilt, lookFor, nightNow, placeLocal, placeOf, poseOf, seatOf, standUp, tune, whoOf, gearOf } from "./world-helpers";
 import { Mailbox } from "./mailbox";
 
 // Gelişim: kendi evin (altı oda) ve ortak bahçe. Kamera seni izler; envanterden eşya koyarsın; aynı yerdekiler birbirini canlı görür.
@@ -339,6 +339,14 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     else if (nb.kind === "gate") setGateOpen(true);
     else if (nb.kind === "board") { setBoardOpen(true); void loadQuests(); }
     else if (nb.kind === "merchant") setWardrobe(me); // kazanılan dilekler: Dilek Dolabı
+    else if (nb.kind === "stairs" && nb.hto !== undefined && !fade.current) {
+      const w = live.current.where;
+      if (w.scope !== "oda") return;
+      const fi = floorInfo(nb.hto);
+      if (levelOfUser(w.owner) < fi.level) { setMsg(`${fi.name} seviye ${fi.level}'da açılır. Rutinlerini yap, ev büyüsün!`); return; }
+      const back = HOUSE_STAIRS.find((s) => s.floor === nb.hto && s.to === houseFloorOf(w));
+      fade.current = { t: 0, to: { scope: "oda", owner: w.owner, floor: nb.hto }, spawn: back?.spawn ?? [6.9, 2.6] };
+    }
     else if (nb.kind === "stairs" && nb.to && !fade.current) {
       const from = floorOf(live.current.where);
       fade.current = { t: 0, to: { scope: "sato", floor: nb.to }, spawn: arrivalAt(nb.to, nb.to > from) };
@@ -350,7 +358,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       if (nb.kind === "desk" && nb.p) {
         const ds = deskSeat(nb.p.itemId), [si, sj] = placeLocal(nb.p, ...ds.slot);
         const wh = live.current.where, here = scenePlaced(wh, live.current.placed);
-        const okSpot = wh.scope === "oda" && !blockedSet("oda", here).has(`${Math.floor(si)},${Math.floor(sj)}`)
+        const okSpot = wh.scope === "oda" && !blockedSet("oda", here, houseFloorOf(wh)).has(`${Math.floor(si)},${Math.floor(sj)}`)
           && roomAt(Math.floor(si), Math.floor(sj))?.name === roomAt(Math.floor(h.i), Math.floor(h.j))?.name;
         if (okSpot) { h.i = si; h.j = sj; }
         h.dir = faceDir(nb.p, ds.face);
@@ -372,7 +380,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     return under.length ? Math.max(...under.map(depthOfPlaced)) + 0.02 : undefined;
   };
   const themeOf = (id: string) => whoOf(profiles.find((p) => p.id === id)?.name ?? "");
-  const scenePlaced = (w: Where, all: Placed[]) => (w.scope === "sato" || w.scope === "zindan" ? [] : all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner)));
+  const scenePlaced = (w: Where, all: Placed[]) => (w.scope === "sato" || w.scope === "zindan" ? [] : all.filter((p) => (w.scope === "bahce" ? p.scope === "bahce" : p.scope === "oda" && p.userId === w.owner && (p.floor ?? 1) === houseFloorOf(w))));
+  const levelOfUser = (id: string) => (id === me ? playerLevel : profiles.find((p) => p.id === id)?.level ?? 1);
   const ownerName = where.scope === "oda" ? profiles.find((p) => p.id === where.owner)?.name.split(" ")[0] ?? "" : "";
   const visiting = where.scope === "oda" && where.owner !== me;
   const canEditHere = where.scope === "bahce" || (where.scope === "oda" && !visiting);
@@ -422,11 +431,11 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const pl: string = v.place.startsWith("zindan:") ? "bahce" : v.place; // zindan yarım kaldıysa kapının önünde başlanır
       if (pl !== v.place) { v.i = GATE_FRONT[0]; v.j = GATE_FRONT[1]; }
       const w: Where | null = pl === "bahce" ? { scope: "bahce" }
-        : pl.startsWith("ev:") && profiles.some((p) => p.id === pl.slice(3)) ? { scope: "oda", owner: pl.slice(3) }
+        : /^ev:[^:]+(:[023])?$/.test(pl) && profiles.some((p) => p.id === pl.split(":")[1]) ? { scope: "oda", owner: pl.split(":")[1], floor: Number(pl.split(":")[2] ?? 1) as HouseFloor }
         : pl === "sato" ? { scope: "sato", floor: 1 } : /^sato:[23]$/.test(pl) ? { scope: "sato", floor: Number(pl.slice(5)) as Floor } : null;
       if (!w) return;
       const { w: W, d } = SIZE[w.scope], ci = Math.floor(v.i), cj = Math.floor(v.j);
-      const blocked = w.scope === "sato" ? castleBlocked(w.floor) : blockedSet(w.scope, scenePlaced(w, initialPlaced));
+      const blocked = w.scope === "sato" ? castleBlocked(w.floor) : blockedSet(w.scope, scenePlaced(w, initialPlaced), houseFloorOf(w));
       if (!(v.i > 0.3 && v.j > 0.3 && v.i < W - 0.3 && v.j < d - 0.3) || blocked.has(`${ci},${cj}`) || (w.scope === "bahce" && gardenSolid(ci, cj))) return;
       const h = hero.current;
       h.i = v.i; h.j = v.j; if (v.dir === 1 || v.dir === -1) h.dir = v.dir;
@@ -559,7 +568,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const zStage = wh.scope === "zindan" ? stageById(wh.stage) : null, zMap = zStage ? stageMap(zStage) : null;
       const { w, d } = zMap ?? SIZE[scope];
       const floor = floorOf(wh);
-      const blocked = scope === "sato" ? castleBlocked(floor) : scope === "zindan" ? (zMap?.solid ?? new Set<string>()) : blockedSet(scope, here);
+      const blocked = scope === "sato" ? castleBlocked(floor) : scope === "zindan" ? (zMap?.solid ?? new Set<string>()) : blockedSet(scope, here, houseFloorOf(wh));
       const h = hero.current;
 
       let di = 0, dj = 0;
@@ -586,7 +595,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         const free = (i: number, j: number) => {
           const ci = Math.floor(i), cj = Math.floor(j), fi = Math.floor(h.i), fj = Math.floor(h.j);
           if (scope === "oda") {
-            const atDoor = cj === FRONT_DOOR.j && i < 1;
+            const atDoor = cj === FRONT_DOOR.j && i < 1 && houseFloorOf(wh) === 1; // ön kapı yalnız zemin katta
             if (i < (atDoor ? -0.1 : 0.3) || j < 0.3 || i > w - 0.3 || j > d - 0.3) return false;
             // başka kareye geçerken aynı oda ya da kapı boşluğu olmalı
             if ((ci !== fi || cj !== fj) && ci >= 0 && !houseStep([fi, fj], [ci, cj])) return false;
@@ -617,7 +626,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       }
       // kapılar: evin ön kapısı bahçedeki evin önüne, bahçedeki ev kapısı o evin holüne
       if (!fade.current) {
-        if (scope === "oda" && h.i < 0.1 && Math.floor(h.j) === FRONT_DOOR.j) {
+        if (scope === "oda" && houseFloorOf(wh) === 1 && h.i < 0.1 && Math.floor(h.j) === FRONT_DOOR.j) {
           const k = Math.max(0, profiles.findIndex((p) => p.id === wh.owner));
           const door = HOUSES[Math.min(k, HOUSES.length - 1)].door;
           fade.current = { t: 0, to: { scope: "bahce" }, spawn: [door.i + 0.5, door.j + 1.4] };
@@ -658,7 +667,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         if (!f.to && f.t >= 0.5) fade.current = null;
       }
       const cur = live.current.where;
-      const rn = cur.scope === "oda" ? roomAt(Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "sato" ? roomIn(castlePlan(cur.floor), Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "zindan" ? stageById(cur.stage)?.name ?? "" : "Bahçe";
+      const rn = cur.scope === "oda" ? roomNameAt(houseFloorOf(cur), Math.floor(h.i), Math.floor(h.j)) : cur.scope === "sato" ? roomIn(castlePlan(cur.floor), Math.floor(h.i), Math.floor(h.j))?.name ?? "" : cur.scope === "zindan" ? stageById(cur.stage)?.name ?? "" : "Bahçe";
       if (rn && rn !== lastRoom) { lastRoom = rn; setRoomName(rn); }
 
       // kamera: karakteri yumuşakça izler
@@ -695,6 +704,15 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           const lock = stairLock.current, locked = !!lock && (t < lock.until || Math.hypot(h.i - lock.i, h.j - lock.j) < 0.6);
           if (lock && !locked) stairLock.current = null;
           if (to && !locked && dd < 1.6 && dd < best + 0.3) { nb = { kind: "stairs", label: st.dir === "up" ? `Yukarı çık (${to}. kat)` : `Aşağı in (${to}. kat)`, i: st.i + 1, j: st.j + 1, to }; best = dd; }
+        }
+        // evin merdivenleri: kat, evin sahibinin seviyesiyle açılır
+        if (cur.scope === "oda") for (const st of HOUSE_STAIRS) {
+          if (st.floor !== houseFloorOf(cur)) continue;
+          const dd = Math.hypot(st.spawn[0] - h.i, st.spawn[1] - h.j);
+          const lock = stairLock.current, locked = !!lock && (t < lock.until || Math.hypot(h.i - lock.i, h.j - lock.j) < 0.6);
+          if (lock && !locked) stairLock.current = null;
+          const fi = floorInfo(st.to), open = levelOfUser(cur.owner) >= fi.level;
+          if (!locked && dd < 1.6 && dd < best + 0.3) { nb = { kind: "stairs", label: open ? `${st.up ? "Yukarı çık" : "Aşağı in"}: ${fi.name}` : `🔒 ${fi.name} · Seviye ${fi.level}`, i: st.i + 1, j: st.j + 1, hto: st.to }; best = dd; }
         }
         // partner yanındaysa el ele tutuşulur; tutuşuyorken her zaman bırakılabilir
         const mate = others.current[0];
@@ -753,7 +771,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         const [sw, sd] = sizeOf(md.itemId, pr);
         const gx = Math.floor(hv[0] - (sw - 1) / 2), gy = Math.floor(hv[1] - (sd - 1) / 2);
         const around = cur.scope === "oda" ? here : all.filter((p) => p.scope === "bahce");
-        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: (cur.scope === "oda" || cur.scope === "bahce") && canPlace(cur.scope, md.itemId, gx, gy, around, pr) };
+        ghost = { itemId: md.itemId, tx: gx, ty: gy, rot: pr, ok: (cur.scope === "oda" || cur.scope === "bahce") && canPlace(cur.scope, md.itemId, gx, gy, around, pr, houseFloorOf(cur)) };
       } else if (hv && (md.kind === "edit" || md.kind === "rotate")) {
         pick = here.find((p) => p.userId === me && inside(p, hv))?.id ?? null;
       }
@@ -873,7 +891,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         scope: cur.scope, cam: o, theme: cur.scope === "oda" ? themeOf(cur.owner) : "cengiz",
         houseThemes: profiles.slice(0, HOUSES.length).map((p) => whoOf(p.name)),
         placed: scenePlaced(cur, all), heroes: [h, ...others.current], ghost, pick, cat: catState,
-        night: night.current, music: music.current, floor: cur.scope === "sato" ? cur.floor : undefined, weather: weather.current, moment: moment.current.on,
+        night: night.current, music: music.current, floor: cur.scope === "sato" ? cur.floor : undefined, houseFloor: houseFloorOf(cur), weather: weather.current, moment: moment.current.on,
         targetState, effects: [...effects.current, ...remoteEffects.current], now: t,
         enemies: cur.scope === "zindan" ? dungeon.current.enemies : cur.scope === "bahce" ? ghosts.current.enemies : undefined,
         enemyShots: cur.scope === "zindan" ? dungeon.current.shots : cur.scope === "bahce" ? ghosts.current.shots : undefined,
@@ -948,10 +966,10 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
       const [sw, sd] = sizeOf(md.itemId, pr);
       const tx = Math.floor(hv[0] - (sw - 1) / 2), ty = Math.floor(hv[1] - (sd - 1) / 2);
       const around = scope === "oda" ? scenePlaced(wh, all) : all.filter((p) => p.scope === "bahce");
-      if (!canPlace(scope, md.itemId, tx, ty, around, pr)) { setMsg("Buraya konamaz: kare dolu, iki odaya taşıyor ya da kapı önü."); return; }
+      if (!canPlace(scope, md.itemId, tx, ty, around, pr, houseFloorOf(wh))) { setMsg("Buraya konamaz: kare dolu, iki odaya taşıyor ya da kapı önü."); return; }
       setBusy(true);
       try {
-        const res = await api<{ item: Placed }>("/api/gelisim/esya", { body: { itemId: md.itemId, scope, tx, ty, rot: pr } });
+        const res = await api<{ item: Placed }>("/api/gelisim/esya", { body: { itemId: md.itemId, scope, tx, ty, rot: pr, floor: houseFloorOf(wh) } });
         setPlaced((p) => [...p, res.item]);
         // daha konabiliyorsa yerleştirme açık kalır (ör. halı döşerken)
         const count = all.filter((q) => q.userId === me && q.itemId === md.itemId).length + 1;
@@ -1105,7 +1123,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         <nav className={`gw-tools${toolsOpen ? " is-open" : ""}`} aria-label="Oyun araçları" onPointerDown={(e) => e.stopPropagation()} onPointerMove={(e) => e.stopPropagation()}>
           <button type="button" className="btn gw-tools-toggle" aria-expanded={toolsOpen} aria-controls="gw-tool-list" aria-label="Oyun araçlarını aç veya kapat" onClick={() => setToolsOpen((v) => !v)}>☰ <span className="gw-tools-label">Araçlar</span></button>
           <div className="gw-tool-list" id="gw-tool-list">
-            <p className="gw-tool-location">{where.scope === "zindan" ? `🌕 Ay Kapısı · ${roomName}` : where.scope === "bahce" ? `🌳 Ortak bahçe · ${weatherName}` : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${roomName}` : `🏠 Evin · ${roomName}`}</p>
+            <p className="gw-tool-location">{where.scope === "zindan" ? `🌕 Ay Kapısı · ${roomName}` : where.scope === "bahce" ? `🌳 Ortak bahçe · ${weatherName}` : where.scope === "sato" ? `🏰 Şato · ${where.floor}. kat · ${roomName}` : visiting ? `🚪 ${ownerName}'in evi · ${floorInfo(houseFloorOf(where)).name} · ${roomName}` : `🏠 Evin · ${floorInfo(houseFloorOf(where)).name} · ${roomName}`}</p>
             {canEditHere && <button type="button" className={`btn gw-tool ${mode.kind === "rotate" ? "btn-primary" : "btn-ghost"}`} aria-pressed={mode.kind === "rotate"} aria-keyshortcuts="R" onClick={toggleRotate} title="Eşyayı döndür (R)"><span>↻ {mode.kind === "rotate" ? "Döndürmeyi bitir" : "Döndür"}</span><kbd>R</kbd></button>}
             {canEditHere && <button type="button" className={`btn gw-tool ${mode.kind === "edit" ? "btn-primary" : "btn-ghost"}`} aria-pressed={mode.kind === "edit"} aria-keyshortcuts="X" onClick={toggleRemove} title="Eşyayı envantere geri al (X)"><span>{mode.kind === "edit" ? "Kaldırmayı bitir" : "Eşya kaldır"}</span><kbd>X</kbd></button>}
             <button type="button" className={`btn gw-tool ${studyTimer ? "btn-primary gw-study-chip" : "btn-ghost"}${locked ? " is-locked" : ""}`} aria-keyshortcuts="T" onClick={toggleStudy} title="Çalışma paneli (T)"><span>⏱ {studyTimer ? <>{studyTimer.label} <span className="num">{formatClock(Math.max(0, (clock - new Date(studyTimer.startedAt).getTime()) / 1000))}</span></> : "Çalışma"}</span><kbd>T</kbd></button>

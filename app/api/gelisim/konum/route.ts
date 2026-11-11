@@ -17,7 +17,7 @@ export const POST = withUser(async (req, user) => {
   const { here, place, x, y, dir, moving, action, pose, withPlaced, mood } = body ?? {};
   // son saldırı ya da büyü: yalnız biçimi doğruysa saklanır (diğer kişi efekti oynatır)
   const act = parseActionHistory(action);
-  const isHouse = typeof place === "string" && place.startsWith("ev:") && UUID_RE.test(place.slice(3));
+  const isHouse = typeof place === "string" && /^ev:[^:]+(:[023])?$/.test(place) && UUID_RE.test(place.split(":")[1]); // ev:<sahip>[:kat]
   const isCastle = place === "sato" || place === "sato:2" || place === "sato:3";
   const isDungeon = typeof place === "string" && /^zindan:[1-9]\d?$/.test(place);
   if (place !== "bahce" && !isCastle && !isHouse && !isDungeon) return jsonError(400, "Geçersiz yer.");

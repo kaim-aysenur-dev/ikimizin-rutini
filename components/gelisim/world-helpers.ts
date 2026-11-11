@@ -2,7 +2,7 @@
 import { type StudyTab } from "./study-desk";
 import { type Emote, type Hero, type Theme } from "@/lib/gelisim-scene";
 import { sfx } from "@/lib/sfx";
-import { MOON_GATE, type Floor, type Placed, sizeOf } from "@/lib/room";
+import { MOON_GATE, type Floor, type Placed, sizeOf, type HouseFloor } from "@/lib/room";
 import { CASTLE_DECOR, castleInteractive } from "@/lib/castle";
 import { type Equipment } from "@/lib/equipment";
 import { armorLook, setBonus } from "@/lib/combat-stats";
@@ -11,7 +11,7 @@ import { type GearKind } from "@/lib/gear";
 import { itemById } from "@/lib/room-items";
 
 export type Profile = { id: string; name: string; level: number; xp?: number };
-export type Where = { scope: "oda"; owner: string } | { scope: "bahce" } | { scope: "sato"; floor: Floor } | { scope: "zindan"; stage: number };
+export type Where = { scope: "oda"; owner: string; floor?: HouseFloor } | { scope: "bahce" } | { scope: "sato"; floor: Floor } | { scope: "zindan"; stage: number };
 export const GATE_FRONT: [number, number] = [MOON_GATE.i0 + 1.5, MOON_GATE.j1 + 0.6]; // Ay Kapısı'nın önü (zindandan dönüş)
 export type Mode = { kind: "walk" } | { kind: "place"; itemId: string } | { kind: "edit" } | { kind: "rotate" };
 export type Remote = Hero & { userId: string; ti: number; tj: number; swingAt?: number };
@@ -40,7 +40,8 @@ export const gearOf = (eq: Equipment | undefined) => ({
   weapon: eq?.weapon ?? null, armor: eq?.armor ?? null, helmet: eq?.helmet ?? null, shield: eq?.shield ?? null, cape: eq?.cape ?? null,
   trinket: eq?.trinket ?? null, set: eq ? setBonus(eq)?.mat ?? null : null,
 });
-export const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}` : w.scope === "zindan" ? `zindan:${w.stage}` : w.scope === "sato" && w.floor > 1 ? `sato:${w.floor}` : w.scope);
+export const houseFloorOf = (w: Where): HouseFloor => (w.scope === "oda" ? w.floor ?? 1 : 1);
+export const placeOf = (w: Where) => (w.scope === "oda" ? `ev:${w.owner}${houseFloorOf(w) !== 1 ? `:${houseFloorOf(w)}` : ""}` : w.scope === "zindan" ? `zindan:${w.stage}` : w.scope === "sato" && w.floor > 1 ? `sato:${w.floor}` : w.scope);
 export const floorOf = (w: Where): Floor => (w.scope === "sato" ? w.floor : 1);
 export const SATO_SEATS: Record<Floor, Placed[]> = { 1: castleInteractive(1), 2: castleInteractive(2), 3: castleInteractive(3) };
 export const SATO_CUSHION = CASTLE_DECOR.find((d) => d.id === "kedi-minderi");
@@ -78,7 +79,7 @@ export const seatOf = (id: string): Seat | null =>
   : id === "bank" || id.startsWith("bahce-banki-") ? { h: 8, slots: [[0.6, 0.66], [1.4, 0.66]], face: [0, 1] }
   : null;
 export const DESK_SEAT = 7; // masada sandalye yoksa taburenin yüksekliği
-export type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station" | "hold" | "wardrobe" | "gate" | "board" | "merchant"; label: string; i: number; j: number; itemId?: string; to?: Floor; gearKind?: GearKind; p?: Placed };
+export type Near = { kind: "sit" | "piano" | "mail" | "desk" | "shelf" | "stairs" | "station" | "hold" | "wardrobe" | "gate" | "board" | "merchant"; label: string; i: number; j: number; itemId?: string; to?: Floor; hto?: HouseFloor; gearKind?: GearKind; p?: Placed };
 export const STATION_LABEL: Record<GearKind, string> = { Zırh: "Zırh askısı", Silah: "Silah rafı", Büyü: "Büyü kürsüsü" };
 // masada oturulan yer (önü) ve oturanın baktığı yön (masaya doğru)
 export const deskSeat = (id: string): { slot: [number, number]; face: [number, number] } => {

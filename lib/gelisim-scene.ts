@@ -4,7 +4,7 @@ import { duldul, parrot } from "./companions";
 import { lights } from "./env";
 import { type Origin, type Part, at, box, setFlip, shade, tile } from "./iso";
 import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, lerpFree, line, poly, px, rect, rnd, sprite } from "./pixel";
-import { type Area, CASTLE, type Floor, FRONT_DOOR, GARDEN_SEATS, HOUSES, MOON_GATE, PERCH, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, innerWalls, sizeOf } from "./room";
+import { type Area, CASTLE, HOUSE_STAIRS, type Floor, FRONT_DOOR, GARDEN_SEATS, HOUSES, MOON_GATE, PERCH, type Placed, ROOMS, type RoomId, SIZE, TREES, deadTree, footprint, innerWalls, sizeOf } from "./room";
 import { above, ground, sky, snowfall, structures } from "./garden-draw";
 import { type Weather } from "./gelisim-weather";
 import { type Enemy, type EnemyShot, stageById } from "./dungeon";
@@ -13,7 +13,7 @@ import { arenaProps, drawArena, drawEnemy, drawEnemyShot, drawMoonGate, drawPort
 import { THEMES } from "./dungeon-themes";
 import { stageMap } from "./dungeon-map";
 import { type RoomItem, isFlat, itemById } from "./room-items";
-import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget } from "./castle";
+import { BALCONY, GATE_GUARD, TARGETS, castleDecor, castleGuests, castleInterior, castleOutside, castleWallFaces, castleWalls, decorIsFlat, decorSize, drawDecor, drawTarget, PROPS } from "./castle";
 import { screenRain, stormFlash } from "./gelisim-storm";
 import { drawEffect, drawHeld } from "./combat-draw";
 import { type Effect, shotAt } from "./combat";
@@ -50,6 +50,7 @@ export type SceneState = {
   cat: Cat | null;
   night: number; // 0 gündüz, 1 gece (İstanbul saatine göre)
   floor?: Floor; // şatoda hangi kat
+  houseFloor?: number; // evde hangi kat (0 bodrum, 1 zemin, 2 üst, 3 çatı)
   targetState?: Record<string, { hit: number; hp: number }>; // talim hedeflerinin sarsıntısı ve canı (0..1)
   effects?: Effect[]; // vuruşlar, mermiler, büyüler, hasar sayıları
   now?: number; // efektlerin zaman tabanı (sn)
@@ -206,10 +207,19 @@ const FLOOR: Record<RoomId, (i: number, j: number) => string> = {
   calisma: (i, j) => ((i * 3 + j) % 5 ? "#2f4637" : "#2b4133"),
 };
 const room = (id: RoomId) => ROOMS.find((r) => r.id === id)!;
+// diğer katların havası: duvar tonu ve oda oda zemin
+const checker = (a: string, b: string) => (i: number, j: number) => ((i + j) % 2 ? a : b);
+const planks = (a: string, b: string) => (i: number, j: number) => ((i * 3 + j) % 4 ? a : b);
+const FLOOR_LOOK: Record<number, { wall: { wall?: [string, string]; bed?: string; trim?: string }; floor: Record<RoomId, (i: number, j: number) => string> }> = {
+  1: { wall: {}, floor: FLOOR },
+  2: { wall: { wall: ["#5a4a40", "#54443a"], bed: "#4a4a5e", trim: "#3a2a20" }, floor: { hol: planks("#5a4030", "#523a2a"), salon: planks("#4a3424", "#42301f"), yatak: checker("#3a4a6a", "#34425e"), mutfak: planks("#5e3a4a", "#563444"), banyo: checker("#4a5a4a", "#425242"), calisma: (i, j) => ((i + j * 2) % 3 ? "#6a5a4a" : "#5e4e40") } },
+  0: { wall: { wall: ["#34343a", "#2e2e34"], bed: "#2a3030", trim: "#1e1e22" }, floor: { hol: checker("#3a3a40", "#34343a"), salon: checker("#3a2a2a", "#342424"), yatak: checker("#2e3438", "#2a3034"), mutfak: planks("#3e3428", "#382e22"), banyo: checker("#4a5a62", "#42525a"), calisma: checker("#3a3420", "#342e1c") } },
+  3: { wall: { wall: ["#6a5440", "#62503c"], bed: "#4a5a4a", trim: "#3a2618" }, floor: { hol: planks("#6a4e34", "#62482e"), salon: checker("#26304a", "#222a42"), yatak: checker("#3a5a3a", "#345234"), mutfak: planks("#5a3a2a", "#523424"), banyo: planks("#6a5440", "#62503c"), calisma: checker("#5a5a62", "#52525a") } },
+};
 
-function house(c: Ctx, o: Origin, t: number, theme: Theme) {
+function house(c: Ctx, o: Origin, t: number, theme: Theme, floor = 1) {
   const { w, d } = SIZE.oda;
-  const th = THEME[theme];
+  const th = floor === 1 ? THEME[theme] : { ...THEME[theme], ...FLOOR_LOOK[floor].wall };
   const kitchen = room("mutfak"), bed = room("yatak"), salon = room("salon"), hol = room("hol");
   // sol arka duvar (i = 0): holde temanın taşı, mutfakta koyu fayans
   for (let j = 0; j < d; j++) faceI(c, o, 0, j, j + 1, 0, WALL_H, j >= kitchen.j0 ? (j % 2 ? "#47414d" : "#433d49") : th.wall[j % 2]);
@@ -224,8 +234,10 @@ function house(c: Ctx, o: Origin, t: number, theme: Theme) {
   line(c, at(o, 0, 0), [at(o, 0, 0)[0], at(o, 0, 0)[1] - WALL_H], 1, "rgba(0,0,0,0.5)");
 
   // gotik pencereler, sancaklar, tablolar, meşaleler
-  for (const s of [salon.i0 + 2, salon.i0 + 6.3, bed.i0 + 2.6]) gothicWindow(c, o, "j", 0, s, t);
-  for (const s of [kitchen.j0 + 3.5, kitchen.j0 + 8]) gothicWindow(c, o, "i", 0, s, t);
+  if (floor !== 0) { // bodrumun penceresi yok
+    for (const s of [salon.i0 + 2, salon.i0 + 6.3, bed.i0 + 2.6]) gothicWindow(c, o, "j", 0, s, t);
+    for (const s of [kitchen.j0 + 3.5, kitchen.j0 + 8]) gothicWindow(c, o, "i", 0, s, t);
+  }
   banner(c, o, "j", 0, salon.i0 + 4.6, th.banner); banner(c, o, "j", 0, salon.i0 + 9, th.banner);
   banner(c, o, "i", 0, 5.3, th.banner, 16, 40);
   painting(c, o, 0, 2.4, th.accent, (x, y) => { px(c, x - 1, y, "#e48aa0"); px(c, x + 1, y, "#e48aa0"); rect(c, x - 1, y + 1, 3, 1, "#e48aa0"); px(c, x, y + 2, "#e48aa0"); });
@@ -237,14 +249,21 @@ function house(c: Ctx, o: Origin, t: number, theme: Theme) {
   for (let k = 0; k < 5; k++) { const [x, y] = at(o, 0, kitchen.j0 + 0.8 + k * 0.4); rect(c, x - 1, y - 29, 2, 4, ["#7fd1b9", "#b8344a", "#c9a6f0", "#e8a33a", "#5fae6e"][k]); }
   cobweb(c, o, 0, 0, WALL_H); cobweb(c, o, w - 0.6, 0, WALL_H); cobweb(c, o, 0, d - 0.6, WALL_H);
 
+  if (floor === 3) { // çatı katı: eğik ahşap kirişler
+    for (let i = 2; i < w; i += 4) line(c, [at(o, i, 0)[0], at(o, i, 0)[1] - WALL_H], [at(o, i + 1.5, 0)[0], at(o, i + 1.5, 0)[1] - WALL_H + 22], 3, "#3a2618");
+    for (let j = 2; j < d; j += 4) line(c, [at(o, 0, j)[0], at(o, 0, j)[1] - WALL_H], [at(o, 0, j + 1.5)[0], at(o, 0, j + 1.5)[1] - WALL_H + 22], 3, "#3a2618");
+  }
+  if (floor === 0) for (let k = 0; k < 9; k++) { const [x, y] = at(o, 0, 1 + k * 2.1); rect(c, x - 1, y - 6 - (k % 3) * 9, 2, 3, "rgba(120,170,120,0.35)"); } // nemli taşta yosun
+  // zeminler: her odanın kendi döşemesi (katın havasına göre)
+  const FL = FLOOR_LOOK[floor]?.floor ?? FLOOR;
+  for (const r of ROOMS) for (let i = r.i0; i < r.i1; i++) for (let j = r.j0; j < r.j1; j++) tile(c, o, i, j, FL[r.id](i, j));
+  if (floor !== 1) return;
   // ön kapı (holde, sol duvar): kemerli, demir kuşaklı
   archI(c, o, 0, FRONT_DOOR.j - 0.05, FRONT_DOOR.j + 1.05, 0, 30, P.ink, 5);
   archI(c, o, 0, FRONT_DOOR.j + 0.08, FRONT_DOOR.j + 0.92, 0, 28, "#3e2a20", 4);
   faceI(c, o, 0, FRONT_DOOR.j + 0.08, FRONT_DOOR.j + 0.92, 9, 10, "#1a1418"); faceI(c, o, 0, FRONT_DOOR.j + 0.08, FRONT_DOOR.j + 0.92, 20, 21, "#1a1418");
   { const [x, y] = at(o, 0, FRONT_DOOR.j + 0.75); px(c, x, y - 13, P.gold); px(c, x, y - 14, P.goldLt); }
 
-  // zeminler: her odanın kendi döşemesi
-  for (const r of ROOMS) for (let i = r.i0; i < r.i1; i++) for (let j = r.j0; j < r.j1; j++) tile(c, o, i, j, FLOOR[r.id](i, j));
   for (let i = salon.i0; i <= salon.i1; i++) line(c, at(o, i, salon.j0), at(o, i, salon.j1), 1, "rgba(20,12,8,0.4)");
   tile(c, o, 0, FRONT_DOOR.j, "#5a4a3a", 0.35, 1);
   tile(c, o, 0.4, FRONT_DOOR.j + 0.1, "#5a1a2a", 0.8, 0.8); // paspas
@@ -468,8 +487,9 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
     } });
 
   if (s.scope === "oda") {
-    c.fillStyle = "#0c0e1c"; c.fillRect(0, 0, W, Hc); house(c, o, t, s.theme);
+    c.fillStyle = "#0c0e1c"; c.fillRect(0, 0, W, Hc); house(c, o, t, s.theme, s.houseFloor ?? 1);
     for (const p of s.placed) if (flat(p.itemId)) drawItem(c, o, p, t);
+    for (const st of HOUSE_STAIRS) if (st.floor === (s.houseFloor ?? 1)) list.push({ key: st.i + st.j + 2, box: area(st.i, st.j, 2, 2), draw: () => PROPS[st.up ? "merdiven-yukari" : "merdiven-asagi"].draw(c, o, st.i, st.j, t) });
     const th = THEME[s.theme];
     const faces = { top: th.wallHi, left: th.wall[0], right: th.wall[1] };
     for (const wl of innerWalls()) list.push({ key: wl.i + wl.j + 0.5, box: wallBox(wl), draw: () => innerWall(c, o, wl, faces) });
