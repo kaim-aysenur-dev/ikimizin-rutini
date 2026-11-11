@@ -10,7 +10,7 @@ import { api } from "@/lib/api-client";
 import { gainXp } from "@/components/xp-badge";
 import { XP } from "@/lib/xp";
 import { WEEKDAY_SHORT, diffDays, formatDayShort, weekdayIndex } from "@/lib/dates";
-import { INTENSITY_LABEL, type ActivityType, type SessionItem, type SportGoal, type WeekProgress } from "@/lib/sport-shared";
+import { INTENSITY_LABEL, STEP_GOAL, formatKm, stepsKm, type ActivityType, type SessionItem, type SportGoal, type WeekProgress } from "@/lib/sport-shared";
 
 type Props = {
   today: string;
@@ -19,6 +19,7 @@ type Props = {
   progress: WeekProgress;
   sessions: SessionItem[];
   last: Record<string, { minutes: number | null; rounds: number | null }>;
+  todaySteps: number | null;
 };
 
 function relativeDay(day: string, today: string): string {
@@ -30,7 +31,7 @@ function relativeDay(day: string, today: string): string {
 }
 
 /** Spor · Bu hafta: haftalık hedef, gün şeridi, "Spor yaptım" ve son oturumlar */
-export function WeekOverview({ today, goal, types, progress, sessions, last }: Props) {
+export function WeekOverview({ today, goal, types, progress, sessions, last, todaySteps }: Props) {
   const router = useRouter();
   const [logging, setLogging] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -102,6 +103,15 @@ export function WeekOverview({ today, goal, types, progress, sessions, last }: P
             </div>
           </div>
         )}
+
+        <p className="sub-goal" data-color="ok">
+          Günlük adım hedefi: {STEP_GOAL.toLocaleString("tr-TR")} adım ≈ {formatKm(stepsKm(STEP_GOAL))} km
+          <span className="mini-bar" aria-hidden="true">
+            <i style={{ width: `${Math.min(100, ((todaySteps ?? 0) / STEP_GOAL) * 100)}%` }} />
+          </span>
+          <b className="num">{todaySteps ? `Bugün ${todaySteps.toLocaleString("tr-TR")} adım ≈ ${formatKm(stepsKm(todaySteps))} km` : "Bugün adım girilmedi"}</b>
+          <Link href="/spor/kayit#aktivite" className="link-btn">Adım gir</Link>
+        </p>
 
         <ol className="week-strip" aria-label="Bu haftanın günleri">
           {progress.days.map((d, i) => (

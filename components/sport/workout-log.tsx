@@ -1,5 +1,6 @@
 "use client";
 
+import { STEP_GOAL, formatKm, stepsKm } from "@/lib/sport-shared";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Plus, Timer, Trash } from "lucide-react";
@@ -169,7 +170,7 @@ function ExerciseLog({
           <h3>{name}</h3>
           {plan && (
             <span className="muted small">
-              Hedef: {describeTarget(plan)} · dinlenme {formatDuration(restSeconds)}
+              Hedef: {describeTarget(plan)}{restSeconds > 0 && ` · dinlenme ${formatDuration(restSeconds)}`}
             </span>
           )}
         </div>
@@ -249,6 +250,21 @@ function ExerciseLog({
   );
 }
 
+/** Zorunlu günlük adım hedefi: yazılan adımın km karşılığı ve hedefe kalan */
+function StepGoal({ steps }: { steps: number }) {
+  const left = Math.max(0, STEP_GOAL - steps);
+  return (
+    <p className="sub-goal" data-color="ok">
+      Günlük hedef: {STEP_GOAL.toLocaleString("tr-TR")} adım ≈ {formatKm(stepsKm(STEP_GOAL))} km
+      <span className="mini-bar" aria-hidden="true">
+        <i style={{ width: `${Math.min(100, (steps / STEP_GOAL) * 100)}%` }} />
+      </span>
+      <b className="num">{steps > 0 ? `${steps.toLocaleString("tr-TR")} adım ≈ ${formatKm(stepsKm(steps))} km` : "Henüz adım yok"}</b>
+      {steps > 0 && <span className="muted small">{left > 0 ? `Hedefe ${left.toLocaleString("tr-TR")} adım (≈ ${formatKm(stepsKm(left))} km) kaldı` : "Bugünün adım hedefi tamam"}</span>}
+    </p>
+  );
+}
+
 function ActivityCard({ day, activity }: { day: string; activity: ActivityDay | null }) {
   const router = useRouter();
   const [steps, setSteps] = useState(activity?.steps?.toString() ?? "");
@@ -274,6 +290,7 @@ function ActivityCard({ day, activity }: { day: string; activity: ActivityDay | 
   return (
     <form className="card stack" onSubmit={save} aria-labelledby="aktivite">
       <h2 id="aktivite">Adım ve kardiyo</h2>
+      <StepGoal steps={Number(steps) || 0} />
       <div className="form-grid two">
         <div className="field">
           <label htmlFor="steps">Adım</label>

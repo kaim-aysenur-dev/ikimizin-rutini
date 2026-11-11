@@ -31,8 +31,10 @@ export const TIMER_PRESETS = [30, 60, 120, 180, 300, 600, 900, 1200, 1800, 3600]
 
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds} sn`;
-  const minutes = Math.round(seconds / 60);
-  return `${minutes} dk`;
+  // 90 sn "2 dk" diye yuvarlanmasın: 10 dakikanın altında artan saniye de yazılır
+  const rest = seconds % 60;
+  if (rest && seconds < 600) return `${Math.floor(seconds / 60)} dk ${rest} sn`;
+  return `${Math.round(seconds / 60)} dk`;
 }
 
 export function formatClock(seconds: number): string {

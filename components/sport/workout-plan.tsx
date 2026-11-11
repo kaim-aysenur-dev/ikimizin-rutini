@@ -88,7 +88,7 @@ export function WorkoutPlanEditor({ plan, exercises, todayWeekday }: { plan: Wor
               <div className="grow">
                 <strong>{item.exerciseName}</strong>
                 <span className="muted small">
-                  {describeTarget(item)} · dinlenme {formatDuration(item.restSeconds)}
+                  {describeTarget(item)}{item.restSeconds > 0 && ` · dinlenme ${formatDuration(item.restSeconds)}`}
                   {item.region && ` · ${item.region}`}
                 </span>
                 {item.note && <span className="small pre">{item.note}</span>}

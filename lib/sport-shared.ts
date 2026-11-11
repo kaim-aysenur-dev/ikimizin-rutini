@@ -12,6 +12,12 @@ export const COLOR_LABEL: Record<ActivityColor, string> = {
   week: "Erik",
 };
 
+/** Günlük adım hedefi herkes için zorunlu: 10.000 adım. Adım boyu ortalama 0,75 m sayılır (10.000 adım ≈ 7,5 km). */
+export const STEP_GOAL = 10000;
+export const STEP_LENGTH_M = 0.75;
+export const stepsKm = (steps: number) => (steps * STEP_LENGTH_M) / 1000;
+export const formatKm = (km: number) => km.toLocaleString("tr-TR", { maximumFractionDigits: 1 });
+
 export const INTENSITIES = ["hafif", "orta", "zor"] as const;
 export type Intensity = (typeof INTENSITIES)[number];
 export const INTENSITY_LABEL: Record<Intensity, string> = { hafif: "Hafif", orta: "Orta", zor: "Zor" };
