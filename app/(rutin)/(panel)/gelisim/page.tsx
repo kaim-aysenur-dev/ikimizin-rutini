@@ -8,6 +8,8 @@ import { equipmentOf, stylesOf } from "@/lib/equipment-server";
 import { battleLog } from "@/lib/battle-server";
 import { myTimer } from "@/lib/study-server";
 import { trophiesOf } from "@/lib/wishes-server";
+import { outfitOf } from "@/lib/outfit-server";
+import { studyIdleOf } from "@/lib/care-server";
 import { levelOf } from "@/lib/xp";
 import { adventure } from "@/lib/xp-server";
 
@@ -24,10 +26,14 @@ export default async function Page({ searchParams }: PageProps<"/gelisim">) {
   const initialEquipment = Object.fromEntries(withLevel.map((p) => [p.id, sanitizeEquipment(equipped[p.id], p.level)]));
   // odadaki ödül vitrini: her evde o evin sahibinin kazandıkları (yalnız kategori; dilek ayrıntıları dolapta, kişiye özel)
   const initialTrophies = Object.fromEntries(await Promise.all(profiles.map(async (p) => [p.id, await trophiesOf(p.id)] as const)));
+  // giydirme ekranındaki kombinler (dünyada zırh yoksa bu renklerle) ve masaların tozu için son çalışma
+  const whoOf = (name: string) => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
+  const [wearList, studyIdle] = await Promise.all([Promise.all(profiles.map(async (p) => [p.id, await outfitOf(p.id, whoOf(p.name))] as const)), studyIdleOf(profiles.map((p) => p.id), today)]);
+  const initialWear = Object.fromEntries(wearList);
   return (
     <main className="main gw-main">
       <h1 className="sr-only">Gelişim</h1>
-      <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} initialStudyTimer={timer} initialEquipment={initialEquipment} initialTrophies={initialTrophies} openWardrobe={dolap === "1"} initialStyles={styles} progress={{ level: levelOf(mine.xp).level, stats: mine.stats, cleared: log.cleared }} />
+      <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} initialStudyTimer={timer} initialEquipment={initialEquipment} initialTrophies={initialTrophies} openWardrobe={dolap === "1"} initialWear={initialWear} studyIdle={studyIdle} initialStyles={styles} progress={{ level: levelOf(mine.xp).level, stats: mine.stats, cleared: log.cleared }} />
     </main>
   );
 }

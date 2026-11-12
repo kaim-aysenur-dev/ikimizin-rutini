@@ -8,6 +8,20 @@ import type { WishCat } from "./wishes";
 
 /** Ödül vitrini: o an bakılan evin sahibinin kazandığı ödüller (dünya her karede ayarlar) */
 export const vitrine: { cats: WishCat[] } = { cats: [] };
+/** Çalışma masaları: o evin sahibi kaç gündür çalışmadı (dünya her karede ayarlar); 2 günde toz, 5 günde örümcek ağı */
+export const deskDust = { days: 0 };
+function dust(c: Ctx, o: Origin, i: number, j: number, w: number) {
+  const d = deskDust.days;
+  if (d < 2) return;
+  for (let k = 0; k < Math.min(10, 2 + d * 2); k++) {
+    const [x, y] = at(o, i + 0.15 + ((k * 0.37) % 0.7) * w, j + 0.2 + ((k * 0.53) % 0.6));
+    px(c, x, y - 12, k % 2 ? "rgba(200,196,188,0.8)" : "rgba(160,156,150,0.8)");
+  }
+  if (d < 5) return;
+  const [ax, ay] = at(o, i + 0.05, j + 0.95), [bx, by] = at(o, i + 0.05, j + 0.05);
+  line(c, [ax, ay - 2], [bx, by - 11], 1, "rgba(220,220,230,0.5)"); line(c, [ax, ay - 2], [ax + 4, ay - 11], 1, "rgba(220,220,230,0.5)");
+  for (const k of [0.35, 0.65]) px(c, Math.round(ax + (bx - ax) * k + 1), Math.round(ay - 2 + (by - 11 - ay + 2) * k), "rgba(220,220,230,0.7)");
+}
 
 export type Scope = "oda" | "bahce";
 export type Cat = "Salon" | "Yatak odası" | "Mutfak" | "Banyo" | "Çalışma" | "Dekor" | "Bitki" | "Halı" | "Kütüphane" | "Eğlence" | "Spor" | "Sanat" | "Mahzen" | "Gözlemevi" | "Müzik" | "Bahçe";
@@ -101,6 +115,7 @@ const HANDMADE: RoomItem[] = [
     rect(c, x - 3, y - 14, 6, 2, P.cream); rect(c, x, y - 14, 1, 2, P.woodDk); // açık defter
     const [mx, my] = at(o, i + 0.8, j + 0.7); rect(c, mx - 1, my - 16, 3, 3, "#e8e0f0"); px(c, mx + 2, my - 15, "#e8e0f0"); // kupa
     if (Math.floor(t * 1.5) % 2) px(c, mx, my - 18, "rgba(255,255,255,0.55)");
+    dust(c, o, i, j, 1);
   } },
   { id: "zirh-askisi", level: 7, name: "Zırh askısı", scope: "oda", size: [1, 1], draw: (c, o, i, j) => {
     box(c, o, i + 0.3, j + 0.3, 0.4, 0.4, 2, WOOD_DK);
@@ -174,6 +189,7 @@ const HANDMADE: RoomItem[] = [
     if (Math.floor(t * 1.5) % 2) px(c, cx, cy - 18, "rgba(255,255,255,0.55)");
     const [bx, by] = at(o, i + 0.2, j + 0.25); // kitap yığını
     rect(c, bx - 3, by - 14, 6, 2, "#2f3b6b"); rect(c, bx - 2, by - 16, 6, 2, "#8a3a4a"); rect(c, bx - 3, by - 18, 5, 2, "#4f7a4f");
+    dust(c, o, i, j, 2);
   } },
 
   // ödül vitrini: Dilek Dolabı'nda kazanılan ödüller camın ardında, raflarda (en fazla 6, en yeniler)
@@ -387,6 +403,7 @@ const TEMPLATES: GenTmpl[] = [
     const [x, y] = at2(o, i + 1, j + 0.5); rect(c, x - 4, y - 14, 7, 2, P.cream); rect(c, x + 5, y - 17, 1, 5, "#2a1c3a"); px(c, x + 5, y - 18, "#f3d48a");
     rect(c, x - 9, y - 15, 2, 3, P.cream); if (Math.floor(t * 2) % 2) px(c, x - 8, y - 17, P.amber);
     laptop(c, o, i + 1.3, j + 0.2, t);
+    dust(c, o, i, j, 2);
   } },
   { id: "kure", noun: "Dünya Küresi", cat: "Çalışma", scope: "oda", size: [1, 1], pals: [{ name: "Antika", c: "#5a9ac8" }], draw: (c, o, i, j, t) => {
     const [x, y] = at2(o, i + 0.5, j + 0.5); rect(c, x - 3, y - 2, 6, 2, P.woodDk); rect(c, x, y - 9, 1, 7, P.woodDk);

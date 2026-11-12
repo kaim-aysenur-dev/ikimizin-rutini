@@ -8,6 +8,7 @@ import { XP } from "@/lib/xp";
 import { todayIstanbul } from "@/lib/dates";
 import { checkKey } from "@/lib/progress";
 import { CHECK_EVENT } from "@/components/timers";
+import { CARE_EVENT, type CareEventDetail } from "@/lib/care";
 
 function withKey(set: Set<string>, key: string, on: boolean): Set<string> {
   if (set.has(key) === on) return set;
@@ -37,6 +38,7 @@ export function useChecks(initial: string[]) {
     const key = checkKey(day, itemId);
     setChecked((prev) => withKey(prev, key, done));
     gainXp(done ? XP.check : -XP.check);
+    window.dispatchEvent(new CustomEvent<CareEventDetail>(CARE_EVENT, { detail: { day, itemId, done } })); // bakım aynası
     const send = async () => {
       try {
         await api("/api/checks", { body: { day, itemId, done } });

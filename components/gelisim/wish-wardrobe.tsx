@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PixelIcon } from "@/components/pixel-icon";
+import { DressUp } from "@/components/gelisim/dress-up";
+import type { Outfit } from "@/lib/outfit";
 import { gainXp } from "@/components/xp-badge";
 import { api } from "@/lib/api-client";
 import { uploadImage } from "@/lib/upload-client";
@@ -12,7 +14,8 @@ import {
 } from "@/lib/wishes";
 
 type Profile = { id: string; name: string };
-type Tab = "gorev" | "dilek" | "dolap";
+export type WardrobeTab = "giyin" | "gorev" | "dilek" | "dolap";
+type Tab = WardrobeTab;
 type Draft = { title: string; brand: string; cat: WishCat; tier: Tier; price: string; link: string; note: string; shared: boolean; metrics: Metric[]; targets: Partial<Record<Metric, number>>; photoId: string | null; photoUrl: string | null };
 type View = { kind: "list" } | { kind: "form"; wish: Wish | null; draft: Draft } | { kind: "ideas" };
 
@@ -36,9 +39,11 @@ const draftFromIdea = (s: Suggestion, shared: boolean): Draft => ({ ...blankDraf
  * Dilek Dolabı: gerçek hayatta almak istediğiniz ödüller. Her dileğin bir görevi var (kademe = süre + tempo);
  * başlatınca süre işler, koşullar tamamlanınca ödül kazanılır ve dolaba girer; gerçekte alınınca "alındı" olur.
  */
-export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; profiles: Profile[]; owner: string; onClose: () => void }) {
+export function WishWardrobe({ me, profiles, owner, onClose, initialTab = "gorev", onWear }: {
+  me: string; profiles: Profile[]; owner: string; onClose: () => void; initialTab?: WardrobeTab; onWear?: (o: Outfit) => void;
+}) {
   const [wishes, setWishes] = useState<Wish[] | null>(null);
-  const [tab, setTab] = useState<Tab>("gorev");
+  const [tab, setTab] = useState<Tab>(initialTab === "giyin" && owner !== me ? "gorev" : initialTab); // giyinme yalnız kendi gardırobunda
   const [view, setView] = useState<View>({ kind: "list" });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -133,7 +138,7 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
     <div className="modal-backdrop" role="presentation" onClick={onClose}>
       <div ref={box} tabIndex={-1} className="modal wd" role="dialog" aria-modal="true" aria-labelledby="wd-title" onClick={(e) => e.stopPropagation()} onKeyDown={onKey}>
         <div className="wd-head">
-          <h2 id="wd-title">🎁 {mineView ? "Dilek Dolabım" : `${first(ownerName)}'in Dilek Dolabı`}</h2>
+          <h2 id="wd-title">{tab === "giyin" ? "👗 Gardırobum" : mineView ? "🎁 Dilek Dolabım" : `🎁 ${first(ownerName)}'in Dilek Dolabı`}</h2>
           <button type="button" className="btn btn-quiet" onClick={onClose} aria-label="Kapat">✕</button>
         </div>
 
@@ -164,10 +169,13 @@ export function WishWardrobe({ me, profiles, owner, onClose }: { me: string; pro
           ) : (
             <>
               <div className="chips wd-tabs" role="tablist">
+                {mineView && <button type="button" role="tab" className="chip" aria-selected={tab === "giyin"} onClick={() => setTab("giyin")}>👗 Giyin</button>}
                 <button type="button" role="tab" className="chip" aria-selected={tab === "gorev"} onClick={() => setTab("gorev")}>⚔️ Görevde <span className="count">{quests.length}</span></button>
                 <button type="button" role="tab" className="chip" aria-selected={tab === "dilek"} onClick={() => setTab("dilek")}>📜 Dilekler <span className="count">{list.length}</span></button>
                 <button type="button" role="tab" className="chip" aria-selected={tab === "dolap"} onClick={() => setTab("dolap")}>🚪 Dolap <span className="count">{closet.length}</span></button>
               </div>
+
+              {tab === "giyin" && mineView && <DressUp who={isAysenur(ownerName) ? "aysenur" : "cengiz"} onSaved={(o) => onWear?.(o)} />}
 
               {tab === "gorev" && (
                 quests.length === 0 ? (

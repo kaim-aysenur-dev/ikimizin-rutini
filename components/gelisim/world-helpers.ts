@@ -1,5 +1,6 @@
 // Gelişim dünyasının saf yardımcıları ve sabitleri (gelisim-world.tsx'ten ayrıldı; davranış aynı).
 import { type StudyTab } from "./study-desk";
+import { type Outfit, worldTint } from "@/lib/outfit";
 import { type Emote, type Hero, type Theme } from "@/lib/gelisim-scene";
 import { sfx } from "@/lib/sfx";
 import { MOON_GATE, type Floor, type Placed, sizeOf, type HouseFloor } from "@/lib/room";
@@ -28,12 +29,13 @@ export const PLACE_NAME = (pl: string) => (pl === "bahce" ? "bahçede" : pl === 
 export const TARGET_HP = 300;
 
 export const whoOf = (name: string): Theme => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
-/** Görünüm: kuşanılmış zırh kıyafeti değiştirir (yoksa ev kıyafeti); elde kuşanılmış silah */
-export const lookFor = (_level: number, eq: Equipment | undefined) => {
+/** Görünüm: kuşanılmış zırh kıyafeti değiştirir (yoksa giydirme ekranındaki gündelik kombin, o da yoksa ev kıyafeti); elde kuşanılmış silah */
+export const lookFor = (_level: number, eq: Equipment | undefined, wear?: Outfit | null) => {
   const base = armorLook(eq?.armor), mat = (id: string | null | undefined) => (id ? MATS.find((m) => id.endsWith(`-${m.id}`)) : undefined);
   const gl = mat(eq?.gloves), bt = mat(eq?.boots), lg = mat(eq?.legs);
-  // eldiven elleri, çizme ayakları malzemesinin rengine boyar
-  const tint = { ...base.tint, ...(gl ? { glove: gl.base } : {}), ...(bt ? { shoe: bt.dk } : {}), ...(lg ? { bottom: lg.base } : {}) };
+  // gündelik kombin zırhın altında kalır; eldiven elleri, çizme ayakları malzemesinin rengine boyar
+  const casual = wear && !eq?.armor ? worldTint(wear) : {};
+  const tint = { ...casual, ...base.tint, ...(gl ? { glove: gl.base } : {}), ...(bt ? { shoe: bt.dk } : {}), ...(lg ? { bottom: lg.base } : {}) };
   return { outfit: base.outfit, tint: Object.keys(tint).length ? tint : undefined, gear: gearOf(eq) };
 };
 export const gearOf = (eq: Equipment | undefined) => ({

@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import { FaceMirror } from "@/components/skin/face-mirror";
 import { WeekGrid } from "@/components/skin/week-grid";
 import { requireUser } from "@/lib/auth/session";
 import { addDays, formatWeekRange, isDay, todayIstanbul, weekDays, weekStart } from "@/lib/dates";
 import { getCheckKeys, getRoutine } from "@/lib/skin";
+import { careState } from "@/lib/care-server";
+import { portraitLookOf } from "@/lib/outfit-server";
 
 export const metadata: Metadata = { title: "Cilt · Haftalık takip" };
 
@@ -17,6 +20,8 @@ export default async function SkinTrackingPage({ searchParams }: PageProps<"/cil
   const days = weekDays(monday);
 
   const [items, checks] = await Promise.all([getRoutine(user.id), getCheckKeys(user.id, days[0]!, days[6]!)]);
+  const who = /ay[sş]enur/i.test(user.displayName) ? "aysenur" : "cengiz";
+  const [care, look] = await Promise.all([careState(user.id, today, items), portraitLookOf(user.id, who)]);
 
   if (!items.length) {
     return (
@@ -35,6 +40,9 @@ export default async function SkinTrackingPage({ searchParams }: PageProps<"/cil
 
   const href = (m: string) => (m === thisMonday ? "/cilt" : `/cilt?hafta=${m}`);
   return (
+    <>
+    <FaceMirror who={who} name={user.displayName.split(" ")[0]} initial={care} look={look}
+      steps={items.map((i) => ({ id: i.id, label: i.label, productName: i.productName, slot: i.slot }))} />
     <WeekGrid
       key={monday}
       days={days}
@@ -46,5 +54,6 @@ export default async function SkinTrackingPage({ searchParams }: PageProps<"/cil
       items={items}
       initialChecks={checks}
     />
+    </>
   );
 }

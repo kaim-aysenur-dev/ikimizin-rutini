@@ -5,6 +5,9 @@ import { gainXp } from "@/components/xp-badge";
 import { api } from "@/lib/api-client";
 import { WEEKDAY_SHORT, addDays, diffDays, formatDayShort, todayIstanbul, weekdayIndex } from "@/lib/dates";
 import { formatClock } from "@/lib/slots";
+import { PixelCanvas } from "@/components/pixel-canvas";
+import { type CareState, studyWord } from "@/lib/care";
+import { DEFAULT_LOOK, type PortraitLook, drawPortrait } from "@/lib/portrait";
 import {
   BOOK_KINDS, BOOK_STATUS, type Book, type BookKind, type BookStatus, STUDY_COLORS, STUDY_XP, type StudyArea, type StudyColor,
   type StudyOverview, type StudySession, type StudyTimer, studyXp,
@@ -81,8 +84,8 @@ function chime() {
  * Çalışma odasındaki masa ve kitaplık: alanlar (Python, Network...) ve okuma listesi, süre tutma, sayfa,
  * günlük ve XP. Ortak alan/kitaplara ikiniz de kayıt girersiniz; aynı anda çalışınca oturum +%50 XP.
  */
-export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose, onTimer }: {
-  me: string; profiles: Profile[]; tab: StudyTab; atDesk?: boolean; onClose: () => void;
+export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose, onTimer, look }: {
+  me: string; profiles: Profile[]; tab: StudyTab; atDesk?: boolean; onClose: () => void; look?: PortraitLook;
   onTimer: (t: { label: string; startedAt: string } | null) => void;
 }) {
   const [tab, setTab] = useState<StudyTab>(firstTab);
@@ -151,6 +154,24 @@ export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose
   const days = new Set(mine.map((s) => s.day));
   let streak = 0;
   for (let d = days.has(today) ? today : addDays(today, -1); days.has(d); d = addDays(d, -1)) streak++;
+
+  // zihin aynası: son 7 günün düzeni, son çalışmadan beri geçen gün, bugünkü süre; sayaç açıkken odak
+  const who = /ay[sş]enur/i.test(profiles.find((p) => p.id === me)?.name ?? "") ? "aysenur" : "cengiz";
+  const lastDay = [...days].filter((d) => mine.some((s) => s.day === d && s.minutes > 0)).sort().pop();
+  const weekMin = week.filter((w) => w.day !== today).reduce((n, w) => n + w.min, 0);
+  const mind: CareState = {
+    areas: { yuz: null, sac: null, dis: null, vucut: null }, neglect: 0,
+    study: { score: Math.min(1, weekMin / 6 / 45), idleDays: todayMin > 0 ? 0 : lastDay ? diffDays(today, lastDay) : 7, todayMin },
+  };
+  const mindRef = useRef(mind); mindRef.current = mind;
+  const focusRef = useRef(false); focusRef.current = !!myTimer;
+  const mirror = (
+    <div className="st-mind" title={studyWord(mind.study)}>
+      <PixelCanvas size={[64, 56]} scale={1} fps={15} className="st-mind-canvas" label="Zihin aynası"
+        draw={(c, w, h, t) => drawPortrait(c, w, h, t, { who, state: mindRef.current, look: look ?? DEFAULT_LOOK[who], fx: [], focus: focusRef.current })} />
+      <small>{myTimer ? "odakta" : studyWord(mind.study).split(":")[0]}</small>
+    </div>
+  );
 
   // dünyadaki çubukta çalışan sayacı göstermek için
   useEffect(() => { onTimer(myTimer && myLabel ? { label: myLabel, startedAt: myTimer.startedAt } : null); }, [myTimer?.startedAt, myLabel]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -320,7 +341,7 @@ export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose
             })} />
           : tab === "masa" ? (
             <>
-              <TodayStrip min={todayMin} pages={todayPages} xp={todayXp} streak={streak} week={week} weekMax={weekMax} today={today} />
+              <TodayStrip min={todayMin} pages={todayPages} xp={todayXp} streak={streak} week={week} weekMax={weekMax} today={today} mirror={mirror} />
               <p className="muted st-intro">Masandaki çalışma alanları. Sayaçla süre tut, sayfa gir; her 15 dakika {STUDY_XP.quarter} XP, her 2 sayfa 1 XP. Ortak alanlara {partner ? partner.name.split(" ")[0] : "diğeriniz"} da kayıt girer.</p>
               {data.areas.length === 0 && <p className="st-empty">Henüz alan yok. Örneğin <b>Python</b>, <b>Network</b> ya da <b>İngilizce</b> ekle.</p>}
               <ul className="st-cards">
@@ -567,11 +588,12 @@ function StartForm({ label, reading, atDesk, together, busy, onStart, onCancel }
   );
 }
 
-function TodayStrip({ min, pages, xp, streak, week, weekMax, today }: {
-  min: number; pages: number; xp: number; streak: number; week: { day: string; min: number }[]; weekMax: number; today: string;
+function TodayStrip({ min, pages, xp, streak, week, weekMax, today, mirror }: {
+  min: number; pages: number; xp: number; streak: number; week: { day: string; min: number }[]; weekMax: number; today: string; mirror?: React.ReactNode;
 }) {
   return (
-    <div className="st-today">
+    <div className={`st-today${mirror ? " has-mind" : ""}`}>
+      {mirror}
       <div className="st-stat"><b className="num">{fmtMin(min)}</b><small>bugün</small></div>
       <div className="st-stat"><b className="num">{pages}</b><small>sayfa</small></div>
       <div className="st-stat"><b className="num">+{xp}</b><small>XP</small></div>

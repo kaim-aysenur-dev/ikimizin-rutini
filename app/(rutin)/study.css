@@ -534,3 +534,35 @@
   background: none;
   box-shadow: none;
 }
+
+/* zihin aynası: çalışmaya göre değişen yüz (bugün özetinin solunda) */
+.st-today.has-mind {
+  grid-template-columns: auto repeat(4, auto) 1fr;
+}
+
+@media (max-width: 560px) {
+  .st-today.has-mind {
+    grid-template-columns: auto repeat(2, 1fr);
+  }
+}
+
+.st-mind {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  grid-row: span 2;
+}
+
+.st-mind-canvas {
+  width: 96px !important;
+  height: 84px !important;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 2px var(--line-strong);
+}
+
+.st-mind small {
+  max-width: 96px;
+  font-size: 11px;
+  text-align: center;
+  color: var(--muted);
+}

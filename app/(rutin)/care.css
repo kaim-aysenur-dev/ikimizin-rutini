@@ -1,0 +1,123 @@
+/* ==========================================================================
+   Bakım aynası (Cilt) ve giyinme ekranı: yakın plan karakter
+   ========================================================================== */
+
+.mirror {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 640px) {
+  .mirror {
+    grid-template-columns: 1fr;
+    justify-items: center;
+  }
+}
+
+/* aynanın çerçevesi; açılışta karaktere yaklaşır (boydan yüze) */
+.mirror-frame {
+  position: relative;
+  padding: 6px;
+  background: #6b4a35;
+  box-shadow: inset 0 0 0 3px #2e1f16, inset 0 0 0 6px #c89a3e, 0 0 0 2px var(--line-strong);
+  overflow: hidden;
+}
+
+.mirror-canvas {
+  display: block;
+  max-width: min(256px, 70vw);
+  height: auto !important;
+  animation: mirror-zoom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: 50% 35%;
+}
+
+@keyframes mirror-zoom {
+  from { transform: scale(0.45) translateY(30%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mirror-canvas { animation: none; }
+}
+
+.mirror-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 20px);
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #1a1426;
+  background: #f3d48a;
+  box-shadow: 0 0 0 2px #1a1426;
+}
+
+.mirror-info {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.mirror-info h2 {
+  margin: 0;
+}
+
+.mirror-head {
+  margin: 0;
+  font-weight: 600;
+}
+
+.mirror-bars {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.mirror-bars li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  align-items: center;
+  gap: 2px 10px;
+  font-size: 14px;
+}
+
+.mirror-bars small {
+  grid-column: 2;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.mirror-bar {
+  display: block;
+  height: 10px;
+  background: var(--idle-soft);
+  overflow: hidden;
+}
+
+.mirror-bar i {
+  display: block;
+  height: 100%;
+  transition: width 0.6s ease;
+  background: var(--ok, #4f9a6a);
+}
+
+.mirror-bar[data-level="orta"] i { background: #c89a3e; }
+.mirror-bar[data-level="dusuk"] i { background: #d8803a; }
+.mirror-bar[data-level="kotu"] i { background: var(--bad, #a8454e); }
+
+.mirror-mind,
+.mirror-hint {
+  margin: 0;
+  font-size: 13px;
+}
