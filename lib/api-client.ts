@@ -1,4 +1,5 @@
 // Tarayıcı tarafı küçük fetch yardımcısı: JSON gönderir, hata mesajını Türkçe olarak fırlatır.
+import { CARE_FX, type CareFxDetail } from "./care";
 
 export class ApiError extends Error {
   constructor(
@@ -32,5 +33,17 @@ export async function api<T = unknown>(
     }
     throw new ApiError(data?.error ?? "Bir şeyler ters gitti. Tekrar dene.", res.status);
   }
+  if (typeof window !== "undefined") notifyCare(url, options.method ?? (options.body === undefined ? "GET" : "POST"), options.body);
   return data as T;
+}
+
+// Yüz yogası, spor, su ve öğün kaydı: yan paneldeki karakter tepki versin (kayıt hangi bileşenden yapılırsa yapılsın)
+function notifyCare(url: string, method: string, body: unknown) {
+  const b = (body ?? {}) as { workoutDone?: unknown; done?: unknown; water?: unknown };
+  const effect: CareFxDetail["effect"] | null =
+    url === "/api/face-yoga/sessions" && method === "POST" ? "yoga"
+    : (url === "/api/sport/sessions" && method === "POST") || url === "/api/sport/sets" || (url === "/api/sport/activity" && b.workoutDone === true) ? "spor"
+    : url === "/api/nutrition/meal-check" && b.done === true ? "yemek"
+    : url === "/api/nutrition/day" && typeof b.water === "number" ? "su" : null;
+  if (effect) window.dispatchEvent(new CustomEvent<CareFxDetail>(CARE_FX, { detail: { effect, water: typeof b.water === "number" ? b.water : undefined } }));
 }

@@ -254,3 +254,80 @@
 .du-rewards li.is-locked {
   opacity: 0.6;
 }
+
+/* ---------- bölümün sağında duran karakter (Cilt, Yüz yogası, Spor, Beslenme) ---------- */
+
+.main.with-side {
+  max-width: 1320px;
+}
+
+.side-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 312px;
+  gap: 20px;
+  align-items: start;
+}
+
+.side-main {
+  min-width: 0;
+}
+
+.side-char {
+  position: sticky;
+  top: 16px;
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+}
+
+.side-frame {
+  position: relative;
+  justify-self: center;
+  padding: 6px;
+  background: #6b4a35;
+  box-shadow: inset 0 0 0 3px #2e1f16, inset 0 0 0 6px #c89a3e, 0 0 0 2px var(--line-strong);
+  overflow: hidden;
+}
+
+.side-canvas {
+  display: block;
+  image-rendering: pixelated;
+  animation: mirror-zoom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  transform-origin: 50% 35%;
+}
+
+.side-info {
+  display: grid;
+  gap: 8px;
+}
+
+.side-info h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+/* dar ekranda içerikten önce, küçük ve yan yana (yapışkan değil) */
+@media (max-width: 1099px) {
+  .side-layout {
+    grid-template-columns: 1fr;
+  }
+  .side-char {
+    position: static;
+    order: -1;
+    grid-template-columns: auto 1fr;
+    align-items: center;
+  }
+  .side-canvas {
+    width: 144px !important;
+    height: auto !important;
+  }
+  .side-frame.is-full .side-canvas {
+    width: 104px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .side-char .mirror-hint {
+    display: none;
+  }
+}

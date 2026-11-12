@@ -6,7 +6,7 @@ import { api } from "@/lib/api-client";
 import { WEEKDAY_SHORT, addDays, diffDays, formatDayShort, todayIstanbul, weekdayIndex } from "@/lib/dates";
 import { formatClock } from "@/lib/slots";
 import { PixelCanvas } from "@/components/pixel-canvas";
-import { type CareState, studyWord } from "@/lib/care";
+import { type CareState, NO_HABITS, studyWord } from "@/lib/care";
 import { DEFAULT_OUTFIT, type Outfit } from "@/lib/outfit";
 import { drawPortrait } from "@/lib/portrait";
 import {
@@ -161,7 +161,7 @@ export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose
   const lastDay = [...days].filter((d) => mine.some((s) => s.day === d && s.minutes > 0)).sort().pop();
   const weekMin = week.filter((w) => w.day !== today).reduce((n, w) => n + w.min, 0);
   const mind: CareState = {
-    areas: { yuz: null, sac: null, dis: null, vucut: null }, neglect: 0,
+    areas: { yuz: null, sac: null, dis: null, vucut: null }, neglect: 0, habits: NO_HABITS,
     study: { score: Math.min(1, weekMin / 6 / 45), idleDays: todayMin > 0 ? 0 : lastDay ? diffDays(today, lastDay) : 7, todayMin },
   };
   const mindRef = useRef(mind); mindRef.current = mind;

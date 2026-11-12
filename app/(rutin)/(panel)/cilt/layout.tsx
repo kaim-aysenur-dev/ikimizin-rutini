@@ -1,3 +1,4 @@
+import { SectionAside } from "@/components/section-aside";
 import { SubNav } from "@/components/subnav";
 
 const ITEMS = [
@@ -9,13 +10,18 @@ const ITEMS = [
 
 export default function SkinLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="main">
+    <main className="main with-side">
       <header className="page-head">
         <p className="eyebrow">Cilt bakım serüveni</p>
         <h1>Cilt</h1>
       </header>
-      <SubNav items={ITEMS} label="Cilt bölümleri" />
-      {children}
+      <div className="side-layout">
+        <div className="side-main">
+          <SubNav items={ITEMS} label="Cilt bölümleri" />
+          {children}
+        </div>
+        <SectionAside base="cilt" />
+      </div>
     </main>
   );
 }

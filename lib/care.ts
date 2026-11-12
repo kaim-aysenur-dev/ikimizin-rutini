@@ -3,7 +3,7 @@
 // Bölge puanları son günlerdeki düzenden gelir: bakım yapıldıkça iyileşir, yapılmadıkça yavaş yavaş kötüleşir.
 
 export type Area = "yuz" | "sac" | "dis" | "vucut";
-export type Effect = "kopuk" | "tonik" | "serum" | "krem" | "maske" | "gunes" | "peeling" | "dis" | "sac" | "sampuan" | "vucut" | "deodorant" | "onarim" | "parilti";
+export type Effect = "kopuk" | "tonik" | "serum" | "krem" | "maske" | "gunes" | "peeling" | "dis" | "sac" | "sampuan" | "vucut" | "deodorant" | "onarim" | "parilti" | "su" | "yemek" | "spor" | "yoga";
 
 const has = (s: string, re: RegExp) => re.test(s);
 
@@ -31,7 +31,10 @@ export type CareState = {
   areas: Record<Area, number | null>; // 0-1; o bölgede günlük adım yoksa null
   neglect: number; // hiçbir bakım yapılmayan ardışık gün (bugün hariç)
   study: { score: number; idleDays: number; todayMin: number }; // çalışma: son 7 günün düzeni, son çalışmadan beri gün
+  // son günlerin düzeni (0-1; hiç takip edilmiyorsa null): yüz yogası, spor, su hedefi, öğünler
+  habits: { yoga: number | null; sport: number | null; water: number | null; meals: number | null };
 };
+export const NO_HABITS: CareState["habits"] = { yoga: null, sport: null, water: null, meals: null };
 
 export const AREA_NAME: Record<Area, string> = { yuz: "Cilt", sac: "Saç", dis: "Dişler", vucut: "Vücut" };
 
@@ -62,6 +65,10 @@ if (process.env.NODE_ENV !== "production") {
   ok("Elixir Body Butter vücut nemlendirme", "vucut"); ok("Elixir Body Scrub vücut peelingi", "peeling"); ok("Aura Deo Roll-on Koltuk altı", "deodorant");
   ok("Hametan Krem kesik yanık", "onarim");
 }
+
+/** Yüz yogası, spor, su ve öğün kaydı başarıyla yapılınca (api-client) yayılan olay: karakterde animasyon */
+export const CARE_FX = "bakim:efekt";
+export type CareFxDetail = { effect: "su" | "yemek" | "spor" | "yoga"; water?: number };
 
 /** Bakım adımı işaretlenince (Cilt, Bugün) yayılan olay: ayna animasyonu oynatır */
 export const CARE_EVENT = "bakim:isaret";

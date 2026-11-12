@@ -51,10 +51,29 @@ export async function careState(userId: string, today: string, items?: RoutineIt
     if (daily.some((i) => i.since <= day)) neglect++;
   }
 
+  // alışkanlıklar: son 10 günün yüz yogası ve sporu (haftada 3 tam sayılır), son 7 günün suyu ve öğünleri
+  const [h] = await sql()`
+    select
+      (select count(distinct day) from face_yoga_sessions where user_id = ${userId} and day > ${addDays(today, -10)})::int as yoga,
+      (select count(*) from face_yoga_sessions where user_id = ${userId} and day > ${addDays(today, -60)})::int as yoga_any,
+      (select count(distinct day) from (
+        select day from sport_sessions where user_id = ${userId} and day > ${addDays(today, -10)}
+        union select day from activity_days where user_id = ${userId} and day > ${addDays(today, -10)} and workout_done) d)::int as sport,
+      (select count(*) from nutrition_days n join users u on u.id = n.user_id where n.user_id = ${userId} and n.day > ${addDays(today, -7)} and n.water_glasses >= u.water_target)::int as water,
+      (select count(*) from nutrition_days where user_id = ${userId} and day > ${addDays(today, -30)})::int as water_any,
+      (select count(distinct day) from (select day from meal_checks where user_id = ${userId} and day > ${addDays(today, -7)} group by day having count(*) >= 2) m)::int as meals,
+      (select count(*) from meal_checks where user_id = ${userId} and day > ${addDays(today, -30)})::int as meals_any`;
+  const habits = {
+    yoga: h.yoga_any ? Math.min(1, h.yoga / 4.3) : null,
+    sport: Math.min(1, h.sport / 4.3),
+    water: h.water_any ? Math.min(1, h.water / 6) : null,
+    meals: h.meals_any ? Math.min(1, h.meals / 6) : null,
+  };
+
   const last: string | null = st?.last_day ?? null;
   const idleDays = st?.today_min > 0 ? 0 : last ? Math.round((Date.parse(today) - Date.parse(last)) / 86400000) : 7;
   return {
-    areas, neglect,
+    areas, neglect, habits,
     // haftada günde ortalama 45 dakika "tam" sayılır
     study: { score: Math.min(1, (st?.week_min ?? 0) / 7 / 45), idleDays: Math.min(30, idleDays), todayMin: st?.today_min ?? 0 },
   };

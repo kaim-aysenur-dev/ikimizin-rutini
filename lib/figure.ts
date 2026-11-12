@@ -61,7 +61,9 @@ export function drawFigure(R: Raster, t: number, o: FigureOpts) {
   const acc = (k: string) => of.acc.find((a) => a.kind === k)?.color;
   const hw = faceHalf(o.who), th = torsoHalf(o.who);
 
-  const dull = face < 0.55 ? ((0.55 - face) / 0.55) * 0.42 : 0;
+  const hab = s?.habits ?? { yoga: null, sport: null, water: null, meals: null };
+  // susuzluk ve öğün atlama teni donuklaştırır
+  const dull = (face < 0.55 ? ((0.55 - face) / 0.55) * 0.42 : 0) + (hab.water !== null && hab.water < 0.4 ? 0.12 : 0) + (hab.meals !== null && hab.meals < 0.35 ? 0.1 : 0);
   const skin = mixRGB(rgb(B.skin), [184, 171, 156], dull), skinDk = darkOf(skin, 0.16), skinLt = lightOf(skin, 0.25);
   const hairC = rgb(of.hairColor ?? B.hair);
   const T = TOPS[of.top.kind], top = rgb(of.top.color);
@@ -137,11 +139,13 @@ export function drawFigure(R: Raster, t: number, o: FigureOpts) {
     const n = face < 0.6 ? Math.ceil(((0.6 - face) / 0.6) * SPOTS.length) : 0;
     SPOTS.slice(0, n).forEach(([x, y]) => { R.set(x, y, [200, 96, 90]); R.set(x + 1, y, [200, 96, 90], 0.5); R.set(x, y - 1, [236, 160, 144]); });
     if (face < 0.35) for (const [x, y] of [[34, 45], [33, 49], [61, 46], [63, 50], [44, 20], [52, 19], [47, 58]]) R.set(x, y, [251, 239, 226]);
-    if (face >= 0.65) for (const cx of [CX - 11, CX + 11]) for (let y = -1; y <= 1; y++) for (let x = -3; x <= 3; x++) if (x * x / 9 + y * y < 1) R.set(cx + x, 47 + y, [236, 120, 140], 0.35);
+    if (face >= 0.65 || (hab.sport ?? 0) >= 0.6 || (hab.meals ?? 0) >= 0.75) for (const cx of [CX - 11, CX + 11]) for (let y = -1; y <= 1; y++) for (let x = -3; x <= 3; x++) if (x * x / 9 + y * y < 1) R.set(cx + x, 47 + y, [236, 120, 140], 0.35);
+    if ((hab.water ?? 0) >= 0.8) for (const [x, y] of [[CX - 1, 45], [CX - 13, 42], [CX + 10, 42], [CX - 4, 22]]) R.set(x, y, WHITE, 0.55); // nemli ışıltı
+    if ((hab.yoga ?? 0) >= 0.6) for (let y = 47; y <= 57; y++) for (const side of [-1, 1]) R.set(CX + side * (hw(y) - 1.5) - (side > 0 ? 1 : 0), y, skinLt, 0.6); // yüz yogası: belirgin çene hattı
     if (face >= 0.8) for (let k = 0; k < 3; k++) { const q = (t * 0.8 + k / 3) % 1; if (q < 0.4) R.set([CX - 12, CX + 12, CX + 3][k], [40, 41, 22][k], WHITE, 1 - q / 0.4); }
   }
 
-  drawFace(R, o.who, B, skin, skinDk, of, t, study, face, teeth, s?.neglect ?? 0, o.focus ?? false, on("dis"));
+  drawFace(R, o.who, B, skin, skinDk, of, t, study, face, teeth, s?.neglect ?? 0, o.focus ?? false, on("dis"), s?.habits);
   hairFront(R, o.who, of.hair, hairC, hw, skinDk, hairScore, t, on("sac"), on("sampuan"));
 
   /* ---------- baştaki aksesuarlar ---------- */
@@ -191,7 +195,7 @@ export function drawFigure(R: Raster, t: number, o: FigureOpts) {
 
 /* ---------------------------------- yüz ---------------------------------- */
 
-function drawFace(R: Raster, who: Who, B: (typeof BODY)["cengiz"], skin: RGB, skinDk: RGB, of: Outfit, t: number, study: CareState["study"], face: number, teeth: number, neglect: number, focus: boolean, dis?: { p: number }) {
+function drawFace(R: Raster, who: Who, B: (typeof BODY)["cengiz"], skin: RGB, skinDk: RGB, of: Outfit, t: number, study: CareState["study"], face: number, teeth: number, neglect: number, focus: boolean, dis?: { p: number }, habits?: CareState["habits"]) {
   const hairC = rgb(of.hairColor ?? B.hair), browC = darkOf(hairC, 0.1);
   // kaşlar: kalın başlar, dışa doğru incelir; odaklanınca iç uçlar iner
   for (const side of [-1, 1]) {
@@ -223,7 +227,9 @@ function drawFace(R: Raster, who: Who, B: (typeof BODY)["cengiz"], skin: RGB, sk
   for (let y = 41; y < 48; y++) R.set(CX + 1, y, skinDk, 0.7);
   R.set(CX - 1, 46, lightOf(skin, 0.4)); R.set(CX - 3, 48, skinDk); R.set(CX + 3, 48, skinDk); R.rect(CX - 2, 49, 5, 1, skinDk, 0.35);
   // ağız
-  const lips = rgb(of.lips ?? B.lips), lipsLt = lightOf(lips, 0.3);
+  const dry = (s0: CareState["habits"] | undefined) => s0?.water !== null && s0?.water !== undefined && s0.water < 0.35;
+  let lips = rgb(of.lips ?? B.lips); if (!of.lips && dry(habits)) lips = mixRGB(lips, skin, 0.45);
+  const lipsLt = lightOf(lips, 0.3);
   const happy = face >= 0.6 && neglect < 2, sad = face < 0.3 || neglect >= 3, yawn = sleepy && (t % 7) < 1.2;
   if (dis) {
     R.rect(CX - 6, 51, 13, 5, INK); R.rect(CX - 5, 51, 11, 2, teeth >= 0.5 ? WHITE : [240, 226, 176]); R.rect(CX - 4, 54, 9, 1, [168, 64, 74]);
@@ -236,6 +242,7 @@ function drawFace(R: Raster, who: Who, B: (typeof BODY)["cengiz"], skin: RGB, sk
   } else if (sad) { for (let x = -4; x <= 4; x++) R.set(CX + x, 52 + (Math.abs(x) >= 3 ? 1 : 0), lips); }
   else { for (let x = -4; x <= 4; x++) R.set(CX + x, 52, lips); for (let x = -2; x <= 2; x++) R.set(CX + x, 53, lipsLt, 0.7); }
   if (of.lips) { R.set(CX - 2, 52, lightOf(lips, 0.5)); R.set(CX + 1, 53, lightOf(lips, 0.6)); }
+  if (dry(habits) && !dis) { R.set(CX - 1, 52, lightOf(lips, 0.6)); R.set(CX + 2, 53, lightOf(lips, 0.6)); } // kuru dudak çatlağı
   if (who === "cengiz") for (let y = 54; y <= 59; y++) for (let x = CX - 10; x <= CX + 10; x++) if (rnd(x * 31 + y) < 0.12) R.set(x, y, darkOf(skin, 0.18), 0.5); // hafif sakal izi
 }
 
@@ -483,6 +490,34 @@ function drawFx(R: Raster, kind: Effect, p: number, t: number, skin: RGB, hw: (y
     case "onarim":
       for (let k = 0; k < 3; k++) { const q = (p + k / 3) % 1, x = CX + 14 + k * 4, y = 48 - q * 18, a = 1 - q; R.rect(x - 1, Math.round(y), 3, 1, [120, 220, 150], a); R.rect(x, Math.round(y) - 1, 1, 3, [120, 220, 150], a); }
       break;
+    case "su": { // bardaktan içer, sonra yanaklar nemlenir
+      const k = Math.min(1, p / 0.35), gx = Math.round(CX + 22 - k * 12), gy = Math.round(60 - k * 6);
+      if (p < 0.75) {
+        R.rect(gx - 4, gy - 9, 9, 12, INK); R.rect(gx - 3, gy - 8, 7, 10, [210, 235, 250]);
+        const lvl = Math.round(8 * (1 - Math.max(0, (p - 0.3) / 0.45))); R.rect(gx - 3, gy + 2 - lvl, 7, lvl, [120, 190, 240]); R.set(gx - 2, gy - 7, WHITE);
+      }
+      if (p > 0.55) for (let q = 0; q < 6; q++) if ((t * 5 + q) % 2 < 1.2) R.set([CX - 13, CX - 10, CX + 10, CX + 13, CX - 1, CX + 4][q], [42, 46, 45, 41, 45, 23][q], [190, 230, 255]);
+      break;
+    }
+    case "yemek": { // çatalla lokma, çiğneme, kalpler
+      const k = Math.min(1, p / 0.35), fx = Math.round(CX + 24 - k * 18), fy = Math.round(64 - k * 11);
+      if (p < 0.45) { R.line(fx, fy, fx + 9, fy + 9, [200, 204, 216]); R.rect(fx - 1, fy - 2, 3, 3, [200, 204, 216]); R.disc(fx, fy - 2, 2, [216, 120, 60]); R.set(fx - 1, fy - 3, [120, 180, 80]); }
+      else if (Math.floor(t * 6) % 2) for (const side of [-1, 1]) R.disc(CX + side * 9, 50, 2, skin);
+      if (p > 0.5) for (let q = 0; q < 3; q++) { const u = ((p - 0.5) * 2 + q / 3) % 1, hx = CX + 18 + q * 4, hy = 46 - u * 20; for (const [dx, dy] of [[-1, 0], [1, 0], [0, 1], [-1, -1], [1, -1]]) R.set(hx + dx, hy + dy, [232, 96, 120], 1 - u); }
+      break;
+    }
+    case "spor": { // alında bant, ter damlaları, nefes
+      R.rect(CX - 17, 24, 34, 3, [200, 54, 58], fade(1)); R.rect(CX - 17, 24, 34, 1, [232, 110, 110], fade(1));
+      for (let q = 0; q < 5; q++) { const u = (p * 1.6 + q / 5) % 1, x = [CX - 15, CX + 15, CX - 9, CX + 11, CX + 2][q]; R.set(x, 28 + u * 18, [150, 205, 255], 1 - u); R.set(x, 29 + u * 18, [150, 205, 255], (1 - u) * 0.6); }
+      for (let q = 0; q < 3; q++) { const u = (p * 2 + q / 3) % 1; R.disc(CX + 9 + u * 8, 52 - u * 3, 1, WHITE, 0.5 * (1 - u)); }
+      break;
+    }
+    case "yoga": { // yüz yogası: yanakları şişir, sonra kocaman gülümse
+      if (p < 0.5) { const b = Math.sin((p / 0.5) * Math.PI); for (const side of [-1, 1]) R.disc(CX + side * (11 + b), 48, Math.round(3 + b * 2), lightOf(skin, 0.1)); R.rect(CX - 1, 51, 3, 2, darkOf(skin, 0.3)); }
+      else { for (let x = -6; x <= 6; x++) R.set(CX + x, 52 - (Math.abs(x) >= 4 ? 2 : Math.abs(x) >= 2 ? 1 : 0), [160, 70, 80]); }
+      for (let q = 0; q < 6; q++) { const a = (q / 6) * Math.PI * 2 + p * 3; R.set(CX + Math.cos(a) * 22, 40 + Math.sin(a) * 24, [255, 236, 170], fade(1)); }
+      break;
+    }
     case "parilti":
       for (let k = 0; k < 8; k++) { const a = (k / 8) * Math.PI * 2 + p * 4; R.set(CX + Math.cos(a) * 26, 40 + Math.sin(a) * 28, [255, 236, 170], fade(1)); }
       break;
