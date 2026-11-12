@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { PixelCanvas } from "@/components/pixel-canvas";
 import { AREA_NAME, type Area, CARE_EVENT, type CareEventDetail, type CareState, areaWord, bump, careOf, studyWord } from "@/lib/care";
 import { todayIstanbul } from "@/lib/dates";
-import { PORTRAIT_SIZE, type PortraitFx, type PortraitLook, drawPortrait } from "@/lib/portrait";
+import type { Outfit } from "@/lib/outfit";
+import { PORTRAIT_SIZE, type PortraitFx, drawPortrait } from "@/lib/portrait";
 
 type Step = { id: string; label: string; productName: string | null; slot: string };
 const AREAS: Area[] = ["yuz", "sac", "dis", "vucut"];
@@ -14,7 +15,7 @@ const DAILY = new Set(["sabah", "aksam", "dus"]);
  * Bakım aynası: karakterin yüzü yakından. Rutindeki bir adım işaretlenince yüzde uygulanır (köpük, serum, krem...);
  * son günlerde bakım yapılmadıkça cilt matlaşır, göz altları morarır, sivilce ve kuruluk çıkar; düzenli bakımda ışıldar.
  */
-export function FaceMirror({ who, name, initial, steps, look }: { who: "cengiz" | "aysenur"; name: string; initial: CareState; steps: Step[]; look: PortraitLook }) {
+export function FaceMirror({ who, name, initial, steps, outfit }: { who: "cengiz" | "aysenur"; name: string; initial: CareState; steps: Step[]; outfit: Outfit }) {
   const [state, setState] = useState(initial);
   const [last, setLast] = useState<string | null>(null);
   const fx = useRef<PortraitFx[]>([]);
@@ -48,8 +49,8 @@ export function FaceMirror({ who, name, initial, steps, look }: { who: "cengiz" 
   return (
     <section className="card mirror" aria-labelledby="mirror-title">
       <div className="mirror-frame">
-        <PixelCanvas size={PORTRAIT_SIZE} scale={4} fps={24} className="mirror-canvas" label={`${name} aynada`}
-          draw={(c, w, h, t) => drawPortrait(c, w, h, t, { who, state: stateRef.current, look, fx: fx.current })} />
+        <PixelCanvas size={PORTRAIT_SIZE} scale={3} fps={24} className="mirror-canvas" label={`${name} aynada`}
+          draw={(c, w, h, t) => drawPortrait(c, w, h, t, { who, state: stateRef.current, outfit, fx: fx.current })} />
         {last && <span className="mirror-toast" role="status">✨ {last}</span>}
       </div>
       <div className="mirror-info">

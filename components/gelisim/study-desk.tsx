@@ -7,7 +7,8 @@ import { WEEKDAY_SHORT, addDays, diffDays, formatDayShort, todayIstanbul, weekda
 import { formatClock } from "@/lib/slots";
 import { PixelCanvas } from "@/components/pixel-canvas";
 import { type CareState, studyWord } from "@/lib/care";
-import { DEFAULT_LOOK, type PortraitLook, drawPortrait } from "@/lib/portrait";
+import { DEFAULT_OUTFIT, type Outfit } from "@/lib/outfit";
+import { drawPortrait } from "@/lib/portrait";
 import {
   BOOK_KINDS, BOOK_STATUS, type Book, type BookKind, type BookStatus, STUDY_COLORS, STUDY_XP, type StudyArea, type StudyColor,
   type StudyOverview, type StudySession, type StudyTimer, studyXp,
@@ -84,8 +85,8 @@ function chime() {
  * Çalışma odasındaki masa ve kitaplık: alanlar (Python, Network...) ve okuma listesi, süre tutma, sayfa,
  * günlük ve XP. Ortak alan/kitaplara ikiniz de kayıt girersiniz; aynı anda çalışınca oturum +%50 XP.
  */
-export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose, onTimer, look }: {
-  me: string; profiles: Profile[]; tab: StudyTab; atDesk?: boolean; onClose: () => void; look?: PortraitLook;
+export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose, onTimer, outfit }: {
+  me: string; profiles: Profile[]; tab: StudyTab; atDesk?: boolean; onClose: () => void; outfit?: Outfit;
   onTimer: (t: { label: string; startedAt: string } | null) => void;
 }) {
   const [tab, setTab] = useState<StudyTab>(firstTab);
@@ -167,8 +168,8 @@ export function StudyDesk({ me, profiles, tab: firstTab, atDesk = false, onClose
   const focusRef = useRef(false); focusRef.current = !!myTimer;
   const mirror = (
     <div className="st-mind" title={studyWord(mind.study)}>
-      <PixelCanvas size={[64, 56]} scale={1} fps={15} className="st-mind-canvas" label="Zihin aynası"
-        draw={(c, w, h, t) => drawPortrait(c, w, h, t, { who, state: mindRef.current, look: look ?? DEFAULT_LOOK[who], fx: [], focus: focusRef.current })} />
+      <PixelCanvas size={[96, 72]} scale={1} fps={15} className="st-mind-canvas" label="Zihin aynası"
+        draw={(c, w, h, t) => drawPortrait(c, w, h, t, { who, state: mindRef.current, outfit: outfit ?? DEFAULT_OUTFIT[who], fx: [], focus: focusRef.current })} />
       <small>{myTimer ? "odakta" : studyWord(mind.study).split(":")[0]}</small>
     </div>
   );

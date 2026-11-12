@@ -1,7 +1,6 @@
 import "server-only";
 import { sql } from "./db";
-import { type Outfit, type Wearable, portraitLook, sanitizeOutfit, wearableOf } from "./outfit";
-import type { PortraitLook } from "./portrait";
+import { type Outfit, type Wearable, sanitizeOutfit, wearableOf } from "./outfit";
 import type { WishCat } from "./wishes";
 
 type Who = "cengiz" | "aysenur";
@@ -31,4 +30,3 @@ export async function saveOutfit(userId: string, raw: unknown, who: Who): Promis
   return o;
 }
 
-export const portraitLookOf = async (userId: string, who: Who): Promise<PortraitLook> => portraitLook(await outfitOf(userId, who));

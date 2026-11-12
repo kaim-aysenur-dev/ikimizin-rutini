@@ -555,7 +555,7 @@
 
 .st-mind-canvas {
   width: 96px !important;
-  height: 84px !important;
+  height: 72px !important;
   image-rendering: pixelated;
   box-shadow: 0 0 0 2px var(--line-strong);
 }

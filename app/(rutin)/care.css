@@ -121,3 +121,136 @@
   margin: 0;
   font-size: 13px;
 }
+
+/* ---------- giydirme ekranı ---------- */
+
+.du {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .du {
+    grid-template-columns: 1fr;
+  }
+}
+
+.du-stage {
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+  padding: 10px;
+  background: linear-gradient(#2e2340, #1a1426);
+  box-shadow: inset 0 0 0 3px #2e1f16, inset 0 0 0 6px #6b4a35;
+  position: sticky;
+  top: 0;
+}
+
+.du-canvas {
+  display: block;
+  image-rendering: pixelated;
+  animation: du-zoom 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes du-zoom {
+  from { transform: scale(0.6) translateY(12%); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .du-canvas { animation: none; }
+}
+
+.du-actions {
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.du-stage .st-msg,
+.du-stage .form-error {
+  max-width: 220px;
+  text-align: center;
+}
+
+.du-panel {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  align-content: start;
+}
+
+.du-kinds .chip {
+  font-size: 13px;
+}
+
+.du-note {
+  margin: 0;
+  font-size: 13px;
+}
+
+.du-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.du-swatch {
+  width: 26px;
+  height: 26px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 2px rgb(0 0 0 / 0.25);
+}
+
+.du-swatch.is-own {
+  background: repeating-linear-gradient(45deg, #4a2840 0 4px, #2b2238 4px 8px);
+}
+
+.du-swatch[aria-checked="true"] {
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink);
+}
+
+.du-dot {
+  display: inline-block;
+  flex: none;
+  width: 12px;
+  height: 12px;
+  margin-right: 6px;
+  vertical-align: middle;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.3);
+}
+
+.du-rewards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.du-rewards li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+}
+
+.du-rewards li .grow {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.du-rewards li small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.du-rewards li.is-locked {
+  opacity: 0.6;
+}

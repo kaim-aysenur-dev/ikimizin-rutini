@@ -1,6 +1,8 @@
 // Gelişim sahnelerinin çizimi: kişinin altı odalı evi, ortak bahçe ve ortak şato. Karanlık fantastik, fırtınalı. Kamera karakteri takip eder;
 // durum (konumlar, eşyalar) dışarıdan gelir. Duvarlar "kesit" tarzı: dış arka duvarlar tam, iç duvarlar alçak.
 import { duldul, parrot } from "./companions";
+import type { SpriteWear } from "./outfit";
+import { drawWear } from "./wear-sprite";
 import { lights } from "./env";
 import { type Origin, type Part, at, box, setFlip, shade, tile } from "./iso";
 import { type CharState, type Ctx, type Free, type V, P, STAND, drawCharacter, lerpFree, line, poly, px, rect, rnd, sprite } from "./pixel";
@@ -24,7 +26,7 @@ import { mountById, trailById } from "./character";
 
 const WALL_H = 44;
 export type Theme = "cengiz" | "aysenur";
-export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number; seat?: number; stool?: boolean; tilt?: number }; study?: { reading: boolean; focus: boolean };
+export type Hero = { who: Theme; i: number; j: number; dir: 1 | -1; dist: number; moving: boolean; outfit: CharState["outfit"]; tint?: CharState["tint"]; wear?: SpriteWear; sit?: { lift: number; sleep?: boolean; from?: [number, number]; at?: number; blanket?: string; depth?: number; seat?: number; stool?: boolean; tilt?: number }; study?: { reading: boolean; focus: boolean };
   gear?: { weapon: string | null; armor?: string | null; helmet?: string | null; shield?: string | null; cape?: string | null; trinket?: string | null; set?: string | null; swing?: number }; shield?: boolean; // elde silah, kuşanılan zırh (miğfer, kalkan görünür), savuruş (0..1), kalkan büyüsü
   emote?: { kind: Emote; at: number }; hold?: boolean; // başın üstünde kısa emote; el ele tutuşma
   trail?: string | null; // yürürken arkada kalan iz (character.ts TRAILS)
@@ -612,6 +614,8 @@ export function drawScene(c: Ctx, t: number, s: SceneState): Anchor[] {
         rect(c, d > 0 ? bx : bx + 9, hy - 4, 2, 5, "#f2e4c2"); // kıvrılan çarşaf
         for (let q = 0; q < 3; q++) px(c, bx + 2 + q * 3, hy - 3 + (q % 2), "rgba(255,255,255,0.35)");
       }
+      // giydirme ekranındaki kombinin ayrıntıları (zırh giyilmediğinde)
+      if (h.wear) drawWear(c, a, look, h.wear, h.who, t, { lying: !!h.sit?.sleep, shoe: h.tint?.shoe ?? "#6b4a35", top: h.tint?.top ?? "#2f3b6b" });
       if (rollK >= 0) c.restore();
       if (rollK >= 0) for (let q = 0; q < 3; q++) { const qq = (rollK + q * 0.3) % 1; px(c, x - h.dir * (4 + q * 3), y - Math.round(qq * 4), `rgba(200,190,170,${(0.6 * (1 - qq)).toFixed(2)})`); } // toz
       wornGear(c, a, h.who, h.dir, h.gear, h.sit, t, h.dist);

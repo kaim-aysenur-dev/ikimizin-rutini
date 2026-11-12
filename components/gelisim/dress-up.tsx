@@ -4,22 +4,24 @@ import { useEffect, useRef, useState } from "react";
 import { PixelCanvas } from "@/components/pixel-canvas";
 import { api } from "@/lib/api-client";
 import { DOLL_SIZE, drawDoll } from "@/lib/doll";
+import type { FigureFx } from "@/lib/figure";
 import {
-  ACCS, type AccKind, BOTTOMS, type BottomKind, COLORS, LIPS, type Outfit, SHOES, type ShoeKind, TOPS, type TopKind, type Wearable, sanitizeOutfit,
+  ACCS, type AccKind, BOTTOMS, type BottomKind, COLORS, HAIRS, HAIR_COLORS, LIPS, type Outfit, PATTERNS, type Pattern, SHOES, type ShoeKind, TOPS, type TopKind,
+  type Wearable, sanitizeOutfit,
 } from "@/lib/outfit";
-import type { PortraitFx } from "@/lib/portrait";
 
-type Cat = "ust" | "alt" | "ayakkabi" | "aksesuar" | "makyaj" | "odul";
+type Cat = "ust" | "alt" | "ayakkabi" | "aksesuar" | "sac" | "makyaj" | "odul";
 const CATS: { id: Cat; label: string }[] = [
-  { id: "ust", label: "👕 Üst" }, { id: "alt", label: "👖 Alt" }, { id: "ayakkabi", label: "👟 Ayakkabı" },
-  { id: "aksesuar", label: "🕶️ Aksesuar" }, { id: "makyaj", label: "💄 Makyaj" }, { id: "odul", label: "🎁 Kazandıkların" },
+  { id: "ust", label: "👕 Üst" }, { id: "alt", label: "👖 Alt" }, { id: "ayakkabi", label: "👟 Ayakkabı" }, { id: "aksesuar", label: "🕶️ Aksesuar" },
+  { id: "sac", label: "💇 Saç" }, { id: "makyaj", label: "💄 Makyaj" }, { id: "odul", label: "🎁 Kazandıkların" },
 ];
 const pick = <T,>(a: T[]) => a[Math.floor(Math.random() * a.length)];
+const JEWEL = new Set<AccKind>(["kolye", "kupe", "bileklik"]);
 
 /**
- * Giydirme: karakter tam boy, yakından. Gündelik kıyafetler türü ve rengiyle seçilir; Dilek Dolabı'nda kazanılanlar
- * (elbise, ayakkabı, takı, çanta, ruj, parfüm, kulaklık) da giyilir. Kaydedince dünyada da bu kıyafetle görünürsün
- * (zırh giymediğinde); portrede yaka, ruj ve aksesuarlar görünür.
+ * Giydirme: karakter tam boy, yakından. Üst, alt, ayakkabı, aksesuar türü, rengi ve deseniyle; saç modeli ve rengi;
+ * Dilek Dolabı'nda kazanılanlar (elbise, ayakkabı, takı, çanta, ruj, parfüm, kulaklık). Kaydedince Gelişim'de de
+ * bu kombinle dolaşırsın (zırh giymediğinde); portrede ve bakım aynasında da görünür.
  */
 export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: (o: Outfit) => void }) {
   const [saved, setSaved] = useState<Outfit | null>(null);
@@ -29,7 +31,7 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const fx = useRef<PortraitFx[]>([]);
+  const fx = useRef<FigureFx[]>([]);
   const draftRef = useRef<Outfit | null>(null);
   draftRef.current = draft;
 
@@ -43,43 +45,52 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
   const change = (next: Outfit) => { setDraft(sanitizeOutfit(next, who)); fx.current = [{ kind: "parilti", at: performance.now() / 1000 }]; };
   if (!draft) return <p className="muted">{err ?? "Gardırop açılıyor..."}</p>;
 
+  const setTop = (t: Partial<Outfit["top"]>) => {
+    const top = { ...draft.top, ...t }, dress = !!TOPS[top.kind].dress;
+    change({ ...draft, top, bottom: dress ? null : draft.bottom ?? { kind: "jean", color: "#4a6a9a" } });
+  };
   const accOn = (k: AccKind) => draft.acc.find((a) => a.kind === k);
-  const toggleAcc = (k: AccKind, color = "#24202a") => change({ ...draft, acc: accOn(k) ? draft.acc.filter((a) => a.kind !== k) : [...draft.acc, { kind: k, color }].slice(-5) });
+  const toggleAcc = (k: AccKind) => change({ ...draft, acc: accOn(k) ? draft.acc.filter((a) => a.kind !== k) : [...draft.acc, { kind: k, color: JEWEL.has(k) ? "#e2b45a" : "#24202a" }].slice(-6) });
   const wear = (w: Wearable) => {
-    if (w.slot === "top") change({ ...draft, top: { kind: w.kind as TopKind, color: w.color }, bottom: w.kind === "elbise" ? null : draft.bottom ?? { kind: "jean", color: "#4a6a9a" } });
+    if (w.slot === "top") setTop({ kind: w.kind as TopKind, color: w.color, pattern: undefined });
     else if (w.slot === "shoes") change({ ...draft, shoes: { kind: w.kind as ShoeKind, color: w.color } });
-    else if (w.slot === "acc") change({ ...draft, acc: [...draft.acc.filter((a) => a.kind !== w.kind), { kind: w.kind as AccKind, color: w.color }].slice(-5) });
-    else if (w.slot === "lips") change({ ...draft, lips: w.color });
+    else if (w.slot === "acc") change({ ...draft, acc: [...draft.acc.filter((a) => a.kind !== w.kind), { kind: w.kind as AccKind, color: w.color }].slice(-6) });
+    else if (w.slot === "lips") change({ ...draft, lips: draft.lips === w.color ? null : w.color });
     else change({ ...draft, scent: !draft.scent });
   };
   const random = () => {
     const top = pick(Object.keys(TOPS) as TopKind[]);
     change({
-      top: { kind: top, color: pick(COLORS).c, inner: pick(COLORS).c },
-      bottom: top === "elbise" ? null : { kind: pick(Object.keys(BOTTOMS) as BottomKind[]), color: pick(COLORS).c },
+      ...draft,
+      top: { kind: top, color: pick(COLORS).c, inner: pick(COLORS).c, ...(Math.random() < 0.3 ? { pattern: pick(["cizgili", "kareli", "puantiyeli"] as Pattern[]), color2: pick(COLORS).c } : {}) },
+      bottom: TOPS[top].dress ? null : { kind: pick(Object.keys(BOTTOMS) as BottomKind[]), color: pick(COLORS).c },
       shoes: { kind: pick(Object.keys(SHOES) as ShoeKind[]), color: pick(COLORS).c },
-      acc: Math.random() < 0.5 ? [{ kind: pick(["gozluk", "gunes", "bere", "sapka", "saat", "canta"] as AccKind[]), color: pick(COLORS).c }] : [],
-      lips: draft.lips, scent: draft.scent,
+      acc: Math.random() < 0.6 ? [{ kind: pick(["gozluk", "gunes", "bere", "kep", "sapka", "saat", "canta", "atki", "kolye"] as AccKind[]), color: pick(COLORS).c }] : [],
     });
   };
   const save = async () => {
     setBusy(true); setErr(null);
-    try { const d = await api<{ outfit: Outfit }>("/api/gelisim/kiyafet", { method: "PUT", body: draft }); setSaved(d.outfit); setDraft(d.outfit); onSaved(d.outfit); setMsg("Kombin kaydedildi: dünyada da böyle görünüyorsun."); }
+    try { const d = await api<{ outfit: Outfit }>("/api/gelisim/kiyafet", { method: "PUT", body: draft }); setSaved(d.outfit); setDraft(d.outfit); onSaved(d.outfit); setMsg("Kaydedildi: Gelişim'de de böyle dolaşıyorsun."); }
     catch (e) { setErr(e instanceof Error ? e.message : "Kaydedilemedi."); }
     setBusy(false);
   };
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved);
 
-  const swatches = (value: string, onPick: (c: string) => void, label: string) => (
-    <div className="swatches du-swatches" role="radiogroup" aria-label={label}>
-      {COLORS.map((c) => <button key={c.c} type="button" role="radio" aria-checked={value === c.c} className="du-swatch" style={{ background: c.c }} aria-label={c.name} title={c.name} onClick={() => onPick(c.c)} />)}
+  const swatches = (value: string, onPick: (c: string) => void, label: string, list = COLORS) => (
+    <div className="du-swatches" role="radiogroup" aria-label={label}>
+      {list.map((c) => <button key={c.name} type="button" role="radio" aria-checked={value === c.c} className={`du-swatch${c.c ? "" : " is-own"}`} style={c.c ? { background: c.c } : undefined} aria-label={c.name} title={c.name} onClick={() => onPick(c.c)} />)}
+    </div>
+  );
+  const kinds = <K extends string>(map: Record<K, string | { name: string }>, value: K | undefined, onPick: (k: K) => void, label: string) => (
+    <div className="chips du-kinds" role="radiogroup" aria-label={label}>
+      {(Object.keys(map) as K[]).map((k) => { const v = map[k]; return <button key={k} type="button" role="radio" className="chip" aria-checked={value === k} onClick={() => onPick(k)}>{typeof v === "string" ? v : v.name}</button>; })}
     </div>
   );
 
   return (
     <div className="du">
       <div className="du-stage">
-        <PixelCanvas size={DOLL_SIZE} scale={3} fps={20} className="du-canvas" label="Kombinin"
+        <PixelCanvas size={DOLL_SIZE} scale={2} fps={20} className="du-canvas" label="Kombinin"
           draw={(c, w, h, t) => draftRef.current && drawDoll(c, w, h, t, { who, outfit: draftRef.current, state: null, fx: fx.current })} />
         <div className="row du-actions">
           <button type="button" className="btn btn-primary" disabled={busy || !dirty} onClick={() => void save()}>Kaydet</button>
@@ -97,22 +108,19 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
 
         {cat === "ust" && (
           <>
-            <div className="chips du-kinds" role="radiogroup" aria-label="Üst">
-              {(Object.keys(TOPS) as TopKind[]).map((k) => <button key={k} type="button" role="radio" className="chip" aria-checked={draft.top.kind === k}
-                onClick={() => change({ ...draft, top: { ...draft.top, kind: k }, bottom: k === "elbise" ? null : draft.bottom ?? { kind: "jean", color: "#4a6a9a" } })}>{TOPS[k].name}</button>)}
-            </div>
+            {kinds(TOPS, draft.top.kind, (k) => setTop({ kind: k }), "Üst")}
             <span className="field-label">Renk</span>
-            {swatches(draft.top.color, (c) => change({ ...draft, top: { ...draft.top, color: c } }), "Üstün rengi")}
-            {draft.top.kind === "ceket" && <><span className="field-label">İçindeki</span>{swatches(draft.top.inner ?? "#f2ede4", (c) => change({ ...draft, top: { ...draft.top, inner: c } }), "İçindekinin rengi")}</>}
+            {swatches(draft.top.color, (c) => setTop({ color: c }), "Üstün rengi")}
+            <span className="field-label">Desen</span>
+            {kinds(PATTERNS, draft.top.pattern ?? "duz", (p) => setTop({ pattern: p === "duz" ? undefined : p, color2: draft.top.color2 ?? "#f2ede4" }), "Desen")}
+            {draft.top.pattern && <><span className="field-label">Desenin rengi</span>{swatches(draft.top.color2 ?? "#f2ede4", (c) => setTop({ color2: c }), "Desenin rengi")}</>}
+            {TOPS[draft.top.kind].open && <><span className="field-label">İçindeki</span>{swatches(draft.top.inner ?? "#f2ede4", (c) => setTop({ inner: c }), "İçindekinin rengi")}</>}
           </>
         )}
 
-        {cat === "alt" && (draft.top.kind === "elbise" ? <p className="muted">Elbise giyiyorsun; alt yok. Üst sekmesinden başka bir şey seçince alt açılır.</p> : (
+        {cat === "alt" && (TOPS[draft.top.kind].dress ? <p className="muted">Elbise giyiyorsun; alt yok. Üst sekmesinden başka bir şey seçince alt açılır.</p> : (
           <>
-            <div className="chips du-kinds" role="radiogroup" aria-label="Alt">
-              {(Object.keys(BOTTOMS) as BottomKind[]).map((k) => <button key={k} type="button" role="radio" className="chip" aria-checked={draft.bottom?.kind === k}
-                onClick={() => change({ ...draft, bottom: { kind: k, color: draft.bottom?.color ?? "#4a6a9a" } })}>{BOTTOMS[k].name}</button>)}
-            </div>
+            {kinds(BOTTOMS, draft.bottom?.kind, (k) => change({ ...draft, bottom: { kind: k, color: draft.bottom?.color ?? "#4a6a9a" } }), "Alt")}
             <span className="field-label">Renk</span>
             {swatches(draft.bottom?.color ?? "", (c) => change({ ...draft, bottom: { kind: draft.bottom?.kind ?? "jean", color: c } }), "Altın rengi")}
           </>
@@ -120,9 +128,7 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
 
         {cat === "ayakkabi" && (
           <>
-            <div className="chips du-kinds" role="radiogroup" aria-label="Ayakkabı">
-              {(Object.keys(SHOES) as ShoeKind[]).map((k) => <button key={k} type="button" role="radio" className="chip" aria-checked={draft.shoes.kind === k} onClick={() => change({ ...draft, shoes: { ...draft.shoes, kind: k } })}>{SHOES[k]}</button>)}
-            </div>
+            {kinds(SHOES, draft.shoes.kind, (k) => change({ ...draft, shoes: { ...draft.shoes, kind: k } }), "Ayakkabı")}
             <span className="field-label">Renk</span>
             {swatches(draft.shoes.color, (c) => change({ ...draft, shoes: { ...draft.shoes, color: c } }), "Ayakkabının rengi")}
           </>
@@ -130,9 +136,9 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
 
         {cat === "aksesuar" && (
           <>
-            <p className="muted du-note">En fazla 5 aksesuar. Takılı olanın rengini aşağıdan seç.</p>
+            <p className="muted du-note">En fazla 6 aksesuar. Takılı olanın rengini aşağıdan seç.</p>
             <div className="chips du-kinds" role="group" aria-label="Aksesuarlar">
-              {(Object.keys(ACCS) as AccKind[]).map((k) => <button key={k} type="button" className="chip" aria-pressed={!!accOn(k)} onClick={() => toggleAcc(k, k === "kolye" || k === "kupe" || k === "bileklik" ? "#e2b45a" : "#24202a")}>{ACCS[k]}</button>)}
+              {(Object.keys(ACCS) as AccKind[]).map((k) => <button key={k} type="button" className="chip" aria-pressed={!!accOn(k)} onClick={() => toggleAcc(k)}>{ACCS[k]}</button>)}
             </div>
             {draft.acc.map((a) => (
               <div key={a.kind}>
@@ -143,6 +149,16 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
           </>
         )}
 
+        {cat === "sac" && (
+          <>
+            <div className="chips du-kinds" role="radiogroup" aria-label="Saç modeli">
+              {HAIRS[who].map((h) => <button key={h.kind} type="button" role="radio" className="chip" aria-checked={draft.hair === h.kind} onClick={() => change({ ...draft, hair: h.kind })}>{h.name}</button>)}
+            </div>
+            <span className="field-label">Saç rengi</span>
+            {swatches(draft.hairColor ?? "", (c) => change({ ...draft, hairColor: c || null }), "Saç rengi", HAIR_COLORS)}
+          </>
+        )}
+
         {cat === "makyaj" && (
           <>
             <span className="field-label">Dudak</span>
@@ -150,7 +166,7 @@ export function DressUp({ who, onSaved }: { who: "cengiz" | "aysenur"; onSaved: 
               {LIPS.map((l) => <button key={l.name} type="button" role="radio" className="chip" aria-checked={(draft.lips ?? "") === l.c} onClick={() => change({ ...draft, lips: l.c || null })}>
                 {l.c && <i className="du-dot" style={{ background: l.c }} aria-hidden="true" />}{l.name}</button>)}
             </div>
-            <p className="muted du-note">Cildin bakım aynasındaki durumuyla görünür: bakım yaptıkça yüz ışıldar.</p>
+            <p className="muted du-note">Yüzün bakım aynasındaki durumuyla görünür: bakım yaptıkça cilt ışıldar.</p>
           </>
         )}
 

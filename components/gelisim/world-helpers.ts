@@ -1,6 +1,6 @@
 // Gelişim dünyasının saf yardımcıları ve sabitleri (gelisim-world.tsx'ten ayrıldı; davranış aynı).
 import { type StudyTab } from "./study-desk";
-import { type Outfit, worldTint } from "@/lib/outfit";
+import { type Outfit, spriteWear, worldTint } from "@/lib/outfit";
 import { type Emote, type Hero, type Theme } from "@/lib/gelisim-scene";
 import { sfx } from "@/lib/sfx";
 import { MOON_GATE, type Floor, type Placed, sizeOf, type HouseFloor } from "@/lib/room";
@@ -36,7 +36,8 @@ export const lookFor = (_level: number, eq: Equipment | undefined, wear?: Outfit
   // gündelik kombin zırhın altında kalır; eldiven elleri, çizme ayakları malzemesinin rengine boyar
   const casual = wear && !eq?.armor ? worldTint(wear) : {};
   const tint = { ...casual, ...base.tint, ...(gl ? { glove: gl.base } : {}), ...(bt ? { shoe: bt.dk } : {}), ...(lg ? { bottom: lg.base } : {}) };
-  return { outfit: base.outfit, tint: Object.keys(tint).length ? tint : undefined, gear: gearOf(eq) };
+  // zırh yoksa kombinin ayrıntıları (şapka, gözlük, çanta...) küçük karakterin üstüne çizilir
+  return { outfit: base.outfit, tint: Object.keys(tint).length ? tint : undefined, gear: gearOf(eq), wear: wear && !eq?.armor ? spriteWear(wear) : undefined };
 };
 export const gearOf = (eq: Equipment | undefined) => ({
   weapon: eq?.weapon ?? null, armor: eq?.armor ?? null, helmet: eq?.helmet ?? null, shield: eq?.shield ?? null, cape: eq?.cape ?? null,

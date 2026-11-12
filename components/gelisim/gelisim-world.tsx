@@ -30,7 +30,7 @@ import { ArmoryPanel } from "@/components/gelisim/armory-panel";
 import { lastStormStrike, strikePower } from "@/lib/gelisim-storm";
 import { ambientRunning, setMix, startAmbient, stopAmbient, thunder } from "@/lib/ambient";
 import { type Cat as ItemCat, ROOM_ITEMS, type Scope, isFlat, itemById, vitrine, deskDust, CATS } from "@/lib/room-items";
-import { type Outfit, portraitLook, sanitizeOutfit } from "@/lib/outfit";
+import { type Outfit, sanitizeOutfit } from "@/lib/outfit";
 import { type WardrobeTab, WishWardrobe } from "@/components/gelisim/wish-wardrobe";
 import type { Wish, WishCat } from "@/lib/wishes";
 import { levelOf, xpToLevel } from "@/lib/xp";
@@ -1296,7 +1296,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
           {[0, 1, 2, 3].map((k) => <button key={k} type="button" className="gw-pad-btn spell" aria-label={`Büyü ${k + 1}`} disabled={!myEq.spells[k]} onPointerDown={(e) => { e.preventDefault(); doCast(k); }}>{k + 1}</button>)}
         </div>
       </div>
-      {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} look={myWear ? portraitLook(myWear) : undefined} />}
+      {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} outfit={myWear ?? undefined} />}
       {wardrobe && <WishWardrobe key={wardrobe} me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} initialTab={wardrobeTab} onWear={setMyWear} />}
       {boardOpen && <QuestBoard quests={quests} onClose={() => setBoardOpen(false)} />}
       {lookOpen && <AppearancePanel style={styles[me] ?? { title: null, trail: null, mount: null }} progress={initialProgress ?? { level: playerLevel, stats: null, cleared: [] }} onSaved={(st) => setStyles((all) => ({ ...all, [me]: st }))} onClose={() => setLookOpen(false)} />}

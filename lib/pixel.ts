@@ -231,7 +231,7 @@ const JON_HEAD = [
 export type Outfit = "home" | "sport" | "night" | "armor";
 export type Who = "cengiz" | "aysenur" | "servant" | "maid" | "wizard" | "dwarf" | "elf" | "jon";
 
-type Look = { hair: string; hairLt: string; top: string; topDk: string; bottom: string; shoe: string; skirt?: string; glove?: string; armor?: boolean };
+type Look = { hair: string; hairLt: string; top: string; topDk: string; bottom: string; shoe: string; skirt?: string; glove?: string; armor?: boolean; lips?: string };
 
 const SERVANT: Look = { hair: "#8a8494", hairLt: "#b0aab8", top: "#3a2e3a", topDk: "#2a222a", bottom: "#1f1a24", shoe: P.ink };
 const MAID: Look = { hair: "#6b4a35", hairLt: "#8c6448", top: "#2b2838", topDk: "#1f1d2a", bottom: "#2b2838", shoe: P.ink, skirt: "#efe3c8" };
@@ -330,7 +330,8 @@ export type CharState = {
   tint?: Partial<Look>; // kıyafet renklerini ezer (panelde seviyeyle yükselen zırh)
 };
 
-export type Anchors = { head: V; hand: V; handB: V; hip: V; mouth: V; shoulder: V };
+// j: bütün eklemler (giyilenleri küçük karakterin üstüne çizmek için: dirsek, diz, ayak...)
+export type Anchors = { head: V; hand: V; handB: V; hip: V; mouth: V; shoulder: V; j?: Record<"hip" | "neck" | "eB" | "hB" | "eF" | "hF" | "kB" | "fB" | "kF" | "fF", V> };
 
 const isFree = (p: Pose | Free): p is Free => "hip" in p;
 
@@ -369,7 +370,7 @@ export function drawCharacter(c: Ctx, s: CharState): Anchors {
   const head: V = [R(neck[0] + (ux / ul) * 6), R(neck[1] + (uy / ul) * 6)];
   const hd = s.headDir ?? d;
 
-  const pal: Record<string, string> = { o: P.ink, h: look.hair, H: look.hairLt, s: skin, S: skinDk, w: "#fff", e: "#2a1c3a", b: "#e88a8a", m: "#8a3a3a", y: P.gold, M: "#8e95a3" };
+  const pal: Record<string, string> = { o: P.ink, h: look.hair, H: look.hairLt, s: skin, S: skinDk, w: "#fff", e: "#2a1c3a", b: "#e88a8a", m: look.lips ?? "#8a3a3a", y: P.gold, M: "#8e95a3" };
   if (s.blink) { pal.w = skin; pal.e = P.ink; }
 
   if ((s.who === "aysenur" || s.who === "elf") && rot === 0) {
@@ -439,7 +440,7 @@ export function drawCharacter(c: Ctx, s: CharState): Anchors {
   if (rot) rows = rotate(rows, rot > 0);
   sprite(c, rows, head[0] - 6, head[1] - 6, pal, rot ? d < 0 : hd < 0);
 
-  return { head: [head[0], head[1] - 6], hand: J.hF, handB: J.hB, hip, mouth: [head[0] + 3 * hd, head[1] + 3], shoulder: [neck[0] - d, neck[1] - 1] };
+  return { head: [head[0], head[1] - 6], hand: J.hF, handB: J.hB, hip, mouth: [head[0] + 3 * hd, head[1] + 3], shoulder: [neck[0] - d, neck[1] - 1], j: J };
 }
 
 /* -------------------------------- eşyalar -------------------------------- */
