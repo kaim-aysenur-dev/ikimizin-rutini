@@ -10,18 +10,15 @@ const ITEMS = [
 
 export default function SkinLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="main with-side">
+    <main className="main">
       <header className="page-head">
         <p className="eyebrow">Cilt bakım serüveni</p>
         <h1>Cilt</h1>
       </header>
-      <div className="side-layout">
-        <div className="side-main">
-          <SubNav items={ITEMS} label="Cilt bölümleri" />
-          {children}
-        </div>
-        <SectionAside base="cilt" />
-      </div>
+      {/* karakter ekranın en sağında ayrı bir panel (dar ekranda burada, küçük bir kart) */}
+      <SectionAside base="cilt" />
+      <SubNav items={ITEMS} label="Cilt bölümleri" />
+      {children}
     </main>
   );
 }

@@ -255,28 +255,14 @@
   opacity: 0.6;
 }
 
-/* ---------- bölümün sağında duran karakter (Cilt, Yüz yogası, Spor, Beslenme) ---------- */
-
-.main.with-side {
-  max-width: 1320px;
-}
-
-.side-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 312px;
-  gap: 20px;
-  align-items: start;
-}
-
-.side-main {
-  min-width: 0;
-}
+/* ---------- karakter paneli: ekranın en sağında, sol kenar çubuğu gibi ayrı bir sütun ---------- */
 
 .side-char {
-  position: sticky;
-  top: 16px;
   display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
   gap: 12px;
+  margin-bottom: 16px;
   padding: 12px;
 }
 
@@ -292,13 +278,20 @@
 .side-canvas {
   display: block;
   image-rendering: pixelated;
+  width: 144px !important;
+  height: auto !important;
   animation: mirror-zoom 0.9s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   transform-origin: 50% 35%;
+}
+
+.side-frame.is-full .side-canvas {
+  width: 104px !important;
 }
 
 .side-info {
   display: grid;
   gap: 8px;
+  min-width: 0;
 }
 
 .side-info h2 {
@@ -306,28 +299,47 @@
   font-size: 18px;
 }
 
-/* dar ekranda içerikten önce, küçük ve yan yana (yapışkan değil) */
-@media (max-width: 1099px) {
-  .side-layout {
-    grid-template-columns: 1fr;
-  }
-  .side-char {
-    position: static;
-    order: -1;
-    grid-template-columns: auto 1fr;
-    align-items: center;
-  }
-  .side-canvas {
-    width: 144px !important;
-    height: auto !important;
-  }
-  .side-frame.is-full .side-canvas {
-    width: 104px !important;
-  }
-}
-
 @media (max-width: 480px) {
   .side-char .mirror-hint {
     display: none;
+  }
+}
+
+/* geniş ekranda: sağ kenarda tam boy panel; içerik onun genişliği kadar sola çekilir (üst üste binmez) */
+@media (min-width: 1200px) {
+  .shell:has(.side-char) {
+    padding-right: 320px;
+  }
+  .side-char {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: 320px;
+    margin: 0;
+    padding: 22px 16px;
+    grid-template-columns: 1fr;
+    align-content: start;
+    gap: 14px;
+    overflow-y: auto;
+    border-radius: 0;
+    background: var(--px-stone, var(--bg-deep));
+    box-shadow: inset 3px 0 0 var(--px-ink, var(--line));
+    color: var(--px-cream, var(--ink));
+  }
+  .side-char .side-canvas {
+    width: 270px !important;
+  }
+  .side-char .side-frame.is-full .side-canvas {
+    width: 180px !important;
+  }
+  .side-char .muted,
+  .side-char .mirror-bars small {
+    color: #b9ab93;
+  }
+  /* müzik oynatıcısı panelin üstüne binmesin */
+  .shell:has(.side-char) .music-dock {
+    right: 336px;
   }
 }

@@ -11,18 +11,15 @@ const ITEMS = [
 
 export default function SportLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="main with-side">
+    <main className="main">
       <header className="page-head">
         <h1>Spor</h1>
       </header>
-      <div className="side-layout">
-        <div className="side-main">
-          <SubNav items={ITEMS} label="Spor bölümleri" />
-          {children}
-          <HealthNote />
-        </div>
-        <SectionAside base="spor" />
-      </div>
+      {/* karakter ekranın en sağında ayrı bir panel (dar ekranda burada, küçük bir kart) */}
+      <SectionAside base="spor" />
+      <SubNav items={ITEMS} label="Spor bölümleri" />
+      {children}
+      <HealthNote />
     </main>
   );
 }

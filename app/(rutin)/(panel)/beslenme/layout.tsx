@@ -11,19 +11,16 @@ const ITEMS = [
 
 export default function NutritionLayout({ children }: { children: React.ReactNode }) {
   return (
-    <main className="main with-side">
+    <main className="main">
       <header className="page-head">
         <p className="eyebrow">Beslenme programı</p>
         <h1>Beslenme</h1>
       </header>
-      <div className="side-layout">
-        <div className="side-main">
-          <SubNav items={ITEMS} label="Beslenme bölümleri" />
-          {children}
-          <HealthNote />
-        </div>
-        <SectionAside base="beslenme" />
-      </div>
+      {/* karakter ekranın en sağında ayrı bir panel (dar ekranda burada, küçük bir kart) */}
+      <SectionAside base="beslenme" />
+      <SubNav items={ITEMS} label="Beslenme bölümleri" />
+      {children}
+      <HealthNote />
     </main>
   );
 }
