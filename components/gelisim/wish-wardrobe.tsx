@@ -39,8 +39,8 @@ const draftFromIdea = (s: Suggestion, shared: boolean): Draft => ({ ...blankDraf
  * Dilek Dolabı: gerçek hayatta almak istediğiniz ödüller. Her dileğin bir görevi var (kademe = süre + tempo);
  * başlatınca süre işler, koşullar tamamlanınca ödül kazanılır ve dolaba girer; gerçekte alınınca "alındı" olur.
  */
-export function WishWardrobe({ me, profiles, owner, onClose, initialTab = "gorev", onWear }: {
-  me: string; profiles: Profile[]; owner: string; onClose: () => void; initialTab?: WardrobeTab; onWear?: (o: Outfit) => void;
+export function WishWardrobe({ me, profiles, owner, onClose, initialTab = "gorev", onWear, dressLocked }: {
+  me: string; profiles: Profile[]; owner: string; onClose: () => void; initialTab?: WardrobeTab; onWear?: (o: Outfit) => void; dressLocked?: string;
 }) {
   const [wishes, setWishes] = useState<Wish[] | null>(null);
   const [tab, setTab] = useState<Tab>(initialTab === "giyin" && owner !== me ? "gorev" : initialTab); // giyinme yalnız kendi gardırobunda
@@ -175,7 +175,8 @@ export function WishWardrobe({ me, profiles, owner, onClose, initialTab = "gorev
                 <button type="button" role="tab" className="chip" aria-selected={tab === "dolap"} onClick={() => setTab("dolap")}>🚪 Dolap <span className="count">{closet.length}</span></button>
               </div>
 
-              {tab === "giyin" && mineView && <DressUp who={isAysenur(ownerName) ? "aysenur" : "cengiz"} onSaved={(o) => onWear?.(o)} />}
+              {tab === "giyin" && mineView && dressLocked && <p className="wd-empty">🔒 {dressLocked}</p>}
+              {tab === "giyin" && mineView && !dressLocked && <DressUp who={isAysenur(ownerName) ? "aysenur" : "cengiz"} onSaved={(o) => onWear?.(o)} />}
 
               {tab === "gorev" && (
                 quests.length === 0 ? (

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { TodayView } from "@/components/today/today-view";
 import { WishQuests } from "@/components/today/wish-quests";
+import { YdsCard } from "@/components/today/yds-card";
 import { requireUser } from "@/lib/auth/session";
 import { formatDayLong, todayIstanbul, weekDays, weekStart, weekdayIndex } from "@/lib/dates";
 import type { Meal } from "@/lib/meals";
@@ -10,6 +11,7 @@ import { getCheckKeys, getRoutine } from "@/lib/skin";
 import { getActivity, getWorkoutPlan } from "@/lib/sport";
 import { listTypes, sessionsOn } from "@/lib/sport-activities";
 import { wishOverview } from "@/lib/wishes-server";
+import { ydsCardData } from "@/lib/yds-server";
 
 export const metadata: Metadata = { title: "Bugün" };
 
@@ -28,7 +30,7 @@ export default async function TodayPage() {
   const today = todayIstanbul();
   const wd = weekdayIndex(today);
   const week = weekDays(weekStart(today));
-  const [items, checks, meals, mealChecks, nutritionDay, water, waterFrom, workoutPlan, activity, streak, { wishes }, types, todaySessions] = await Promise.all([
+  const [items, checks, meals, mealChecks, nutritionDay, water, waterFrom, workoutPlan, activity, streak, { wishes }, types, todaySessions, yds] = await Promise.all([
     getRoutine(user.id),
     getCheckKeys(user.id, week[0]!, week[6]!),
     getPlanForWeekday(user.id, wd),
@@ -42,6 +44,7 @@ export default async function TodayPage() {
     wishOverview(user, today),
     listTypes(user.id),
     sessionsOn(user.id, today),
+    ydsCardData(user, today),
   ]);
   const workoutToday = workoutPlan.items.filter((i) => i.weekday === wd);
   const sportDay = workoutToday.length > 0;
@@ -54,6 +57,7 @@ export default async function TodayPage() {
         </p>
         <h1>{formatDayLong(today)}</h1>
       </header>
+      <YdsCard me={yds.me} partner={yds.partner} today={today} />
       <WishQuests me={user.id} wishes={wishes} />
       <TodayView
         key={today}

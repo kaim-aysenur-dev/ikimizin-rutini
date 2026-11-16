@@ -41,9 +41,10 @@ import { Mailbox } from "./mailbox";
 
 // Gelişim: kendi evin (altı oda) ve ortak bahçe. Kamera seni izler; envanterden eşya koyarsın; aynı yerdekiler birbirini canlı görür.
 // startIn: "bahce" ise oyun kişinin kapısının önünde, bahçede başlar
-export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null, initialEquipment = {}, initialTrophies = {}, openWardrobe = false, initialWear = {}, studyIdle = {}, initialStyles = {}, progress: initialProgress = null }: {
+export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null, initialEquipment = {}, initialTrophies = {}, openWardrobe = false, initialWear = {}, studyIdle = {}, ydsLock = null, initialStyles = {}, progress: initialProgress = null }: {
   me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope; initialStudyTimer?: { label: string; startedAt: string } | null; initialEquipment?: Record<string, Equipment>;
   initialTrophies?: Record<string, WishCat[]>; openWardrobe?: boolean; initialWear?: Record<string, Outfit>; studyIdle?: Record<string, number>;
+  ydsLock?: { lock: "kapali" | "zindan" | "sert"; done: boolean; words: number; questions: number; quota: { words: number; questions: number } } | null;
   initialStyles?: Record<string, Style>; progress?: Progress | null;
 }) {
   const meP = profiles.find((p) => p.id === me)!;
@@ -123,6 +124,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const kick = useRef<() => void>(() => {}); // konumu beklemeden gönder
   // Ay Kapısı: bölüm, dalga, yaratıklar, mermiler; bahçede gece hayaletleri
   const [gateOpen, setGateOpen] = useState(false);
+  // YDS kilidi: günlük kota bitmeden zindan (yumuşak) ya da zindan, zırh odası, giyinme ve eşya yerleştirme (sert) kapalı
+  const ydsBlocks = (what: "zindan" | "sert") => !!ydsLock && !ydsLock.done && (ydsLock.lock === "sert" || (ydsLock.lock === "zindan" && what === "zindan"));
+  const ydsMsg = () => ydsLock && setMsg(`🔒 Önce bugünkü YDS kotan: ${ydsLock.words}/${ydsLock.quota.words} kart, ${ydsLock.questions}/${ydsLock.quota.questions} soru. YDS Kampı'ndan bitir, sonra gel.`);
   const dungeon = useRef<{ stage: number; wave: number; enemies: Enemy[]; shots: EnemyShot[]; cleared: boolean; claimed: boolean; nextAt: number; startAt: number; lost: number; hazardMsgAt: number }>({ stage: 1, wave: 0, enemies: [], shots: [], cleared: false, claimed: false, nextAt: 0, startAt: 0, lost: 0, hazardMsgAt: 0 });
   const [intro, setIntro] = useState<number | null>(null); // bölüm giriş kartı
   const flowRef = useRef<Flow | null>(null); // zindanın yol haritası (oyuncunun karesine göre)
@@ -337,9 +341,9 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
     else if (nb.kind === "hold") setHold(!holdRef.current);
     else if (nb.kind === "piano") { music.current = { i: nb.i, j: nb.j, t0: performance.now() / 1000 }; tune(); }
     else if (nb.kind === "mail") setMailOpen(true);
-    else if (nb.kind === "wardrobe") { const w = live.current.where; const owner = w.scope === "oda" ? w.owner : me; setWardrobeTab(owner === me && nb.itemId?.startsWith("gardrop") ? "giyin" : nb.itemId === "odul-vitrini" ? "dolap" : "gorev"); setWardrobe(owner); } // gardırop evin sahibinin dolabı: kendi evindeyse giyinme
-    else if (nb.kind === "station" && nb.gearKind) setArmory(nb.gearKind);
-    else if (nb.kind === "gate") setGateOpen(true);
+    else if (nb.kind === "wardrobe") { const w = live.current.where; const owner = w.scope === "oda" ? w.owner : me; const giyin = owner === me && nb.itemId?.startsWith("gardrop") && !ydsBlocks("sert"); if (owner === me && nb.itemId?.startsWith("gardrop") && !giyin) ydsMsg(); setWardrobeTab(giyin ? "giyin" : nb.itemId === "odul-vitrini" ? "dolap" : "gorev"); setWardrobe(owner); } // gardırop evin sahibinin dolabı: kendi evindeyse giyinme
+    else if (nb.kind === "station" && nb.gearKind) { if (ydsBlocks("sert")) ydsMsg(); else setArmory(nb.gearKind); }
+    else if (nb.kind === "gate") { if (ydsBlocks("zindan")) ydsMsg(); else setGateOpen(true); }
     else if (nb.kind === "board") { setBoardOpen(true); void loadQuests(); }
     else if (nb.kind === "merchant") setWardrobe(me); // kazanılan dilekler: Dilek Dolabı
     else if (nb.kind === "stairs" && nb.hto !== undefined && !fade.current) {
@@ -1269,7 +1273,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
                   {!locked && !isPlaced && (
                     <button type="button" className="btn btn-primary" disabled={!rightPlace || busy}
                       title={rightPlace ? undefined : tab === "oda" ? "Önce kendi evine git" : "Önce bahçeye çık"}
-                      onClick={() => { setMode({ kind: "place", itemId: it.id }); setInvOpen(false); }}>
+                      onClick={() => { if (ydsBlocks("sert")) { ydsMsg(); return; } setMode({ kind: "place", itemId: it.id }); setInvOpen(false); }}>
                       Yerleştir
                     </button>
                   )}
@@ -1297,7 +1301,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         </div>
       </div>
       {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} outfit={myWear ?? undefined} />}
-      {wardrobe && <WishWardrobe key={wardrobe} me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} initialTab={wardrobeTab} onWear={setMyWear} />}
+      {wardrobe && <WishWardrobe key={wardrobe} me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} initialTab={wardrobeTab} onWear={setMyWear} dressLocked={ydsBlocks("sert") && ydsLock ? `Önce bugünkü YDS kotan: ${ydsLock.words}/${ydsLock.quota.words} kart, ${ydsLock.questions}/${ydsLock.quota.questions} soru.` : undefined} />}
       {boardOpen && <QuestBoard quests={quests} onClose={() => setBoardOpen(false)} />}
       {lookOpen && <AppearancePanel style={styles[me] ?? { title: null, trail: null, mount: null }} progress={initialProgress ?? { level: playerLevel, stats: null, cleared: [] }} onSaved={(st) => setStyles((all) => ({ ...all, [me]: st }))} onClose={() => setLookOpen(false)} />}
       {gateOpen && <DungeonPanel level={playerLevel} power={powerOf(myEq)} onClose={() => setGateOpen(false)} onEnter={(stage) => { setGateOpen(false); const st = stageById(stage); if (st && !fade.current) fade.current = { t: 0, to: { scope: "zindan", stage }, spawn: stageMap(st).start }; }} />}

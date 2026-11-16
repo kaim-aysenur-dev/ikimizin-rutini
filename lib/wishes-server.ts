@@ -25,12 +25,16 @@ async function metricsOf(userId: string, from: string, to: string, today: string
           where n.user_id = ${userId} and n.day between ${from} and ${to} and n.water_glasses >= u.water_target)::int as su_gun,
         (select count(*) from face_yoga_sessions where user_id = ${userId} and day between ${from} and ${to})::int as yuz_yogasi,
         (select count(*) from meal_checks where user_id = ${userId} and day between ${from} and ${to})::int as ogun,
+        (select count(*) from yds_reviews where user_id = ${userId} and day between ${from} and ${to})::int as yds_kart,
+        (select coalesce(sum(solved), 0) from yds_practice where user_id = ${userId} and day between ${from} and ${to})::int as yds_soru,
         (select count(*) from (
           select day from checks where user_id = ${userId} and day between ${from} and ${to}
           union select day from meal_checks where user_id = ${userId} and day between ${from} and ${to}
           union select day from sport_sessions where user_id = ${userId} and day between ${from} and ${to}
           union select day from study_sessions where user_id = ${userId} and day between ${from} and ${to}
           union select day from face_yoga_sessions where user_id = ${userId} and day between ${from} and ${to}
+          union select day from yds_reviews where user_id = ${userId} and day between ${from} and ${to}
+          union select day from yds_practice where user_id = ${userId} and day between ${from} and ${to}
         ) d)::int as aktif_gun`,
     withFull ? streakAndDays(userId, today, Math.max(130, diffDays(today, from) + 1)) : null,
   ]);

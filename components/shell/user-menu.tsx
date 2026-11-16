@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, ChevronDown, Settings, Users } from "lucide-react";
+import { BookOpen, ChevronDown, GraduationCap, Settings, Users } from "lucide-react";
 import { Avatar } from "@/components/avatar";
 import { LogoutButton } from "@/components/logout-button";
 
@@ -59,6 +59,9 @@ export function UserMenu({ name, account, avatarUrl }: Props) {
           </Link>
           <Link href="/" role="menuitem">
             <BookOpen size={18} /> Hikâye (ana sayfa)
+          </Link>
+          <Link href="/yds" role="menuitem">
+            <GraduationCap size={18} /> YDS Kampı
           </Link>
           <Link href="/ayarlar" role="menuitem">
             <Settings size={18} /> Ayarlar

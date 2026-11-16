@@ -4,7 +4,7 @@ import { sql } from "./db";
 import { streakAndDays } from "./overview";
 import { XP, type Stats } from "./xp";
 
-type Counts = { checks: number; meals: number; yoga: number; sport: number; studyXp: number; wishXp: number; battleXp: number };
+type Counts = { checks: number; meals: number; yoga: number; sport: number; studyXp: number; wishXp: number; battleXp: number; ydsXp: number };
 
 // since: seviye sıfırlama anı (users.xp_since); öncesindeki kayıtlar sayılmaz. days: yalnız o günler (birlikte bonusu)
 const counts = async (userId: string, since: string | null, days?: string[]): Promise<Counts> => {
@@ -28,7 +28,11 @@ const counts = async (userId: string, since: string | null, days?: string[]): Pr
           and (w.user_id = ${userId} or (w.shared and w.user_id in (select id from users where account_id = (select account_id from users where id = ${userId})))))::int as "wishXp",
       -- Ay Kapısı bölümleri ve gece hayaletleri (lib/battle-server.ts); birlikte bonusuna girmez
       (select coalesce(sum(xp), 0) from battle_rewards where user_id = ${userId} and ${only}::date[] is null
-        and (${since}::timestamptz is null or created_at >= ${since}))::int as "battleXp"`;
+        and (${since}::timestamptz is null or created_at >= ${since}))::int as "battleXp",
+      -- YDS: her 2 kart 1 XP, her soru 1 XP, her deneme 40 XP
+      ((select count(*) from yds_reviews where user_id = ${userId} and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[]))) / 2
+        + (select coalesce(sum(solved), 0) from yds_practice where user_id = ${userId} and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[])))
+        + (select count(*) * 40 from yds_exams where user_id = ${userId} and (${since}::timestamptz is null or created_at >= ${since}) and (${only}::date[] is null or day = any(${only}::date[]))))::int as "ydsXp"`;
   return r as Counts;
 };
 // rozetler için ek sayaçlar: spor dakikası, cilt günlüğü, su günleri, aktif gün, evdeki ve bahçedeki eşyalar, çalışma dakikası ve sayfa
@@ -48,7 +52,7 @@ const extras = async (userId: string, since: string | null, sinceDay: string | n
     decor: r.decor as number, garden: r.garden as number, studyMin: r.study_min as number, pages: r.pages as number,
   };
 };
-const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport + c.studyXp + c.wishXp + c.battleXp;
+const xpOf = (c: Counts) => c.checks * XP.check + c.meals * XP.meal + c.yoga * XP.faceYoga + c.sport * XP.sport + c.studyXp + c.wishXp + c.battleXp + c.ydsXp;
 
 export type Adventure = { xp: number; stats: Stats; meToday: boolean; partnerToday: boolean; partnerName: string | null };
 

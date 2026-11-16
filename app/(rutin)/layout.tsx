@@ -11,6 +11,7 @@ import "./study.css";
 import "./wish.css";
 import "./music.css";
 import "./care.css";
+import "./yds.css";
 
 // Başlıklar: yumuşak serif (SOFT ekseni açık). Metin ve sayılar: DM Sans (tabular rakamlar CSS'te).
 const display = Fraunces({

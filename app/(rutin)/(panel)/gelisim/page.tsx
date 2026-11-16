@@ -10,6 +10,7 @@ import { myTimer } from "@/lib/study-server";
 import { trophiesOf } from "@/lib/wishes-server";
 import { outfitOf } from "@/lib/outfit-server";
 import { studyIdleOf } from "@/lib/care-server";
+import { ydsStatus } from "@/lib/yds-server";
 import { levelOf } from "@/lib/xp";
 import { adventure } from "@/lib/xp-server";
 
@@ -30,10 +31,11 @@ export default async function Page({ searchParams }: PageProps<"/gelisim">) {
   const whoOf = (name: string) => (/ay[sş]enur/i.test(name) ? "aysenur" : "cengiz");
   const [wearList, studyIdle] = await Promise.all([Promise.all(profiles.map(async (p) => [p.id, await outfitOf(p.id, whoOf(p.name))] as const)), studyIdleOf(profiles.map((p) => p.id), today)]);
   const initialWear = Object.fromEntries(wearList);
+  const ydsLock = await ydsStatus(user.id, today); // YDS kotası bitmeden kilitlenenler
   return (
     <main className="main gw-main">
       <h1 className="sr-only">Gelişim</h1>
-      <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} initialStudyTimer={timer} initialEquipment={initialEquipment} initialTrophies={initialTrophies} openWardrobe={dolap === "1"} initialWear={initialWear} studyIdle={studyIdle} initialStyles={styles} progress={{ level: levelOf(mine.xp).level, stats: mine.stats, cleared: log.cleared }} />
+      <GelisimWorld me={user.id} profiles={withLevel} initialPlaced={placed} initialStudyTimer={timer} initialEquipment={initialEquipment} initialTrophies={initialTrophies} openWardrobe={dolap === "1"} initialWear={initialWear} studyIdle={studyIdle} ydsLock={ydsLock} initialStyles={styles} progress={{ level: levelOf(mine.xp).level, stats: mine.stats, cleared: log.cleared }} />
     </main>
   );
 }

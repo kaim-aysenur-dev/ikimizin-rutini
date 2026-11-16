@@ -21,7 +21,7 @@ export const tierForPrice = (tl: number): Tier => (tl <= 2000 ? "yaygin" : tl <=
 /** Aynı anda en fazla kaç görev (ortak dilekler ikinize de sayılır): hangi ödül için çalıştığını seçersin */
 export const MAX_ACTIVE = 2;
 
-export type Metric = "aktif_gun" | "spor_seans" | "spor_dk" | "calisma_dk" | "sayfa" | "cilt_gun" | "tam_gun" | "su_gun" | "yuz_yogasi" | "ogun" | "birlikte_dk";
+export type Metric = "aktif_gun" | "spor_seans" | "spor_dk" | "calisma_dk" | "sayfa" | "cilt_gun" | "tam_gun" | "su_gun" | "yuz_yogasi" | "ogun" | "birlikte_dk" | "yds_kart" | "yds_soru";
 
 // base: 30 günlük sağlam bir ayın karşılığı (Nadir kademe). perDay: günle sınırlı ölçüt (süreyi aşamaz)
 export const METRICS: Record<Metric, { label: string; unit: string; emoji: string; base: number; step: number; perDay?: boolean; hint: string }> = {
@@ -36,8 +36,10 @@ export const METRICS: Record<Metric, { label: string; unit: string; emoji: strin
   yuz_yogasi: { label: "Yüz yogası", unit: "seans", emoji: "🧘", base: 10, step: 1, hint: "haftada 2-3" },
   ogun: { label: "Öğün", unit: "öğün", emoji: "🥗", base: 60, step: 5, hint: "plandaki öğünler" },
   birlikte_dk: { label: "Birlikte çalışma", unit: "dk", emoji: "❤️", base: 300, step: 30, hint: "aynı anda sayaç" },
+  yds_kart: { label: "YDS kelime kartı", unit: "kart", emoji: "🃏", base: 750, step: 25, hint: "günde ~25 kart" },
+  yds_soru: { label: "YDS sorusu", unit: "soru", emoji: "✍️", base: 600, step: 20, hint: "günde ~20 soru" },
 };
-export const METRIC_ORDER: Metric[] = ["calisma_dk", "spor_seans", "spor_dk", "sayfa", "cilt_gun", "tam_gun", "su_gun", "yuz_yogasi", "ogun", "birlikte_dk"];
+export const METRIC_ORDER: Metric[] = ["yds_kart", "yds_soru", "calisma_dk", "spor_seans", "spor_dk", "sayfa", "cilt_gun", "tam_gun", "su_gun", "yuz_yogasi", "ogun", "birlikte_dk"];
 
 export type Goal = { metric: Metric; target: number };
 

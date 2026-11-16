@@ -1,0 +1,532 @@
+/* ==========================================================================
+   YDS Kampı: kota halkaları, kelime kartı, soru kaydı, partner, grafikler, denemeler
+   ========================================================================== */
+
+.yds {
+  display: grid;
+  gap: 16px;
+}
+
+.yds h2 {
+  margin: 0 0 8px;
+}
+
+.yds-setup {
+  display: grid;
+  gap: 10px;
+  justify-items: start;
+}
+
+.yds-setup p {
+  margin: 0;
+}
+
+/* ---------- üst kart: sayaç, hedef, halkalar ---------- */
+
+.yds-hero {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px 20px;
+}
+
+@media (max-width: 720px) {
+  .yds-hero {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    text-align: center;
+  }
+}
+
+.yds-count {
+  display: grid;
+  justify-items: center;
+  min-width: 96px;
+  padding: 10px 12px;
+  background: var(--px-ink, #1a1426);
+  color: var(--px-gold, #f3d48a);
+  box-shadow: 0 0 0 3px #c89a3e;
+}
+
+.yds-count b {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.yds-count span {
+  font-size: 12px;
+  color: var(--px-cream, #efe3c8);
+}
+
+.yds-count a {
+  color: inherit;
+}
+
+.yds-goal {
+  display: grid;
+  gap: 4px;
+  font-size: 14px;
+}
+
+.yds-rings {
+  display: flex;
+  gap: 12px;
+}
+
+.yds-ring {
+  --p: 0deg;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: conic-gradient(var(--ok, #4f9a6a) var(--p), var(--idle-soft) 0);
+}
+
+.yds-ring::before {
+  content: "";
+  position: absolute;
+  inset: 9px;
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.yds-ring > span {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  line-height: 1.1;
+}
+
+.yds-ring b {
+  font-size: 24px;
+}
+
+.yds-ring small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.yds-state {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--surface-2);
+  box-shadow: inset 4px 0 0 #c89a3e;
+}
+
+.yds-state.is-done {
+  box-shadow: inset 4px 0 0 var(--ok, #4f9a6a);
+}
+
+/* ---------- kelimeler ve sorular ---------- */
+
+.yds-grid {
+  display: grid;
+  gap: 16px;
+}
+
+@media (min-width: 860px) {
+  .yds-grid {
+    grid-template-columns: 1fr 1.3fr;
+  }
+}
+
+.yds-words,
+.yds-practice {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.yds-words p {
+  margin: 0;
+  font-size: 13px;
+}
+
+.yds-cardstats {
+  display: flex;
+  gap: 18px;
+}
+
+.yds-cardstats span {
+  display: grid;
+}
+
+.yds-cardstats b {
+  font-size: 22px;
+}
+
+.yds-cardstats small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.yds-nums {
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 8px;
+}
+
+.yds-nums label {
+  display: grid;
+  gap: 4px;
+  font-size: 13px;
+}
+
+.yds-nums .input {
+  width: 110px;
+}
+
+.yds-entries {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.yds-entries li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+  font-size: 14px;
+  background: var(--surface-2);
+}
+
+/* ---------- kelime kartı oturumu ---------- */
+
+.yds-session {
+  display: grid;
+  gap: 12px;
+  justify-items: center;
+  text-align: center;
+}
+
+.yds-session-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  font-size: 13px;
+}
+
+.yds-flash {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  width: min(520px, 100%);
+  min-height: 200px;
+  align-content: center;
+  padding: 24px 16px;
+  border: 0;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 3px var(--line-strong), 6px 6px 0 rgb(26 20 38 / 0.25);
+  cursor: pointer;
+}
+
+.yds-flash b {
+  font-size: clamp(26px, 5vw, 38px);
+  line-height: 1.1;
+}
+
+.yds-flash small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.yds-tr {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ok, #2f7a4a);
+}
+
+.yds-flash.is-shown {
+  box-shadow: inset 0 0 0 3px var(--ok, #4f9a6a), 6px 6px 0 rgb(26 20 38 / 0.25);
+}
+
+.yds-grades {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.yds-grades kbd {
+  margin-left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* ---------- partner ---------- */
+
+.yds-partner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: inset 4px 0 0 #c89a3e;
+}
+
+.yds-partner.is-done {
+  box-shadow: inset 4px 0 0 var(--ok, #4f9a6a);
+}
+
+/* ---------- grafikler ---------- */
+
+.yds-chart {
+  display: grid;
+  grid-template-columns: repeat(30, 1fr);
+  align-items: end;
+  gap: 2px;
+  height: 110px;
+}
+
+.yds-chart span {
+  display: flex;
+  align-items: flex-end;
+  gap: 1px;
+  height: 100%;
+}
+
+.yds-chart i,
+.yds-legend i {
+  display: inline-block;
+  flex: 1;
+  min-height: 2px;
+}
+
+.yds-chart .w,
+.yds-legend .w {
+  background: #5a9ac8;
+}
+
+.yds-chart .q,
+.yds-legend .q {
+  background: #c89a3e;
+}
+
+.yds-chart .is-today {
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.yds-legend {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+
+.yds-legend i {
+  width: 10px;
+  height: 10px;
+  flex: none;
+  margin: 0 4px 0 8px;
+  vertical-align: middle;
+}
+
+.yds-sections {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.yds-sections li {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.8fr) 2fr auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+
+.yds-sections li.is-weak span:first-child {
+  color: var(--bad, #a8454e);
+  font-weight: 700;
+}
+
+.yds-bar {
+  display: block;
+  height: 10px;
+  background: var(--idle-soft);
+}
+
+.yds-bar i {
+  display: block;
+  height: 100%;
+  background: var(--ok, #4f9a6a);
+}
+
+/* ---------- kelime listesi ---------- */
+
+.yds-add {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.yds-add .input {
+  flex: 1;
+  min-width: 160px;
+}
+
+.yds-wordlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.yds-wordlist li {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  font-size: 14px;
+  background: var(--surface-2);
+}
+
+.yds-wordlist small {
+  font-size: 12px;
+}
+
+@media (max-width: 560px) {
+  .yds-wordlist li {
+    grid-template-columns: 1fr auto;
+  }
+  .yds-wordlist small {
+    grid-column: 1;
+  }
+}
+
+/* ---------- denemeler ---------- */
+
+.yds-min {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.yds-min .input {
+  width: 90px;
+}
+
+.yds-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.yds-table th,
+.yds-table td {
+  padding: 4px 6px;
+  text-align: left;
+}
+
+.yds-table .input {
+  width: 80px;
+}
+
+.yds-table tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--line-strong);
+}
+
+.yds-score {
+  margin: 0;
+  font-size: 16px;
+}
+
+.yds-trend {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 140px;
+  padding-top: 8px;
+}
+
+.yds-trend span {
+  display: grid;
+  justify-items: center;
+  align-content: end;
+  gap: 2px;
+  flex: 1;
+  max-width: 44px;
+  height: 100%;
+}
+
+.yds-trend i {
+  display: block;
+  width: 100%;
+  background: #c89a3e;
+}
+
+.yds-trend i.is-ok {
+  background: var(--ok, #4f9a6a);
+}
+
+.yds-trend small {
+  font-size: 11px;
+}
+
+.yds-target {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 2px dashed var(--bad, #a8454e);
+  font-size: 11px;
+  color: var(--bad, #a8454e);
+  text-align: right;
+}
+
+.yds-examlist {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.yds-examlist li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--surface-2);
+}
+
+.yds-examlist .grow {
+  display: grid;
+}
+
+.yds-examscore {
+  font-size: 20px;
+}
+
+/* ---------- Bugün kartı ---------- */
+
+.yds-today-card {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.yds-today-card .row {
+  justify-content: space-between;
+  align-items: center;
+}
+
+.yds-today-card small {
+  font-size: 13px;
+  color: var(--muted);
+}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, CalendarCheck, Droplet, Dumbbell, Salad, Settings, Sprout, Swords, Users, type LucideIcon } from "lucide-react";
+import { BookOpen, CalendarCheck, Droplet, Dumbbell, GraduationCap, Salad, Settings, Sprout, Swords, Users, type LucideIcon } from "lucide-react";
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
@@ -16,6 +16,7 @@ export const SECTIONS: NavItem[] = [
 
 // Hazine telefonda alt menüde yok; seviye rozetinden açılır
 const EXTRA: NavItem[] = [
+  { href: "/yds", label: "YDS Kampı", icon: GraduationCap },
   { href: "/hazine", label: "Hazine", icon: Swords },
   { href: "/ayarlar", label: "Ayarlar", icon: Settings },
 ];
