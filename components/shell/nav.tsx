@@ -6,6 +6,9 @@ import { BookOpen, CalendarCheck, Droplet, Dumbbell, GraduationCap, Salad, Setti
 
 type NavItem = { href: string; label: string; icon: LucideIcon };
 
+// İngilizce bölümünün menüdeki adı kişiye göre (YDS ya da İngilizce); panel düzeni verir
+export const englishItem = (label: string): NavItem => ({ href: "/ingilizce", label, icon: GraduationCap });
+
 export const SECTIONS: NavItem[] = [
   { href: "/bugun", label: "Bugün", icon: CalendarCheck },
   { href: "/cilt", label: "Cilt", icon: Droplet },
@@ -16,7 +19,6 @@ export const SECTIONS: NavItem[] = [
 
 // Hazine telefonda alt menüde yok; seviye rozetinden açılır
 const EXTRA: NavItem[] = [
-  { href: "/yds", label: "YDS Kampı", icon: GraduationCap },
   { href: "/hazine", label: "Hazine", icon: Swords },
   { href: "/ayarlar", label: "Ayarlar", icon: Settings },
 ];
@@ -26,11 +28,11 @@ function isActive(pathname: string, href: string) {
 }
 
 /** Masaüstünde sol kenar çubuğundaki bağlantılar */
-export function SideNav() {
+export function SideNav({ english = "İngilizce" }: { english?: string }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Bölümler">
-      {[...SECTIONS, ...EXTRA].map(({ href, label, icon: Icon }) => (
+      {[...SECTIONS, englishItem(english), ...EXTRA].map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} aria-current={isActive(pathname, href) ? "page" : undefined}>
           <Icon size={20} aria-hidden="true" />
           {label}
@@ -52,11 +54,11 @@ export function SideExtras() {
 }
 
 /** Telefonda altta sabit sekme menüsü */
-export function TabBar() {
+export function TabBar({ english = "İngilizce" }: { english?: string }) {
   const pathname = usePathname();
   return (
     <nav className="tabbar" aria-label="Bölümler">
-      {SECTIONS.map(({ href, label, icon: Icon }) => (
+      {[...SECTIONS, englishItem(english)].map(({ href, label, icon: Icon }) => (
         <Link key={href} href={href} aria-current={isActive(pathname, href) ? "page" : undefined}>
           <span className="tab-icon">
             <Icon size={21} aria-hidden="true" />

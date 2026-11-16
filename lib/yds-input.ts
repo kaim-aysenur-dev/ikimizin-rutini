@@ -1,7 +1,7 @@
 import "server-only";
 import { isDay } from "./dates";
 import { intIn, text } from "./validate";
-import { type Grade, LOCKS, type Lock, SECTIONS, type Section, type YdsSettings } from "./yds";
+import { type Grade, LOCKS, type Lock, MODES, type Mode, PRACTICES, SECTIONS, type Section, type YdsSettings } from "./yds";
 import type { Exam } from "./yds-server";
 
 // YDS isteklerinin doğrulaması; geçersizse Türkçe hata metni döner.
@@ -17,7 +17,8 @@ export function parseSettings(b: Body): YdsSettings | string {
   if (dailyNew === null) return "Günlük yeni kelime 0-100 olmalı.";
   if (dailyQuestions === null) return "Günlük soru 0-300 olmalı.";
   const lock = typeof b?.lock === "string" && b.lock in LOCKS ? (b.lock as Lock) : "zindan";
-  return { examDate, target, dailyWords, dailyNew, dailyQuestions, lock };
+  const mode = typeof b?.mode === "string" && b.mode in MODES ? (b.mode as Mode) : "yds";
+  return { mode, examDate: mode === "yds" ? examDate : null, target, dailyWords, dailyNew, dailyQuestions, lock };
 }
 
 export function parseGrade(b: Body): { key: string; grade: Grade } | string {
@@ -30,9 +31,10 @@ export function parseWord(b: Body): { en: string; tr: string } | string {
   return en && tr ? { en, tr } : "Kelime ve anlamı boş olamaz.";
 }
 
-export function parsePractice(b: Body): { section: Section; solved: number; correct: number } | string {
-  const section = typeof b?.section === "string" && b.section in SECTIONS ? (b.section as Section) : null;
-  const solved = intIn(num(b?.solved), 1, 500), correct = intIn(num(b?.correct), 0, 500);
+/** YDS'de bölüm, çözülen, doğru; genel İngilizce'de pratik türü ve dakika (doğru = dakika) */
+export function parsePractice(b: Body): { section: string; solved: number; correct: number } | string {
+  const section = typeof b?.section === "string" && (b.section in SECTIONS || b.section in PRACTICES) ? b.section : null;
+  const solved = intIn(num(b?.solved), 1, 500), correct = section && section in PRACTICES ? intIn(num(b?.solved), 1, 500) : intIn(num(b?.correct), 0, 500);
   if (!section) return "Bölüm seç.";
   if (solved === null) return "Çözülen soru 1-500 olmalı.";
   if (correct === null || correct > solved) return "Doğru sayısı çözülenden fazla olamaz.";

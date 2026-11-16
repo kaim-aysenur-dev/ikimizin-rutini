@@ -36,8 +36,8 @@ export const METRICS: Record<Metric, { label: string; unit: string; emoji: strin
   yuz_yogasi: { label: "Yüz yogası", unit: "seans", emoji: "🧘", base: 10, step: 1, hint: "haftada 2-3" },
   ogun: { label: "Öğün", unit: "öğün", emoji: "🥗", base: 60, step: 5, hint: "plandaki öğünler" },
   birlikte_dk: { label: "Birlikte çalışma", unit: "dk", emoji: "❤️", base: 300, step: 30, hint: "aynı anda sayaç" },
-  yds_kart: { label: "YDS kelime kartı", unit: "kart", emoji: "🃏", base: 750, step: 25, hint: "günde ~25 kart" },
-  yds_soru: { label: "YDS sorusu", unit: "soru", emoji: "✍️", base: 600, step: 20, hint: "günde ~20 soru" },
+  yds_kart: { label: "İngilizce kelime kartı", unit: "kart", emoji: "🃏", base: 750, step: 25, hint: "günde ~25 kart" },
+  yds_soru: { label: "İngilizce soru / pratik", unit: "adet", emoji: "✍️", base: 600, step: 20, hint: "YDS'de soru, genelde pratik dakikası" },
 };
 export const METRIC_ORDER: Metric[] = ["yds_kart", "yds_soru", "calisma_dk", "spor_seans", "spor_dk", "sayfa", "cilt_gun", "tam_gun", "su_gun", "yuz_yogasi", "ogun", "birlikte_dk"];
 

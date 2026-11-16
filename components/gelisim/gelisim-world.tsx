@@ -44,7 +44,7 @@ import { Mailbox } from "./mailbox";
 export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", initialStudyTimer = null, initialEquipment = {}, initialTrophies = {}, openWardrobe = false, initialWear = {}, studyIdle = {}, ydsLock = null, initialStyles = {}, progress: initialProgress = null }: {
   me: string; profiles: Profile[]; initialPlaced: Placed[]; startIn?: Scope; initialStudyTimer?: { label: string; startedAt: string } | null; initialEquipment?: Record<string, Equipment>;
   initialTrophies?: Record<string, WishCat[]>; openWardrobe?: boolean; initialWear?: Record<string, Outfit>; studyIdle?: Record<string, number>;
-  ydsLock?: { lock: "kapali" | "zindan" | "sert"; done: boolean; words: number; questions: number; quota: { words: number; questions: number } } | null;
+  ydsLock?: { mode: "yds" | "genel"; lock: "kapali" | "zindan" | "sert"; done: boolean; words: number; questions: number; quota: { words: number; questions: number } } | null;
   initialStyles?: Record<string, Style>; progress?: Progress | null;
 }) {
   const meP = profiles.find((p) => p.id === me)!;
@@ -126,7 +126,8 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
   const [gateOpen, setGateOpen] = useState(false);
   // YDS kilidi: günlük kota bitmeden zindan (yumuşak) ya da zindan, zırh odası, giyinme ve eşya yerleştirme (sert) kapalı
   const ydsBlocks = (what: "zindan" | "sert") => !!ydsLock && !ydsLock.done && (ydsLock.lock === "sert" || (ydsLock.lock === "zindan" && what === "zindan"));
-  const ydsMsg = () => ydsLock && setMsg(`🔒 Önce bugünkü YDS kotan: ${ydsLock.words}/${ydsLock.quota.words} kart, ${ydsLock.questions}/${ydsLock.quota.questions} soru. YDS Kampı'ndan bitir, sonra gel.`);
+  const ydsLeft = () => (ydsLock ? `${ydsLock.mode === "yds" ? "YDS" : "İngilizce"} kotan: ${ydsLock.words}/${ydsLock.quota.words} kart, ${ydsLock.questions}/${ydsLock.quota.questions} ${ydsLock.mode === "yds" ? "soru" : "dk pratik"}` : "");
+  const ydsMsg = () => ydsLock && setMsg(`🔒 Önce bugünkü ${ydsLeft()}. İngilizce bölümünden bitir, sonra gel.`);
   const dungeon = useRef<{ stage: number; wave: number; enemies: Enemy[]; shots: EnemyShot[]; cleared: boolean; claimed: boolean; nextAt: number; startAt: number; lost: number; hazardMsgAt: number }>({ stage: 1, wave: 0, enemies: [], shots: [], cleared: false, claimed: false, nextAt: 0, startAt: 0, lost: 0, hazardMsgAt: 0 });
   const [intro, setIntro] = useState<number | null>(null); // bölüm giriş kartı
   const flowRef = useRef<Flow | null>(null); // zindanın yol haritası (oyuncunun karesine göre)
@@ -1301,7 +1302,7 @@ export function GelisimWorld({ me, profiles, initialPlaced, startIn = "oda", ini
         </div>
       </div>
       {study && <StudyDesk me={me} profiles={profiles} tab={study} atDesk={!!atDesk} onClose={() => setStudy(null)} onTimer={setStudyTimer} outfit={myWear ?? undefined} />}
-      {wardrobe && <WishWardrobe key={wardrobe} me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} initialTab={wardrobeTab} onWear={setMyWear} dressLocked={ydsBlocks("sert") && ydsLock ? `Önce bugünkü YDS kotan: ${ydsLock.words}/${ydsLock.quota.words} kart, ${ydsLock.questions}/${ydsLock.quota.questions} soru.` : undefined} />}
+      {wardrobe && <WishWardrobe key={wardrobe} me={me} profiles={profiles} owner={wardrobe} onClose={closeWardrobe} initialTab={wardrobeTab} onWear={setMyWear} dressLocked={ydsBlocks("sert") && ydsLock ? `Önce bugünkü ${ydsLeft()}.` : undefined} />}
       {boardOpen && <QuestBoard quests={quests} onClose={() => setBoardOpen(false)} />}
       {lookOpen && <AppearancePanel style={styles[me] ?? { title: null, trail: null, mount: null }} progress={initialProgress ?? { level: playerLevel, stats: null, cleared: [] }} onSaved={(st) => setStyles((all) => ({ ...all, [me]: st }))} onClose={() => setLookOpen(false)} />}
       {gateOpen && <DungeonPanel level={playerLevel} power={powerOf(myEq)} onClose={() => setGateOpen(false)} onEnter={(stage) => { setGateOpen(false); const st = stageById(stage); if (st && !fade.current) fade.current = { t: 0, to: { scope: "zindan", stage }, spawn: stageMap(st).start }; }} />}

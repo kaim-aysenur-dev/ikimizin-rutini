@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api-client";
-import { LOCKS, type Lock, type YdsSettings, correctFor, daysLeft } from "@/lib/yds";
+import { LOCKS, type Lock, MODES, type Mode, type YdsSettings, correctFor, daysLeft } from "@/lib/yds";
 
 const LOCK_COLOR: Record<Lock, string> = { kapali: "#8e95a3", zindan: "#c89a3e", sert: "#a8454e" };
 
-/** YDS ayarları: sınav tarihi, hedef puan, günlük kota ve Gelişim kilidi */
+/** İngilizce ayarları: mod (YDS ya da genel), sınav tarihi ve hedef (YDS), günlük kota ve Gelişim kilidi */
 export function YdsSettingsForm({ initial, today }: { initial: YdsSettings; today: string }) {
   const router = useRouter();
   const [s, setS] = useState({ ...initial, examDate: initial.examDate ?? "" });
@@ -17,13 +17,21 @@ export function YdsSettingsForm({ initial, today }: { initial: YdsSettings; toda
   const left = daysLeft(s.examDate || null, today);
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setErr(null);
-    try { await api("/api/yds", { method: "PUT", body: s }); router.push("/yds"); router.refresh(); }
+    try { await api("/api/yds", { method: "PUT", body: s }); router.push("/ingilizce"); router.refresh(); }
     catch (er) { setErr(er instanceof Error ? er.message : "Kaydedilemedi."); setBusy(false); }
   };
   return (
     <form className="card stack yds-settings" onSubmit={save}>
-      <h2>⚙️ YDS ayarları</h2>
-      <div className="st-two">
+      <h2>⚙️ Ayarlar</h2>
+      <span className="field-label">Neye çalışıyorsun?</span>
+      <div className="wd-tiers yds-locks" role="radiogroup" aria-label="Mod">
+        {(Object.keys(MODES) as Mode[]).map((m) => (
+          <button key={m} type="button" role="radio" aria-checked={s.mode === m} className="wd-tier-card" style={{ "--tier": m === "yds" ? "#9a6ad6" : "#5a9ac8" } as React.CSSProperties} onClick={() => set("mode", m)}>
+            <b>{MODES[m].title}</b><small className="muted">{MODES[m].hint}</small>
+          </button>
+        ))}
+      </div>
+      {s.mode === "yds" && <div className="st-two">
         <span>
           <label className="field-label" htmlFor="yds-date">Sınav tarihi</label>
           <input id="yds-date" className="input" type="date" min={today} value={s.examDate} onChange={(e) => set("examDate", e.target.value)} />
@@ -34,7 +42,7 @@ export function YdsSettingsForm({ initial, today }: { initial: YdsSettings; toda
           <input id="yds-target" className="input" type="number" min={1} max={100} value={s.target} onChange={(e) => set("target", Number(e.target.value))} />
           <small className="muted">80 sorudan en az {correctFor(s.target || 1)} doğru</small>
         </span>
-      </div>
+      </div>}
       <div className="st-two">
         <span>
           <label className="field-label" htmlFor="yds-words">Günlük kart (yeni + tekrar)</label>
@@ -45,7 +53,7 @@ export function YdsSettingsForm({ initial, today }: { initial: YdsSettings; toda
           <input id="yds-new" className="input" type="number" min={0} max={100} value={s.dailyNew} onChange={(e) => set("dailyNew", Number(e.target.value))} />
         </span>
       </div>
-      <label className="field-label" htmlFor="yds-q">Günlük soru</label>
+      <label className="field-label" htmlFor="yds-q">{s.mode === "yds" ? "Günlük soru" : "Günlük pratik (dakika: okuma, dinleme, konuşma...)"}</label>
       <input id="yds-q" className="input" type="number" min={0} max={300} value={s.dailyQuestions} onChange={(e) => set("dailyQuestions", Number(e.target.value))} />
       <p className="muted">Kaçırdığın günün eksiği (en çok bir günlük kota kadar) ertesi güne eklenir.</p>
       <span className="field-label">Gelişim kilidi · kota bitmeden</span>

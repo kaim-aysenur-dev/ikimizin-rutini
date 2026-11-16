@@ -1,6 +1,14 @@
-// YDS Kampı: kurallar (istemci ve sunucu). Kelime kartları aralıklı tekrarla (Leitner kutuları), günlük kota,
+// İngilizce bölümü (YDS Kampı ya da genel İngilizce): kurallar (istemci ve sunucu). Kelime kartları aralıklı tekrarla (Leitner kutuları), günlük kota,
 // kaçırılan günün telafisi, deneme puanı (her doğru 1,25 puan, yanlış götürmez) ve Gelişim kilidi.
 import { type Kind, YDS_WORDS } from "./yds-words";
+
+/** Kişiye göre: YDS'ye hazırlanan sınav sayacı, hedef puan ve denemeler görür; genel İngilizce'de kelime ve pratik dakikası */
+export type Mode = "yds" | "genel";
+export const MODES: Record<Mode, { name: string; title: string; hint: string }> = {
+  yds: { name: "YDS", title: "YDS Kampı", hint: "sınav tarihi, hedef puan, bölüm bölüm soru ve denemeler" },
+  genel: { name: "İngilizce", title: "İngilizce", hint: "sınav yok: kelime kartları ve günlük pratik dakikası" },
+};
+export const defaultMode = (name: string): Mode => (/ay[sş]enur/i.test(name) ? "yds" : "genel");
 
 export type Lock = "kapali" | "zindan" | "sert";
 export const LOCKS: Record<Lock, { name: string; hint: string }> = {
@@ -8,8 +16,9 @@ export const LOCKS: Record<Lock, { name: string; hint: string }> = {
   zindan: { name: "Yumuşak", hint: "Kota bitmeden zindana girilmez" },
   sert: { name: "Sert", hint: "Kota bitmeden zindan, zırh odası, giyinme ve eşya yerleştirme kapalı" },
 };
-export type YdsSettings = { examDate: string | null; target: number; dailyWords: number; dailyNew: number; dailyQuestions: number; lock: Lock };
-export const DEFAULT_SETTINGS: YdsSettings = { examDate: null, target: 70, dailyWords: 30, dailyNew: 15, dailyQuestions: 20, lock: "zindan" };
+// dailyQuestions: YDS'de günlük soru, genel İngilizce'de günlük pratik dakikası
+export type YdsSettings = { mode: Mode; examDate: string | null; target: number; dailyWords: number; dailyNew: number; dailyQuestions: number; lock: Lock };
+export const DEFAULT_SETTINGS: YdsSettings = { mode: "yds", examDate: null, target: 70, dailyWords: 30, dailyNew: 15, dailyQuestions: 20, lock: "zindan" };
 
 /** Kart kutularının tekrar aralığı (gün): bilmediğin sık, bildiğin seyrek gelir */
 export const INTERVALS = [0, 1, 2, 4, 7, 15, 30, 60];
@@ -37,6 +46,11 @@ export const SECTIONS: Record<Section, { name: string; count: number }> = {
   diyalog: { name: "Diyalog", count: 5 }, anlamca: { name: "Anlamca yakın cümle", count: 4 }, ilgisiz: { name: "Anlamı bozan cümle", count: 3 },
 };
 export const SECTION_ORDER = Object.keys(SECTIONS) as Section[];
+/** Genel İngilizce pratik türleri (dakika olarak kaydedilir) */
+export type Practice = "okuma" | "dinleme" | "konusma" | "yazma" | "gramer" | "uygulama";
+export const PRACTICES: Record<Practice, string> = { okuma: "Okuma", dinleme: "Dinleme (dizi, podcast)", konusma: "Konuşma", yazma: "Yazma", gramer: "Gramer", uygulama: "Dil uygulaması" };
+export const PRACTICE_ORDER = Object.keys(PRACTICES) as Practice[];
+export const sectionName = (k: string) => (k in SECTIONS ? SECTIONS[k as Section].name : k in PRACTICES ? PRACTICES[k as Practice] : k);
 export const scoreOf = (correct: number) => Math.round(correct * 1.25 * 10) / 10;
 /** Hedef puan için gereken doğru sayısı */
 export const correctFor = (target: number) => Math.ceil(target / 1.25);

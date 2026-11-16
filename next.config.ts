@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // YDS Kampı İngilizce bölümüne taşındı (YDS kişiye göre bir mod)
+  async redirects() {
+    return [{ source: "/yds/:path*", destination: "/ingilizce/:path*", permanent: true }, { source: "/yds", destination: "/ingilizce", permanent: true }];
+  },
 };
 
 export default nextConfig;

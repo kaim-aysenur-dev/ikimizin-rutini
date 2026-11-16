@@ -10,11 +10,14 @@ import { imageUrl } from "@/lib/cloudinary";
 import { SITE_NAME } from "@/lib/site";
 import { todayIstanbul } from "@/lib/dates";
 import { adventure } from "@/lib/xp-server";
+import { MODES, defaultMode } from "@/lib/yds";
+import { settingsOf } from "@/lib/yds-server";
 
 // Oturum gerektiren bütün sayfaların kabuğu.
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
-  const adv = await adventure(user.id, user.accountId, todayIstanbul());
+  const [adv, eng] = await Promise.all([adventure(user.id, user.accountId, todayIstanbul()), settingsOf(user.id, defaultMode(user.displayName))]);
+  const english = MODES[eng.mode].name; // menüde: YDS'ye hazırlanana "YDS", diğerine "İngilizce"
   const avatarUrl = user.avatarPublicId
     ? imageUrl(user.avatarPublicId, { width: 96, height: 96, crop: "fill", gravity: "face" })
     : null;
@@ -25,7 +28,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       <PanelBackdrop initialXp={adv.xp} />
       <aside className="sidebar">
         <Brand />
-        <SideNav />
+        <SideNav english={english} />
         <SideExtras />
         <p className="sidebar-foot">{SITE_NAME}</p>
       </aside>
@@ -39,7 +42,7 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         </header>
         {children}
       </div>
-      <TabBar />
+      <TabBar english={english} />
     </div>
     </TimerProvider>
   );

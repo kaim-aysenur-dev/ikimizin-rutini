@@ -2,24 +2,25 @@ import "server-only";
 import { addDays } from "./dates";
 import { sql } from "./db";
 import {
-  BUILTIN, type Card, DEFAULT_SETTINGS, type Grade, type Lock, type Section, type YdsDay, type YdsSettings, type YdsToday, builtinByKey, isDone, nextBox, quotaFor,
+  BUILTIN, type Card, DEFAULT_SETTINGS, type Grade, type Lock, type Mode, type Section, type YdsDay, type YdsSettings, type YdsToday, builtinByKey, isDone, nextBox, quotaFor,
 } from "./yds";
 
 // YDS Kampı. Herkes kendi kartlarını, kayıtlarını ve denemelerini görür; partner yalnız günlük kota durumunu görür.
 
 type U = { id: string; accountId: string };
 
-export async function settingsOf(userId: string): Promise<YdsSettings & { exists: boolean }> {
-  const [r] = await sql()`select to_char(exam_date, 'YYYY-MM-DD') as exam_date, target, daily_words, daily_new, daily_questions, lock from yds_settings where user_id = ${userId}`;
-  if (!r) return { ...DEFAULT_SETTINGS, exists: false };
-  return { examDate: r.exam_date, target: r.target, dailyWords: r.daily_words, dailyNew: r.daily_new, dailyQuestions: r.daily_questions, lock: r.lock as Lock, exists: true };
+/** fallback: ayar yoksa mod (adından: Ayşenur YDS, diğeri genel İngilizce) */
+export async function settingsOf(userId: string, fallback: Mode = "yds"): Promise<YdsSettings & { exists: boolean }> {
+  const [r] = await sql()`select mode, to_char(exam_date, 'YYYY-MM-DD') as exam_date, target, daily_words, daily_new, daily_questions, lock from yds_settings where user_id = ${userId}`;
+  if (!r) return { ...DEFAULT_SETTINGS, mode: fallback, exists: false };
+  return { mode: r.mode as Mode, examDate: r.exam_date, target: r.target, dailyWords: r.daily_words, dailyNew: r.daily_new, dailyQuestions: r.daily_questions, lock: r.lock as Lock, exists: true };
 }
 
 export async function saveSettings(userId: string, s: YdsSettings) {
   await sql()`
-    insert into yds_settings (user_id, exam_date, target, daily_words, daily_new, daily_questions, lock, updated_at)
-    values (${userId}, ${s.examDate}, ${s.target}, ${s.dailyWords}, ${s.dailyNew}, ${s.dailyQuestions}, ${s.lock}, now())
-    on conflict (user_id) do update set exam_date = excluded.exam_date, target = excluded.target, daily_words = excluded.daily_words,
+    insert into yds_settings (user_id, mode, exam_date, target, daily_words, daily_new, daily_questions, lock, updated_at)
+    values (${userId}, ${s.mode}, ${s.examDate}, ${s.target}, ${s.dailyWords}, ${s.dailyNew}, ${s.dailyQuestions}, ${s.lock}, now())
+    on conflict (user_id) do update set mode = excluded.mode, exam_date = excluded.exam_date, target = excluded.target, daily_words = excluded.daily_words,
       daily_new = excluded.daily_new, daily_questions = excluded.daily_questions, lock = excluded.lock, updated_at = now()`;
 }
 
@@ -117,7 +118,7 @@ export async function deleteWord(userId: string, id: string): Promise<boolean> {
 
 /* -------------------------------- soru ve deneme -------------------------------- */
 
-export async function logPractice(userId: string, today: string, section: Section, solved: number, correct: number) {
+export async function logPractice(userId: string, today: string, section: string, solved: number, correct: number) {
   const [r] = await sql()`insert into yds_practice (user_id, day, section, solved, correct) values (${userId}, ${today}, ${section}, ${solved}, ${correct}) returning id`;
   return r.id as string;
 }
@@ -141,8 +142,8 @@ export async function deleteExam(userId: string, id: string) {
 /* ------------------------------------ özet ------------------------------------ */
 
 /** YDS sayfası: bugün, son 30 gün, seri, kart istatistiği, bölüm doğruluğu, denemeler, bugünkü soru kayıtları, partnerin durumu */
-export async function ydsOverview(user: U, today: string) {
-  const settings = await settingsOf(user.id);
+export async function ydsOverview(user: U, today: string, fallback: Mode = "yds") {
+  const settings = await settingsOf(user.id, fallback);
   const from = addDays(today, -29);
   const [t, days, [cards], sections, exams, practice, partnerRow] = await Promise.all([
     todayOf(user.id, today, settings),
@@ -151,19 +152,19 @@ export async function ydsOverview(user: U, today: string) {
     sql()`select section, sum(solved)::int as solved, sum(correct)::int as correct from yds_practice where user_id = ${user.id} and day >= ${from} group by section`,
     sql()`select id, to_char(day, 'YYYY-MM-DD') as day, title, sections, correct, total, minutes from yds_exams where user_id = ${user.id} order by day desc, created_at desc limit 30`,
     sql()`select id, section, solved, correct from yds_practice where user_id = ${user.id} and day = ${today} order by created_at desc`,
-    sql()`select u.id, u.display_name from users u join yds_settings s on s.user_id = u.id where u.account_id = ${user.accountId} and u.id <> ${user.id} limit 1`,
+    sql()`select u.id, u.display_name, s.mode from users u join yds_settings s on s.user_id = u.id where u.account_id = ${user.accountId} and u.id <> ${user.id} limit 1`,
   ]);
   const ok = (d: YdsDay) => d.words >= settings.dailyWords && d.questions >= settings.dailyQuestions;
   // seri: bugün bittiyse sayılır; dünden geriye kotası tutan kesintisiz günler (bugün henüz bitmediyse seri bozulmaz)
   let streak = t.done ? 1 : 0;
   for (let k = days.length - 2; k >= 0 && ok(days[k]); k--) streak++;
-  const partner = partnerRow[0] ? { id: partnerRow[0].id as string, name: (partnerRow[0].display_name as string).split(" ")[0], today: await todayOf(partnerRow[0].id, today) } : null;
+  const partner = partnerRow[0] ? { id: partnerRow[0].id as string, name: (partnerRow[0].display_name as string).split(" ")[0], mode: partnerRow[0].mode as Mode, today: await todayOf(partnerRow[0].id, today) } : null;
   return {
     settings, today: t, days, streak, cards: { seen: cards.seen as number, learned: cards.learned as number, learning: cards.learning as number, total: BUILTIN.length },
-    sections: Object.fromEntries(sections.map((r) => [r.section, { solved: r.solved, correct: r.correct }])) as Partial<Record<Section, { solved: number; correct: number }>>,
+    sections: Object.fromEntries(sections.map((r) => [r.section, { solved: r.solved, correct: r.correct }])) as Record<string, { solved: number; correct: number }>,
     exams: exams.map((r): Exam => ({ id: r.id, day: r.day, title: r.title, sections: r.sections, correct: r.correct, total: r.total, minutes: r.minutes })),
-    practice: practice.map((r) => ({ id: r.id as string, section: r.section as Section, solved: r.solved as number, correct: r.correct as number })),
-    partner: partner && { id: partner.id, name: partner.name, words: partner.today.words, questions: partner.today.questions, quota: partner.today.quota, done: partner.today.done },
+    practice: practice.map((r) => ({ id: r.id as string, section: r.section as string, solved: r.solved as number, correct: r.correct as number })),
+    partner: partner && { id: partner.id, name: partner.name, mode: partner.mode, words: partner.today.words, questions: partner.today.questions, quota: partner.today.quota, done: partner.today.done },
   };
 }
 
@@ -172,7 +173,7 @@ export async function ydsStatus(userId: string, today: string) {
   const s = await settingsOf(userId);
   if (!s.exists) return null;
   const t = await todayOf(userId, today, s);
-  return { done: t.done, words: t.words, questions: t.questions, quota: t.quota, lock: s.lock, examDate: s.examDate, target: s.target };
+  return { done: t.done, words: t.words, questions: t.questions, quota: t.quota, lock: s.lock, examDate: s.examDate, target: s.target, mode: s.mode };
 }
 
 /** Bugün sayfasındaki kart: kendi durumun ve partnerinki (YDS ayarı olanlar) */
